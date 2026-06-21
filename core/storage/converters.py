@@ -52,3 +52,24 @@ def snapshots_to_frame(snapshots: Sequence[Snapshot]) -> pd.DataFrame:
         for s in snapshots
     ]
     return normalize_frame(pd.DataFrame(records, columns=COLUMNS))
+
+
+def frame_to_snapshots(frame: pd.DataFrame) -> list[Snapshot]:
+    """Reconstruit des :class:`Snapshot` depuis un frame canonique (lecture du lac).
+
+    Réciproque de :func:`snapshots_to_frame` : permet à la jambe ingestion (P04) de
+    consommer le cold store Parquet via le protocole ``SnapshotStore`` (cf.
+    :class:`core.storage.snapshot_store.ParquetSnapshotStore`).
+    """
+    frame = normalize_frame(frame)
+    return [
+        Snapshot(
+            snapshotted_at=row[SNAPSHOTTED_AT].to_pydatetime(),
+            source=str(row[SOURCE]),
+            gpu_model=str(row[GPU_MODEL]),
+            price_usd_per_hour=float(row[PRICE]),
+            lease_type=str(row[LEASE_TYPE]),
+            availability=int(row[AVAILABILITY]),
+        )
+        for _, row in frame.iterrows()
+    ]
