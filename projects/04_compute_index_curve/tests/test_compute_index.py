@@ -69,3 +69,35 @@ def test_default_config_is_market_standard() -> None:
     assert DEFAULT_INDEX_CONFIG.method == "trimmed_mean20+mad2.5"
     assert DEFAULT_INDEX_CONFIG.staleness == dt.timedelta(hours=24)
     assert "aws" in DEFAULT_INDEX_CONFIG.excluded_sources
+
+
+def test_intra_venue_distribution_aggregated_not_arbitrary(as_of) -> None:
+    # Une venue avec N offres au MÊME timestamp -> médiane robuste de la cohorte,
+    # jamais une offre prise au hasard (le bug corrigé). 100.0 est un outlier intra-venue.
+    ts = as_of - dt.timedelta(hours=1)
+    offers = [
+        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 1),
+        Snapshot(ts, "vastai", "H100", 2.2, "on_demand", 1),
+        Snapshot(ts, "vastai", "H100", 100.0, "on_demand", 1),
+        Snapshot(ts, "runpod", "H100", 2.4, "on_demand", 1),
+    ]
+    pt = build_spot_index(offers, as_of, "H100")
+    # vastai -> median(2.0, 2.2, 100) = 2.2 ; runpod -> 2.4 ; 2 venues ; trimmed(k=0) = 2.3
+    assert pt.n_sources == 2
+    assert pt.price_usd_per_hour == pytest.approx(2.3)
+
+
+def test_intra_venue_availability_is_summed(as_of) -> None:
+    # La disponibilité d'une venue agrège tout son carnet (somme), pas une offre.
+    from core.ingestion.estimators import AvailabilityWeightedMean, NoOutlierFilter
+
+    ts = as_of - dt.timedelta(hours=1)
+    offers = [
+        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 3),
+        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 5),
+        Snapshot(ts, "runpod", "H100", 4.0, "on_demand", 2),
+    ]
+    cfg = IndexConfig(estimator=AvailabilityWeightedMean(), outlier_filter=NoOutlierFilter())
+    pt = build_spot_index(offers, as_of, "H100", config=cfg)
+    # vastai dispo=8 @2.0, runpod dispo=2 @4.0 -> (2*8 + 4*2)/10 = 2.4
+    assert pt.price_usd_per_hour == pytest.approx(2.4)
