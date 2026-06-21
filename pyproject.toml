@@ -34,7 +34,11 @@ python_version = "3.11"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "core/backtest/tests", "projects/04_compute_index_curve/tests"]
+# Un seul process ne peut pas agréger plusieurs suites projet : chaque
+# projects/*/tests fait `from conftest import ...` (import nu) → collision de
+# module `conftest` entre projets. La CI lance donc chaque dossier en isolation
+# (voir .github/workflows/ci.yml). testpaths par défaut = la fondation P01.
+testpaths = ["tests"]
 
 [build-system]
 requires = ["hatchling"]

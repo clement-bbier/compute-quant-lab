@@ -14,6 +14,10 @@
 /data/snapshots/*
 !/data/snapshots/.gitkeep
 # Pointeurs DVC versionnés (le .dvc est suivi, jamais le contenu)
+!/data/raw/*.dvc
+!/data/interim/*.dvc
+!/data/processed/*.dvc
+!/data/snapshots/*.dvc
 !/data/**/*.dvc
 
 # Expériences / artefacts
