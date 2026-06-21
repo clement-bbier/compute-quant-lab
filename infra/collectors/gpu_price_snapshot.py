@@ -4,51 +4,48 @@ L'historique des prix de location GPU n'existe PAS rétroactivement : les market
 n'exposent que le prix courant. On le construit donc en relevant (snapshot) régulièrement
 le prix live et en l'horodatant. Planifier ce script via cron (ex. toutes les heures).
 
-Sortie : un fichier horodaté append-only dans data/snapshots/, qui devient avec le temps
-la série temporelle propriétaire du labo — un atout que personne d'autre n'a.
+Sortie : la série propriétaire append-only dans ``data/snapshots/`` (versionnée DVC),
+un atout que personne d'autre n'a. L'écriture passe par
+:class:`~core.ingestion.snapshot_store.CsvSnapshotStore`, donc le collecteur est
+**idempotent** : le relancer ne crée jamais de doublon.
 
-NOTE : la fonction d'appel marketplace est un STUB à brancher sur l'API réelle
-(Vast.ai / RunPod) dans core/ingestion/gpu_market.py.
+Le relevé live réel vient de :func:`core.ingestion.gpu_market.fetch_live_gpu_prices`
+(Vast.ai aujourd'hui ; clés via ``.env``).
 """
 
 from __future__ import annotations
 
-import csv
-import datetime as dt
+import logging
 from pathlib import Path
+
+from core.ingestion.gpu_market import fetch_live_gpu_prices
+from core.ingestion.snapshot_store import CsvSnapshotStore
+
+logger = logging.getLogger(__name__)
 
 SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "data" / "snapshots"
 
 
-def fetch_live_gpu_prices() -> list[dict]:
-    """STUB : remplacer par l'appel réel à l'API marketplace.
+def snapshot(store: CsvSnapshotStore | None = None) -> Path:
+    """Relève le prix live de toutes les marketplaces configurées et l'append (dédupliqué).
 
-    Doit renvoyer une liste de dicts, p. ex. :
-        [{"gpu_model": "H100", "price_eur_per_hour": 1.55, "availability": 120}, ...]
+    Parameters
+    ----------
+    store
+        Store de destination. Par défaut : ``data/snapshots/`` du dépôt.
+
+    Returns
+    -------
+    pathlib.Path
+        Le fichier mensuel écrit (ou le répertoire si tout était déjà présent).
     """
-    raise NotImplementedError(
-        "Brancher sur core.ingestion.gpu_market (API Vast.ai / RunPod)."
-    )
-
-
-def snapshot() -> Path:
-    """Relève le prix live et l'append dans un CSV horodaté (UTC)."""
-    now = dt.datetime.now(dt.timezone.utc)
-    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    out = SNAPSHOT_DIR / f"gpu_prices_{now:%Y%m}.csv"
-
+    store = store or CsvSnapshotStore(SNAPSHOT_DIR)
     rows = fetch_live_gpu_prices()
-    write_header = not out.exists()
-    with out.open("a", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["snapshotted_at", "gpu_model", "price_eur_per_hour", "availability"]
-        )
-        if write_header:
-            writer.writeheader()
-        for r in rows:
-            writer.writerow({"snapshotted_at": now.isoformat(), **r})
-    return out
+    path = store.append(rows)
+    logger.info("Snapshot collecté : %d relevés -> %s", len(rows), path)
+    return path
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     snapshot()
