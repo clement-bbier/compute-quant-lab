@@ -1,0 +1,7 @@
+# Artefacts de run générés (MLflow, last_run.json, figures) — non versionnés.
+# SYNTHESIS.md et RISK_REVIEW.md le sont (synthèses humaines).
+*
+!.gitkeep
+!.gitignore
+!SYNTHESIS.md
+!RISK_REVIEW.md
