@@ -17,5 +17,5 @@ jobs:
       - run: uv run mypy core
       - name: Tests (chaque module en isolation — conftest non partagé entre projets)
         run: |
-          for d in tests core/backtest/tests core/features/tests core/models/tests core/storage/tests projects/*/tests; do
+          for d in tests core/backtest/tests core/features/tests core/models/tests core/signals/tests core/storage/tests projects/*/tests; do
             echo "== pytest $d ==" ; uv run pytest -q "$d" ; done
