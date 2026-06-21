@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import statistics
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Sequence
 
@@ -112,22 +114,25 @@ def build_spot_index(
         and cutoff <= s.snapshotted_at <= as_of  # staleness + point-in-time
     ]
 
-    # Une venue ne pèse qu'une fois : on retient son relevé le plus récent dans la fenêtre.
-    latest_by_source: dict[str, Snapshot] = {}
+    # Une venue ne pèse qu'une fois : on agrège la DISTRIBUTION de sa cohorte la plus
+    # fraîche (médiane robuste) au lieu de retenir une offre arbitraire sur égalité de
+    # timestamp. L'agrégation INTER-venues reste la responsabilité de l'estimateur.
+    offers_by_source: dict[str, list[Snapshot]] = defaultdict(list)
     for s in relevant:
-        current = latest_by_source.get(s.source)
-        if current is None or s.snapshotted_at > current.snapshotted_at:
-            latest_by_source[s.source] = s
+        offers_by_source[s.source].append(s)
 
-    venue_rates = [
-        VenueRate(
-            source=s.source,
-            rate=s.price_usd_per_hour,
-            availability=s.availability,
-            snapshotted_at=s.snapshotted_at,
+    venue_rates: list[VenueRate] = []
+    for source, offers in offers_by_source.items():
+        latest_at = max(o.snapshotted_at for o in offers)
+        cohort = [o for o in offers if o.snapshotted_at == latest_at]
+        venue_rates.append(
+            VenueRate(
+                source=source,
+                rate=statistics.median(o.price_usd_per_hour for o in cohort),
+                availability=sum(o.availability for o in cohort),
+                snapshotted_at=latest_at,
+            )
         )
-        for s in latest_by_source.values()
-    ]
     if not venue_rates:
         raise InsufficientDataError(
             f"Aucune venue fraîche pour {gpu_model}/{config.lease_type} à {as_of.isoformat()} "
