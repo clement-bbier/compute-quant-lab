@@ -1,0 +1,25 @@
+{
+  "params": {
+    "region": "FR",
+    "gpu": "H100",
+    "tdp_w": 700.0,
+    "pue": 1.82,
+    "n_gpus": 8,
+    "fx_eur_per_usd": 0.92,
+    "kernel": "PythonOracle",
+    "energy_source": "synthetic_fallback",
+    "window_start": "2025-01-01 00:00:00+00:00",
+    "window_end": "2025-01-31 23:00:00+00:00",
+    "dvc_data_version": "untracked"
+  },
+  "metrics": {
+    "spread_mean_eur": 2.0238464337533935,
+    "spread_std_eur": 0.11022225852567924,
+    "spread_min_eur": 1.7845143246294184,
+    "spread_max_eur": 2.322430520294559,
+    "spread_positive_share": 1.0,
+    "revenue_mean_eur": 2.1368113583891537,
+    "cost_mean_eur": 0.11296492463576037,
+    "n_obs": 744.0
+  }
+}

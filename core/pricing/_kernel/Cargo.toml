@@ -1,0 +1,13 @@
+[package]
+name = "spark_kernel"
+version = "0.1.0"
+edition = "2021"
+description = "Noyau vectoriel du digital spark spread (pyo3) — parité avec l'oracle Python."
+
+[lib]
+name = "_kernel"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py311"] }
+numpy = "0.23"
