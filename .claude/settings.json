@@ -26,7 +26,7 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "command -v uv >/dev/null 2>&1 && uv sync --quiet 2>/dev/null || true" }
+          { "type": "command", "command": "command -v uv >/dev/null 2>&1 && uv sync --extra dev --quiet 2>/dev/null || true" }
         ]
       }
     ]
