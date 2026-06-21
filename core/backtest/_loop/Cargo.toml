@@ -1,0 +1,13 @@
+[package]
+name = "backtest_loop"
+version = "0.1.0"
+edition = "2021"
+description = "Noyau Rust de la phase 2 du moteur de backtest P08 (accumulation PnL point-in-time)."
+
+[lib]
+name = "backtest_loop"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py311"] }
+numpy = "0.23"

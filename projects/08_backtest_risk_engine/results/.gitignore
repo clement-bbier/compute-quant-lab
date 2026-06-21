@@ -1,0 +1,4 @@
+# Artefacts de run générés (MLflow, snapshots) — non versionnés.
+*
+!.gitkeep
+!.gitignore
