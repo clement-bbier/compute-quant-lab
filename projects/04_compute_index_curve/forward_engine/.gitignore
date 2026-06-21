@@ -1,0 +1,2 @@
+# Artefacts de build Rust (lourds, régénérés par `maturin develop` / `cargo build`).
+/target
