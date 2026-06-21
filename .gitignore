@@ -8,6 +8,8 @@
 /data/interim/*
 /data/processed/*
 !/data/**/.gitkeep
+/data/snapshots/*
+!/data/snapshots/.gitkeep
 
 # Expériences / artefacts
 /experiments/mlruns/
