@@ -1,0 +1,15 @@
+# Paquet d'extension Rust autonome (maturin), volontairement HORS du pyproject.toml
+# racine (zone protégée). Build : `maturin develop -m forward_engine/Cargo.toml`.
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "forward_engine"
+version = "0.1.0"
+description = "Monte-Carlo forward compute (Schwartz) en Rust pour P04."
+requires-python = ">=3.11"
+classifiers = ["Programming Language :: Rust"]
+
+[tool.maturin]
+module-name = "forward_engine"
