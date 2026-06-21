@@ -1,0 +1,67 @@
+{
+  "run_id": "d0376bc0c08d4f74960722bf1f14ab2b",
+  "params": {
+    "mode": "synthetic",
+    "seed": 7,
+    "lead_injected_days": 3,
+    "variables": "gas_price,hdd,cdd",
+    "publication_lags_days": "{\"gas_price\": 1.0, \"hdd\": 2.0, \"cdd\": 2.0}",
+    "feature_specs": "{\"gas_price\": {\"lags\": [0, 1], \"rolling_means\": [7], \"diffs\": [7]}, \"hdd\": {\"lags\": [0], \"rolling_means\": [7], \"diffs\": []}, \"cdd\": {\"lags\": [0], \"rolling_means\": [7], \"diffs\": []}}",
+    "max_lag": 7,
+    "n_decision_points": 470,
+    "simulated": true
+  },
+  "lead": {
+    "best_feature": "gas_price_lag0",
+    "best_lag": 2,
+    "best_abs_corr": 0.6506227874433607,
+    "ols_confirmation": {
+      "lag": 2,
+      "coef": -0.0034585630843087596,
+      "intercept": 2.0510348095935057e-06,
+      "pvalue": 3.7216920475355284e-45,
+      "r2_in": 0.45711549441210075,
+      "r2_oos": 0.34607062762953067,
+      "n_train": 328,
+      "n_test": 141
+    }
+  },
+  "per_feature": {
+    "gas_price_lag0": {
+      "best_lag": 2,
+      "corr": -0.6506227874433607
+    },
+    "gas_price_lag1": {
+      "best_lag": 1,
+      "corr": -0.6500360693033994
+    },
+    "gas_price_roll7": {
+      "best_lag": 2,
+      "corr": -0.3122895666200714
+    },
+    "gas_price_diff7": {
+      "best_lag": 2,
+      "corr": -0.4571451086523367
+    },
+    "hdd_lag0": {
+      "best_lag": 1,
+      "corr": -0.6458065563444675
+    },
+    "hdd_roll7": {
+      "best_lag": 1,
+      "corr": -0.32088112036036964
+    },
+    "cdd_lag0": {
+      "best_lag": 7,
+      "corr": -0.07387735632612251
+    },
+    "cdd_roll7": {
+      "best_lag": 2,
+      "corr": 0.0665651322333406
+    }
+  },
+  "dvc": {
+    "status": "tracked",
+    "pointer_committable": false
+  }
+}
