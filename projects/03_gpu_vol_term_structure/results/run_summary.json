@@ -1,0 +1,22 @@
+{
+  "as_of": "2026-06-21T12:02:35.073390+00:00",
+  "gpu_model": "H100",
+  "spot_source": "synthetic_demo",
+  "spot_usd_per_gpu_h": 1.776484959044296,
+  "realized_vol_annualized": 0.995821846984915,
+  "ewma_vol_annualized": 0.9735261200742933,
+  "term_structure": {
+    "shape": "contango",
+    "slope": 0.00022214513580798395,
+    "curvature": -0.11432468603104629,
+    "front_price": 1.776484959044296,
+    "simulated": true
+  },
+  "signal": {
+    "value": -1,
+    "rationale": "contango : carry n\u00e9gatif (roll-yield)",
+    "simulated": true
+  },
+  "mlflow_run_id": "bfbeeba40674413a8a77d487c487ccf1",
+  "curve_model": "schwartz_mc_python"
+}
