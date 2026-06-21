@@ -1,0 +1,59 @@
+{
+  "disclaimer": "THÉORIQUE/SIMULÉ — les futures compute (settlement SDH100RT) ne sont pas listés. La forward provient d'un modèle (Schwartz/carry), jamais d'un marché observé.",
+  "simulated": true,
+  "params": {
+    "gpu": "H100",
+    "spot_usd_per_gpu_h": 2.5,
+    "spot_source": "assumed_fallback",
+    "rate_annual": 0.04,
+    "carry_convenience_yield": 0.01,
+    "forward_model": "schwartz_analytic+cost_of_carry",
+    "schwartz_kappa": 0.05,
+    "schwartz_theta": 2.5,
+    "schwartz_sigma": 0.3,
+    "maturities_days": "30,90,180,360",
+    "simulated": true
+  },
+  "term_structure": [
+    {
+      "maturity_days": 30.0,
+      "tau_years": 0.08213552361396304,
+      "carry_forward": 2.506167760033354,
+      "carry_basis": 0.006167760033354064,
+      "carry_d_forward_d_tau": 0.07518503280099989,
+      "p04_forward": 3.8339152943998425,
+      "p04_basis": 1.3339152943998425,
+      "p04_implied_convenience_yield": -5.165979099179564
+    },
+    {
+      "maturity_days": 90.0,
+      "tau_years": 0.2464065708418891,
+      "carry_forward": 2.5185489671573595,
+      "carry_basis": 0.01854896715735954,
+      "carry_d_forward_d_tau": 0.07555646901472036,
+      "p04_forward": 3.92056273153429,
+      "p04_basis": 1.42056273153429,
+      "p04_implied_convenience_yield": -1.7860246228452872
+    },
+    {
+      "maturity_days": 180.0,
+      "tau_years": 0.4928131416837782,
+      "carry_forward": 2.537235559987762,
+      "carry_basis": 0.037235559987761846,
+      "carry_d_forward_d_tau": 0.07611706679963323,
+      "p04_forward": 3.920780436854389,
+      "p04_basis": 1.4207804368543888,
+      "p04_implied_convenience_yield": -0.8731249860931245
+    },
+    {
+      "maturity_days": 360.0,
+      "tau_years": 0.9856262833675564,
+      "carry_forward": 2.575025714746564,
+      "carry_basis": 0.07502571474656383,
+      "carry_d_forward_d_tau": 0.077250771442397,
+      "p04_forward": 3.9207804637254213,
+      "p04_basis": 1.4207804637254213,
+      "p04_implied_convenience_yield": -0.41656249999999984
+    }
+  ]
+}
