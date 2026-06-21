@@ -1,0 +1,2 @@
+# Artefacts de compilation Rust (Cargo.lock est versionné pour la reproductibilité).
+/target
