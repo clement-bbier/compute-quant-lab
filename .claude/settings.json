@@ -1,0 +1,40 @@
+{
+  "$comment": "Garde-fous DÉTERMINISTES du labo. Ce qui doit arriver à coup sûr va ici, pas dans CLAUDE.md (une instruction promptée peut être ignorée sous pression ; un hook, non).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *data/raw/*) echo 'BLOQUÉ: data/raw/ est immuable (intégrité point-in-time). Écris dans data/interim/.' >&2; exit 2;; *.env) echo 'BLOQUÉ: ne jamais écrire/committer un .env. Utilise .env.example.' >&2; exit 2;; esac"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.py) ruff format \"$f\" 2>/dev/null; ruff check --fix \"$f\" 2>/dev/null;; esac"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "command -v uv >/dev/null 2>&1 && uv sync --quiet 2>/dev/null || true" }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Bash(rm -rf data/raw/*)",
+      "Read(./.env)"
+    ]
+  }
+}

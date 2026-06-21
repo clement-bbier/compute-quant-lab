@@ -1,0 +1,35 @@
+{
+  "$comment": "Manifest MCP — DOIT rester à la racine (Claude Code ne le détecte pas dans .claude/). Le CODE des serveurs custom vit dans infra/mcp-servers/. Aucun secret ici : les tokens passent par l'environnement (voir .env.example). S&P Global et Tavily sont des connecteurs déjà disponibles côté compte.",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CLAUDE_PROJECT_DIR:-.}/data"]
+    },
+    "fetch": {
+      "$comment": "Récupération de pages web (serveur de référence). Vérifier le nom exact du package au moment de l'install.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+    "energy-data": {
+      "$comment": "Serveur custom — infra/mcp-servers/energy-server/. Lit ENTSOE_API_TOKEN.",
+      "command": "python",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/infra/mcp-servers/energy-server/server.py"],
+      "env": { "ENTSOE_API_TOKEN": "${ENTSOE_API_TOKEN}" }
+    },
+    "gpu-price": {
+      "$comment": "Serveur custom — infra/mcp-servers/gpu-price-server/.",
+      "command": "python",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/infra/mcp-servers/gpu-price-server/server.py"]
+    },
+    "sp-global": {
+      "$comment": "S&P Global / Kensho — donnée financière de référence institutionnelle. Connecteur HTTP déjà disponible côté compte ; URL/auth à confirmer dans la console.",
+      "type": "url",
+      "url": "https://kfinance.kensho.com/integrations/mcp"
+    },
+    "tavily": {
+      "$comment": "Recherche web structurée pour la veille (literature-scout).",
+      "type": "url",
+      "url": "https://mcp.tavily.com/mcp"
+    }
+  }
+}
