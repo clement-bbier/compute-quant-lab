@@ -1,38 +1,29 @@
-"""Producteurs de signaux génériques + mocks déterministes (placeholders P02/P06/P09).
+"""Mocks de signaux déterministes (placeholders du PoC) + ré-export du contrat canonique.
 
-Un ``SignalProducer`` rend, à chaque instant t, une **vue directionnelle** ``s ∈ [-1, 1]``
-à partir de données ≤ t (il consomme la ``PointInTimeView`` du moteur P08). C'est le contrat
-que respecteront les vrais signaux à la convergence — mean-reversion (P02), dérivés (P06),
-ML (P09) — sans que le desk change de code (OCP).
+Le contrat ``SignalProducer`` et la provenance vivent désormais dans ``core.signals`` (fondation
+promue par P12) ; on les **ré-exporte** ici pour la rétro-compatibilité. Les **vrais** producteurs
+(mean-reversion P02, basis futures P06, ML P09) sont dans ``core.signals`` et se branchent dans le
+desk via ``run_desk.REAL_PRODUCERS`` sans que le desk change de code (OCP).
 
-Au PoC, on fournit trois mocks **sans état** (donc trivialement déterministes), tous étiquetés
-simulés : ``ConstantMock`` (carry/biais directionnel constant), ``MeanReversionMock`` (fade la
-déviation, style P02), ``MomentumMock`` (suit la tendance, style P06/P09). Leur pertinence
-économique est hors sujet : ce sont des bouchons.
+Les mocks ci-dessous restent pour les tests de régression du desk (cas analytiques, anti
+look-ahead, DI) : trois bouchons **sans état**, étiquetés simulés — ``ConstantMock`` (carry
+constant), ``MeanReversionMock`` (fade la déviation, style P02), ``MomentumMock`` (suit la
+tendance, style P06/P09). Leur pertinence économique est hors sujet.
 """
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
-
 from core.backtest import PointInTimeView
+from core.signals import SignalProducer
 
 from provenance import SignalProvenance
 
-
-@runtime_checkable
-class SignalProducer(Protocol):
-    """Source d'un signal directionnel point-in-time, étiquetée par sa provenance.
-
-    Compatible avec le ``Strategy`` Protocol de P08 (``signal(view) -> float``), mais la
-    sortie est interprétée comme une **vue normalisée** dans [-1, 1], pas une position finale :
-    c'est le ``PortfolioConstructor`` qui décide de la taille.
-    """
-
-    name: str
-    provenance: SignalProvenance
-
-    def signal(self, view: PointInTimeView) -> float: ...
+__all__ = [
+    "SignalProducer",
+    "ConstantMock",
+    "MeanReversionMock",
+    "MomentumMock",
+]
 
 
 def _clip_unit(value: float) -> float:

@@ -4,7 +4,21 @@
 > convergence — CONVERGENCE.md §3). En attendant, on applique sa discipline ici : **attaquer le
 > PnL net**, traquer look-ahead / overfitting / coûts sous-estimés (skill `/backtest-pitfalls`).
 
-## Verdict
+## Mise à jour P12 (2026-06-22) — signaux **réels** branchés (P02/P06/P09)
+Le desk tourne maintenant sur les vrais producteurs de `core.signals` (run `cfcd48b6…`). La revue
+ci-dessous (rédigée à l'ère des mocks) **tient toujours**, avec trois aggravations à acter :
+- **Brut positif mais artefactuel** : +0.506 (Sharpe 1.24) sur série synthétique mean-reverting —
+  les signaux épousent le générateur OU. **Ne pas confondre avec de l'alpha** (même piège que P02).
+- **Net bien pire** : **−4.47** (vs −0.54 mocks), turnover **455** (vs 86.5). Les vrais signaux
+  churnent ×5 → les coûts dominent encore plus. Le point 5 ci-dessous est **renforcé**.
+- **Point 3 désormais ACTIF** : le ML est *fitté*. La proba P09 est OOS purged-CV (anti-overfit)
+  mais **non strictement walk-forward causale** (un pli futur entraîne le modèle d'une ligne passée).
+  Au runtime le garde-fou est propre ; la *construction* de la proba ne l'est pas → **à attaquer**.
+
+**Action convergence** : créer l'agent `risk-validator` et lui faire attaquer le **net agrégé**
+(turnover, causalité ML, corrélation P06/P09) sur données réelles. Tant que c'est synthétique : **alpha = 0**.
+
+## Verdict (ère mocks — conservé pour historique)
 **Aucun alpha n'est revendiqué.** Le PoC valide une *mécanique de desk*, pas une stratégie. Le
 PnL net (−0.54) est négatif et c'est le résultat **attendu et honnête** : les producteurs sont
 des mocks sans edge. Publier ce chiffre comme performance serait une faute — il ne mesure que la
