@@ -1,0 +1,5 @@
+# Artefact compilé du subcrate Rust (local : `maturin develop` ou copie depuis
+# `_kernel/target/`). Jamais committé ; reconstruit à la demande. cf. CONVERGENCE.md.
+_kernel.pyd
+*.pyd
+*.so
