@@ -41,6 +41,11 @@ _GPU_FAMILIES: tuple[str, ...] = (
 
 _VASTAI_OFFERS_URL = "https://console.vast.ai/api/v0/bundles/"
 
+_RUNPOD_GRAPHQL_URL = "https://api.runpod.io/graphql"
+#: Prix on-demand par type de GPU (secure + community cloud). Le bid/spot
+#: (``minimumBidPrice``) est volontairement exclu : autre type de bail.
+_RUNPOD_QUERY = "{ gpuTypes { id displayName memoryInGb securePrice communityPrice } }"
+
 
 def normalize_gpu_model(raw_name: str) -> str:
     """Extrait la famille canonique d'un nom de GPU hétérogène.
@@ -55,7 +60,9 @@ def normalize_gpu_model(raw_name: str) -> str:
     return compact
 
 
-def parse_vastai_offers(offers: Sequence[dict[str, Any]], snapshotted_at: dt.datetime) -> list[Snapshot]:
+def parse_vastai_offers(
+    offers: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
+) -> list[Snapshot]:
     """Transforme des offres Vast.ai en snapshots $/GPU·h (logique pure, testable).
 
     On ne retient que les offres louables (``rentable``) avec au moins un GPU ; le prix
@@ -82,7 +89,9 @@ def parse_vastai_offers(offers: Sequence[dict[str, Any]], snapshotted_at: dt.dat
     return out
 
 
-def fetch_vastai(api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0) -> list[Snapshot]:
+def fetch_vastai(
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+) -> list[Snapshot]:
     """Appel réel à l'API Vast.ai → snapshots horodatés (I/O, non testé en unitaire)."""
     response = requests.get(
         _VASTAI_OFFERS_URL,
@@ -92,6 +101,53 @@ def fetch_vastai(api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 
     response.raise_for_status()
     payload = response.json()
     return parse_vastai_offers(payload.get("offers", []), snapshotted_at)
+
+
+def parse_runpod_gpu_types(
+    gpu_types: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
+) -> list[Snapshot]:
+    """Transforme la réponse RunPod ``gpuTypes`` en snapshots $/GPU·h (logique pure).
+
+    RunPod cote déjà par GPU. On retient le **plus bas prix on-demand disponible**
+    entre secure et community cloud (en ignorant 0/``None`` = indisponible), ce qui
+    donne un prix représentatif par modèle, robuste à la dédup ``(t, source, modèle)``.
+    """
+    out: list[Snapshot] = []
+    for gpu in gpu_types:
+        prices = [
+            float(p)
+            for p in (gpu.get("securePrice"), gpu.get("communityPrice"))
+            if isinstance(p, (int, float)) and p > 0
+        ]
+        if not prices:
+            continue
+        out.append(
+            Snapshot(
+                snapshotted_at=snapshotted_at,
+                source="runpod",
+                gpu_model=normalize_gpu_model(str(gpu.get("displayName", ""))),
+                price_usd_per_hour=min(prices),
+                lease_type="on_demand",
+                availability=1,
+            )
+        )
+    return out
+
+
+def fetch_runpod(
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+) -> list[Snapshot]:
+    """Appel réel à l'API GraphQL RunPod → snapshots horodatés (I/O, non testé en unitaire)."""
+    response = requests.post(
+        _RUNPOD_GRAPHQL_URL,
+        params={"api_key": api_key},
+        json={"query": _RUNPOD_QUERY},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    gpu_types = (payload.get("data") or {}).get("gpuTypes") or []
+    return parse_runpod_gpu_types(gpu_types, snapshotted_at)
 
 
 def fetch_live_gpu_prices(now: dt.datetime | None = None) -> list[Snapshot]:
@@ -114,10 +170,15 @@ def fetch_live_gpu_prices(now: dt.datetime | None = None) -> list[Snapshot]:
     else:
         logger.warning("VASTAI_API_KEY absent : Vast.ai ignoré.")
 
-    # Extension : RunPod (GraphQL) — brancher fetch_runpod(RUNPOD_API_KEY, now) ici.
+    runpod_key = os.environ.get("RUNPOD_API_KEY")
+    if runpod_key:
+        snapshots.extend(fetch_runpod(runpod_key, now))
+    else:
+        logger.warning("RUNPOD_API_KEY absent : RunPod ignoré.")
 
     if not snapshots:
         raise RuntimeError(
-            "Aucune source marketplace configurée : définir VASTAI_API_KEY (cf. .env / .env.example)."
+            "Aucune source marketplace configurée : définir VASTAI_API_KEY ou "
+            "RUNPOD_API_KEY (cf. .env / .env.example)."
         )
     return snapshots
