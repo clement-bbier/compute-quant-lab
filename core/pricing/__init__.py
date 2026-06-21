@@ -22,6 +22,10 @@ from core.pricing.spark_spread import (
     spark_spread_per_gpu_hour,
 )
 
+# Sous-paquet dérivés (P06) — futures compute théoriques/simulés.
+from core.pricing import derivatives
+from core.pricing.derivatives import CarryFuturesPricer, FuturesQuote
+
 __all__ = [
     # Brique scalaire de référence (API inchangée).
     "ServerSpec",
@@ -41,4 +45,8 @@ __all__ = [
     "FxConverter",
     "SpreadKernel",
     "FloatArray",
+    # Dérivés (P06).
+    "derivatives",
+    "CarryFuturesPricer",
+    "FuturesQuote",
 ]

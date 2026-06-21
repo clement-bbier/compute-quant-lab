@@ -10,4 +10,4 @@ repos:
     hooks:
       - id: mypy
         files: ^core/
-        additional_dependencies: []
+        additional_dependencies: ["numpy>=1.26", "pandas>=2.2"]
