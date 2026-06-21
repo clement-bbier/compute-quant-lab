@@ -11,18 +11,21 @@ le **cold store reproductible** Phase 0–1 de ``docs/storage-roadmap.md`` :
 
 from __future__ import annotations
 
-from core.storage.converters import snapshots_to_frame
+from core.storage.converters import frame_to_snapshots, snapshots_to_frame
 from core.storage.duckdb_query import query
 from core.storage.migrate import migrate_csv_snapshots
 from core.storage.parquet_store import ParquetPriceStore
 from core.storage.protocols import HotCache, PriceStore, TickStream
+from core.storage.snapshot_store import ParquetSnapshotStore
 
 __all__ = [
     "ParquetPriceStore",
+    "ParquetSnapshotStore",
     "PriceStore",
     "TickStream",
     "HotCache",
     "query",
     "migrate_csv_snapshots",
     "snapshots_to_frame",
+    "frame_to_snapshots",
 ]
