@@ -1,0 +1,27 @@
+# Secrets — JAMAIS committés
+.env
+.claude/settings.local.json
+**/.credentials.json
+
+# Données versionnées par DVC (le contenu, pas les .dvc)
+/data/raw/*
+/data/interim/*
+/data/processed/*
+!/data/**/.gitkeep
+
+# Expériences / artefacts
+/experiments/mlruns/
+**/results/*.png
+**/results/*.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# Notebooks
+.ipynb_checkpoints/
