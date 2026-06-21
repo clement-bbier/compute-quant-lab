@@ -7,6 +7,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build des noyaux Rust (maturin develop)
+        run: |
+          uv run maturin develop -m core/pricing/_kernel/Cargo.toml
+          uv run maturin develop -m core/backtest/_loop/Cargo.toml
+          uv run maturin develop -m projects/04_compute_index_curve/forward_engine/Cargo.toml
       - run: uv run ruff check .
       - run: uv run mypy core
       - run: uv run pytest -q

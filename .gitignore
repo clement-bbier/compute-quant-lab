@@ -13,6 +13,8 @@
 !/data/**/.gitkeep
 /data/snapshots/*
 !/data/snapshots/.gitkeep
+# Pointeurs DVC versionnés (le .dvc est suivi, jamais le contenu)
+!/data/**/*.dvc
 
 # Expériences / artefacts
 /experiments/mlruns/

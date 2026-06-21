@@ -18,18 +18,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.10", "pre-commit>=3.7"]
+dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.10", "pre-commit>=3.7", "maturin>=1.7"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [
+    "core/pricing/_kernel/target",
+    "core/backtest/_loop/target",
+    "projects/04_compute_index_curve/forward_engine/target",
+]
 
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "core/backtest/tests", "projects/04_compute_index_curve/tests"]
 
 [build-system]
 requires = ["hatchling"]
