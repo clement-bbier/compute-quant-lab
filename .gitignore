@@ -3,6 +3,9 @@
 .claude/settings.local.json
 **/.credentials.json
 
+# Worktrees Claude Code (checkouts locaux, jamais committés ; cf. docs/git-workflow.md §8)
+.claude/worktrees/
+
 # Données versionnées par DVC (le contenu, pas les .dvc)
 /data/raw/*
 /data/interim/*

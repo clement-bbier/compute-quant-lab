@@ -1,0 +1,6 @@
+# Fichiers gitignorés recopiés automatiquement dans chaque nouveau worktree
+# Claude Code (syntaxe .gitignore). Un worktree est un checkout neuf : sans ceci,
+# .env n'y est pas et les connecteurs (ENTSO-E, Silicon Data) n'ont pas leurs tokens.
+# Réf. docs/git-workflow.md §8.
+.env
+.claude/settings.local.json

@@ -82,3 +82,65 @@ git merge --ff-only integration
 4. Avant merge : `git fetch && git rebase origin/integration`, tests verts.
 5. La convergence merge `feature/PNN-<nom>` → `integration` (PR ou `--no-ff`).
 6. Quand un palier est atteint et la CI verte : `integration` → `main` en `--ff-only`.
+
+## 8. Worktrees — pratiques natives Claude Code
+
+> Distillé de la doc officielle « Run parallel sessions with worktrees » et des
+> retours d'usage 2026 (liens en §9). La méthode manuelle de la §2 reste le
+> **standard du labo** (base = `integration`, nommage `feature/PNN-<nom>`) ; ce qui
+> suit l'outille et la rend ergonomique.
+
+### Deux façons de créer un worktree
+
+- **Manuelle (standard labo)** — base et nom explicites, branchée sur `integration`,
+  puis on **initialise l'environnement dans chaque worktree** (checkout neuf) :
+
+  ```bash
+  git worktree add ../lab-PNN -b feature/PNN-<nom> integration
+  cd ../lab-PNN && uv sync --extra dev
+  ```
+
+- **Native Claude Code (ad hoc / analyse)** — `claude --worktree <nom>` crée un
+  worktree sous `.claude/worktrees/<nom>/`. ⚠️ Il branche depuis `origin/HEAD`
+  (= `main`), **pas** `integration` : à réserver aux sessions jetables (lecture de
+  logs, requêtes). Pour partir de l'état local, régler `worktree.baseRef: "head"`
+  dans les settings.
+
+### Propagation des secrets (`.worktreeinclude`)
+
+Un worktree est un checkout neuf : `.env` (gitignoré) n'y est **pas**. Le fichier
+`.worktreeinclude` (syntaxe `.gitignore`) liste les fichiers gitignorés à recopier
+automatiquement dans chaque nouveau worktree. **Indispensable ici** : les connecteurs
+(ENTSO-E, Silicon Data) ont besoin des tokens. Voir [`.worktreeinclude`](../.worktreeinclude).
+
+### Subagents en worktree isolé
+
+Un employé du labo peut tourner dans son propre worktree en ajoutant
+`isolation: worktree` à son frontmatter (ou « utilise un worktree pour tes agents »).
+Idéal pour les gros lots disjoints : chaque agent teste de bout en bout puis ouvre une PR.
+
+### Baseline de tests propre (pratique-clé)
+
+Avant de confier un worktree à une instance : le créer, lancer `pytest && ruff check .
+&& mypy core` **immédiatement**, confirmer le vert. Après le travail de l'instance,
+relancer la même suite : toute nouvelle erreur devient ainsi **imputable** à
+l'instance, pas à un état préexistant.
+
+### Orientation quand beaucoup de sessions tournent
+
+Nommer les worktrees, alias shell pour sauter de l'un à l'autre, onglets de terminal
+colorés, notifications activées, et garder un worktree « analyse » dédié aux logs /
+requêtes. Le roster et les prompts d'instances (`docs/orchestration/`) jouent le rôle
+de **document de tâches partagé** : chaque instance lit son module possédé et n'écrit
+que dedans (anti-collision, cf. partition de [parallel-ops.md](parallel-ops.md)).
+
+### Nettoyage
+
+`git worktree list` pour l'inventaire ; `git worktree remove ../lab-PNN` une fois la
+feature mergée (`--force` si modifs non committées). Les worktrees natifs sans
+changement sont balayés automatiquement après `cleanupPeriodDays`.
+
+## 9. Sources
+
+- Claude Code — *Run parallel sessions with worktrees* : <https://code.claude.com/docs/en/worktrees>
+- Claude Code — *Power user tips* : <https://support.claude.com/en/articles/14554000-claude-code-power-user-tips>
