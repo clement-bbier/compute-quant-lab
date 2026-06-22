@@ -36,3 +36,6 @@ __pycache__/
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Logs du collecteur planifié (runtime, jamais committés)
+infra/collectors/*.log
