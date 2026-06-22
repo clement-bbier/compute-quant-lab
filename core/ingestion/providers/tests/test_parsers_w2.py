@@ -76,22 +76,22 @@ def test_cudo_uses_gpu_price_hr_value_as_per_gpu(
     assert all(s.source == "cudo" and s.lease_type == "on_demand" for s in snaps)
 
 
-# ── Hyperstack (pricebook + flavors → join → par GPU) ────────────────────────
+# ── Hyperstack (pricebook par composant + flavors → join sur type GPU → par GPU) ──
 
 
-def test_hyperstack_joins_pricebook_and_divides_by_gpu_count(
+def test_hyperstack_joins_pricebook_on_gpu_type_per_gpu(
     hyperstack_flavors: list[dict[str, Any]],
     hyperstack_pricebook: list[dict[str, Any]],
 ) -> None:
     snaps = hyperstack.parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
 
-    # cpu-small (gpu_count=0) écarté ; 3 flavors GPU retenues
-    assert len(snaps) == 3
+    # 2 H100 on_demand + 1 H100 spot + 1 L40 ; cpu-small et A100 (hors pricebook) écartés
+    assert len(snaps) == 4
     h100 = [s for s in snaps if s.gpu_model == "H100"]
-    prices_h100 = {round(s.price_usd_per_hour, 4) for s in h100}
-    assert prices_h100 == {round(27.92 / 8, 4), 3.49}  # 3.49 et 3.49
+    # prix DÉJÀ par GPU (jamais /8) : on_demand 1.9, spot 1.52
+    assert {s.price_usd_per_hour for s in h100} == {1.9, 1.52}
     l40 = next(s for s in snaps if s.gpu_model == "L40")
-    assert l40.price_usd_per_hour == 1.00
+    assert l40.price_usd_per_hour == 0.99
     assert l40.availability == 0  # stock_available=False
     assert all(s.source == "hyperstack" for s in snaps)
 
@@ -104,11 +104,11 @@ def test_hyperstack_returns_empty_when_pricebook_empty(
     assert snaps == []
 
 
-def test_hyperstack_returns_empty_when_flavor_name_missing_from_pricebook(
+def test_hyperstack_returns_empty_when_gpu_type_missing_from_pricebook(
     hyperstack_flavors: list[dict[str, Any]],
 ) -> None:
-    # Pricebook ne contient pas les noms des flavors → join vide
-    pricebook_alien = [{"name": "other-flavor", "value": 99.0}]
+    # Pricebook ne contient aucun des types GPU des flavors → join vide
+    pricebook_alien = [{"name": "other-gpu", "value": "99.0"}]
     snaps = hyperstack.parse_hyperstack(hyperstack_flavors, pricebook_alien, _TS)
     assert snaps == []
 
