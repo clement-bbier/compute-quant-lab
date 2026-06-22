@@ -39,3 +39,12 @@ __pycache__/
 
 # Logs du collecteur planifié (runtime, jamais committés)
 infra/collectors/*.log
+
+# Stratégies privées / à edge — JAMAIS versionnées (le repo est PUBLIC).
+# Tout ce qui génère de l'argent vit ici et ne part jamais en ligne.
+/private/*
+!/private/README.md
+!/private/.gitkeep
+*.private.py
+*.private.json
+*.private.parquet
