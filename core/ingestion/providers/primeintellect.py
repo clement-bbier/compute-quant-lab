@@ -34,6 +34,11 @@ def parse_primeintellect(
     strictement positif ; le prix par GPU est ``prices.onDemand / gpuCount``. Le type de
     bail vient du drapeau ``isSpot``. La ``source`` est qualifiée par le provider
     sous-jacent quand il est connu.
+
+    Champs descriptifs propagés quand exposés par l'API :
+    - ``provider_detail`` : le fournisseur sous-jacent (ex. ``"datacrunch"``).
+    - ``region`` : valeur brute (``region`` ou ``dataCenter``).
+    - ``gpu_memory_gb`` : mémoire GPU en Go (``gpuMemory``).
     """
     out: list[Snapshot] = []
     for item in items:
@@ -45,6 +50,15 @@ def parse_primeintellect(
             continue
         provider = item.get("provider")
         source = f"primeintellect:{provider}" if provider else "primeintellect"
+
+        # Région : préférer ``dataCenter`` (plus précis) puis ``region``.
+        region_raw = item.get("dataCenter") or item.get("region")
+        region: str | None = str(region_raw) if region_raw else None
+
+        # Mémoire GPU (Go).
+        mem_raw = item.get("gpuMemory")
+        gpu_memory_gb: float | None = float(mem_raw) if mem_raw is not None else None
+
         out.append(
             Snapshot(
                 snapshotted_at=snapshotted_at,
@@ -53,6 +67,9 @@ def parse_primeintellect(
                 price_usd_per_hour=float(on_demand) / gpu_count,
                 lease_type="spot" if item.get("isSpot") else "on_demand",
                 availability=gpu_count,
+                region=region,
+                gpu_memory_gb=gpu_memory_gb,
+                provider_detail=str(provider) if provider else None,
             )
         )
     return out
