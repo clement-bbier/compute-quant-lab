@@ -217,13 +217,18 @@ def cudo_machine_types() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def hyperstack_flavors() -> list[dict[str, Any]]:
-    """Groupes de flavors Hyperstack ``/core/flavors`` (``price_per_hour`` = prix flavor/machine)."""
+    """Groupes de flavors Hyperstack ``/v1/core/flavors`` (schéma réel : SANS ``price_per_hour``).
+
+    Le prix vit dans le pricebook séparé ``/v1/pricebook`` ; chaque ``FlavorFields``
+    expose uniquement les specs matérielles. Jointure : ``flavor.name`` ↔ ``pricebook.name``.
+    """
     return [
         {
             "gpu": "H100",
             "region_name": "NORWAY-1",
             "flavors": [
                 {
+                    "id": 101,
                     "name": "n3-H100x8",
                     "gpu": "H100",
                     "gpu_count": 8,
@@ -231,14 +236,13 @@ def hyperstack_flavors() -> list[dict[str, Any]]:
                     "ram": 1800,
                     "disk": 32000,
                     "stock_available": True,
-                    "price_per_hour": 27.92,
                 },
                 {
+                    "id": 102,
                     "name": "n3-H100x1",
                     "gpu": "H100",
                     "gpu_count": 1,
                     "stock_available": True,
-                    "price_per_hour": 3.49,
                 },
             ],
         },
@@ -247,20 +251,69 @@ def hyperstack_flavors() -> list[dict[str, Any]]:
             "region_name": "CANADA-1",
             "flavors": [
                 {
+                    "id": 201,
                     "name": "n2-L40x1",
                     "gpu": "L40",
                     "gpu_count": 1,
                     "stock_available": False,
-                    "price_per_hour": 1.00,
                 },
                 {  # flavor CPU (0 GPU) → écarté
+                    "id": 301,
                     "name": "cpu-small",
                     "gpu": None,
                     "gpu_count": 0,
                     "stock_available": True,
-                    "price_per_hour": 0.05,
                 },
             ],
+        },
+    ]
+
+
+@pytest.fixture
+def hyperstack_pricebook() -> list[dict[str, Any]]:
+    """Pricebook Hyperstack ``/v1/pricebook`` (``value`` = coût horaire machine entière en USD).
+
+    La jointure se fait par ``name`` (= ``FlavorFields.name``). ``value`` est supposé être
+    le prix de la machine complète (÷ ``gpu_count`` → $/GPU·h).
+
+    ⚠️ À confirmer en live : ``value`` par machine vs déjà par GPU.
+    """
+    return [
+        {
+            "id": 1,
+            "name": "n3-H100x8",
+            "value": 27.92,
+            "original_value": 27.92,
+            "discount_applied": False,
+            "start_time": None,
+            "end_time": None,
+        },
+        {
+            "id": 2,
+            "name": "n3-H100x1",
+            "value": 3.49,
+            "original_value": 3.49,
+            "discount_applied": False,
+            "start_time": None,
+            "end_time": None,
+        },
+        {
+            "id": 3,
+            "name": "n2-L40x1",
+            "value": 1.00,
+            "original_value": 1.00,
+            "discount_applied": False,
+            "start_time": None,
+            "end_time": None,
+        },
+        {  # cpu-small : gpu_count=0 → écarté par parse_hyperstack
+            "id": 4,
+            "name": "cpu-small",
+            "value": 0.05,
+            "original_value": 0.05,
+            "discount_applied": False,
+            "start_time": None,
+            "end_time": None,
         },
     ]
 
@@ -352,15 +405,23 @@ def patch_cudo_network(
 @pytest.fixture
 def patch_hyperstack_network(
     monkeypatch: pytest.MonkeyPatch,
-) -> Callable[[list[dict[str, Any]]], None]:
-    """Factory : remplace l'appel réseau Hyperstack (``requests.get``)."""
+) -> Callable[[list[dict[str, Any]], list[dict[str, Any]]], None]:
+    """Factory : remplace les deux appels réseau Hyperstack (flavors + pricebook).
 
-    def _patch(flavor_groups: list[dict[str, Any]]) -> None:
+    ``fetch_hyperstack`` appelle successivement ``/v1/core/flavors`` puis ``/v1/pricebook``.
+    On route par URL : l'URL contenant ``/pricebook`` reçoit le pricebook, les autres
+    reçoivent la réponse flavors.
+    """
+
+    def _patch(flavor_groups: list[dict[str, Any]], pricebook: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import hyperstack
 
-        monkeypatch.setattr(
-            hyperstack.requests, "get", lambda *a, **k: FakeResponse({"data": flavor_groups})
-        )
+        def _fake_get(url: str, *a: Any, **k: Any) -> FakeResponse:
+            if "pricebook" in str(url):
+                return FakeResponse(pricebook)
+            return FakeResponse({"data": flavor_groups})
+
+        monkeypatch.setattr(hyperstack.requests, "get", _fake_get)
 
     return _patch
 
