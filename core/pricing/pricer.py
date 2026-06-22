@@ -17,7 +17,9 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from core.pricing.efficiency import tflops_fp16
 from core.pricing.oracle import PythonOracle
+from core.pricing.power_model import ServerPowerModel
 from core.pricing.protocols import (
     FloatArray,
     FxConverter,
@@ -104,6 +106,10 @@ class SparkSpreadPricer:
         est aligné dessus par jointure as-of **arrière** (dernier prix connu à
         chaque instant) — aucun prix futur n'entre dans le spread à ``t``.
         """
+        return self._price_at_pue(source, gpu, region, self._power_model.pue())
+
+    def _price_at_pue(self, source: PriceSource, gpu: str, region: str, pue: float) -> SpreadResult:
+        """Chemin de pricing central, paramétré par le PUE (réutilisé par les bandes)."""
         energy = source.energy_price(region)
         compute_usd = source.compute_price(gpu)
         compute_eur = self._fx.to_eur(compute_usd).sort_index()
@@ -113,7 +119,6 @@ class SparkSpreadPricer:
         compute_on_grid = compute_eur.reindex(grid, method="ffill")
 
         power_kw = self._power_model.power_kw_per_gpu()
-        pue = self._power_model.pue()
         n = len(grid)
         revenue_a, cost_a, spread_a = self._kernel.compute(
             compute_on_grid.to_numpy(dtype=np.float64),
@@ -132,4 +137,29 @@ class SparkSpreadPricer:
             power_kw_per_gpu=power_kw,
             fx=repr(self._fx),
             window=(grid[0], grid[-1]),
+        )
+
+    def normalized_spread(self, res: SpreadResult) -> pd.Series:
+        """Spread ramené à l'unité de compte : €/GPU·h **par TFLOP** (FP16 dense).
+
+        Rend le spread comparable entre GPU d'efficacités différentes.
+        """
+        return (res.spread / tflops_fp16(res.gpu)).rename("normalized_spread")
+
+    def pue_sensitivity(
+        self, source: PriceSource, gpu: str, region: str
+    ) -> tuple[SpreadResult, SpreadResult]:
+        """Re-price aux bornes du prior PUE → bande ``(low_pue, high_pue)``.
+
+        Exige un `ServerPowerModel` construit avec un `PuePrior`. Le chemin central
+        `price()` n'est pas touché (parité préservée).
+        """
+        pm = self._power_model
+        bounds = pm.pue_bounds() if isinstance(pm, ServerPowerModel) else None
+        if bounds is None:
+            raise ValueError("pue_sensitivity exige un ServerPowerModel construit avec un PuePrior")
+        low, high = bounds
+        return (
+            self._price_at_pue(source, gpu, region, low),
+            self._price_at_pue(source, gpu, region, high),
         )
