@@ -1,0 +1,5 @@
+outs:
+- md5: 8c5519a1090530378ae26c5234af3990
+  size: 21424
+  hash: md5
+  path: aligned_spark.parquet

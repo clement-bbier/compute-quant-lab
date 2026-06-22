@@ -7,19 +7,19 @@
     "n_gpus": 8,
     "fx_eur_per_usd": 0.92,
     "kernel": "PythonOracle",
-    "energy_source": "synthetic_fallback",
+    "energy_source": "entsoe_real",
     "window_start": "2025-01-01 00:00:00+00:00",
     "window_end": "2025-01-31 23:00:00+00:00",
-    "dvc_data_version": "untracked"
+    "dvc_data_version": "outs:\n- md5: 8c5519a1090530378ae26c5234af3990\n  size: 21424\n  hash: md5\n  path: aligned_spark.parquet\n"
   },
   "metrics": {
-    "spread_mean_eur": 2.0238464337533935,
-    "spread_std_eur": 0.11022225852567924,
-    "spread_min_eur": 1.7845143246294184,
-    "spread_max_eur": 2.322430520294559,
+    "spread_mean_eur": 2.0062996476364656,
+    "spread_std_eur": 0.13135701699017838,
+    "spread_min_eur": 1.5990303371175885,
+    "spread_max_eur": 2.3326949200130564,
     "spread_positive_share": 1.0,
     "revenue_mean_eur": 2.1368113583891537,
-    "cost_mean_eur": 0.11296492463576037,
+    "cost_mean_eur": 0.13051171075268816,
     "n_obs": 744.0
   }
 }
