@@ -30,7 +30,8 @@ def parse_runpod_gpu_types(
 
     On retient le **plus bas prix on-demand disponible** entre secure et community cloud
     (en ignorant 0/``None`` = indisponible), ce qui donne un prix représentatif par
-    modèle, robuste à la dédup ``(t, source, modèle)``.
+    modèle, robuste à la dédup ``(t, source, modèle)``. Le champ ``memoryInGb`` est
+    propagé dans ``gpu_memory_gb`` quand il est exposé.
     """
     out: list[Snapshot] = []
     for gpu in gpu_types:
@@ -41,6 +42,10 @@ def parse_runpod_gpu_types(
         ]
         if not prices:
             continue
+
+        mem_raw = gpu.get("memoryInGb")
+        gpu_memory_gb: float | None = float(mem_raw) if mem_raw is not None else None
+
         out.append(
             Snapshot(
                 snapshotted_at=snapshotted_at,
@@ -49,6 +54,7 @@ def parse_runpod_gpu_types(
                 price_usd_per_hour=min(prices),
                 lease_type="on_demand",
                 availability=1,
+                gpu_memory_gb=gpu_memory_gb,
             )
         )
     return out
