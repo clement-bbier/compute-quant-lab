@@ -634,6 +634,7 @@ dependencies = [
     { name = "dvc" },
     { name = "entsoe-py" },
     { name = "gridstatus" },
+    { name = "gridstatusio" },
     { name = "mlflow" },
     { name = "numpy" },
     { name = "pandas" },
@@ -665,6 +666,7 @@ requires-dist = [
     { name = "dvc", specifier = ">=3.50" },
     { name = "entsoe-py", specifier = ">=0.6" },
     { name = "gridstatus", specifier = ">=0.36" },
+    { name = "gridstatusio", specifier = ">=0.5" },
     { name = "maturin", marker = "extra == 'dev'", specifier = ">=1.7" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.2" },
     { name = "mlflow", specifier = ">=2.12" },
@@ -1632,6 +1634,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c9/46/1eff7457d531f1e6c97d19a87a8118154e8382ac19af7d81a3f161d6adf1/gridstatus-0.36.0.tar.gz", hash = "sha256:bcf79450eb3c671a21d121e3047388227364f3650c9863a6a02355e1873b3d2d", size = 3171498, upload-time = "2026-04-21T02:05:42.518Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/28/61/eee5393a0f4a31fb11e7a1b6ca779bce12e9b18ac89afb0381fc1a4cbf62/gridstatus-0.36.0-py3-none-any.whl", hash = "sha256:e415f80de0f3700ae0c54ba005493209e3ada773ea6a8942127d91a644c8d7dc", size = 551218, upload-time = "2026-04-21T02:05:40.477Z" },
+]
+
+[[package]]
+name = "gridstatusio"
+version = "0.5.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gridstatus" },
+    { name = "pandas" },
+    { name = "requests" },
+    { name = "termcolor" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/00/298568758e2661ab231a735abeff9328a3d967c7345417675f1022287db5/gridstatusio-0.5.6.tar.gz", hash = "sha256:c34eaa2c3e7ad45eb42b01cdf7a8c2dbf8006ef624bd26e379237213867fbc54", size = 12635, upload-time = "2023-12-22T22:41:55.176Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c3/d9/c236551b64de220ce9660083f3b369e600d959842eb8926404bbef59d209/gridstatusio-0.5.6-py3-none-any.whl", hash = "sha256:8d2c4adc669b9e99c1c4fa37d0c50fa5cd8a6c1e863e2a014c4cc0a32dc4a8e0", size = 12627, upload-time = "2023-12-22T22:41:51.652Z" },
 ]
 
 [[package]]
