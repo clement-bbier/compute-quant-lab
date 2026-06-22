@@ -8,6 +8,8 @@ exigé par l'étude de sensibilité du prompt P01.
 
 from __future__ import annotations
 
+from core.pricing.pue_prior import PuePrior
+
 WATTS_PER_KILOWATT: float = 1000.0
 
 
@@ -23,20 +25,28 @@ class ServerPowerModel:
     tdp_w
         Puissance IT (TDP) d'un GPU, en watts.
     pue
-        Power Usage Effectiveness du datacenter (sans dimension, ≥ 1).
+        Power Usage Effectiveness du datacenter (sans dimension, ≥ 1). Accepte un
+        scalaire ``float`` ou un ``PuePrior`` (region-keyed) : dans ce dernier cas
+        le pricing central utilise le *point estimate* et expose les bornes via
+        ``pue_bounds()``.
     n_gpus
         Nombre de GPU du serveur (métadonnée, agrégation au niveau serveur).
     """
 
-    def __init__(self, tdp_w: float, pue: float, n_gpus: int) -> None:
+    def __init__(self, tdp_w: float, pue: float | PuePrior, n_gpus: int) -> None:
         if tdp_w <= 0:
             raise ValueError("tdp_w doit être strictement positif")
-        if pue < 1.0:
-            raise ValueError("pue doit être ≥ 1.0 (le datacenter consomme ≥ l'IT)")
         if n_gpus <= 0:
             raise ValueError("n_gpus doit être strictement positif")
+        if isinstance(pue, PuePrior):
+            self._pue_value = pue.point_estimate()
+            self._pue_prior: PuePrior | None = pue
+        else:
+            if pue < 1.0:
+                raise ValueError("pue doit être ≥ 1.0 (le datacenter consomme ≥ l'IT)")
+            self._pue_value = pue
+            self._pue_prior = None
         self._tdp_w = tdp_w
-        self._pue = pue
         self._n_gpus = n_gpus
 
     def power_kw_per_gpu(self) -> float:
@@ -44,8 +54,12 @@ class ServerPowerModel:
         return self._tdp_w / WATTS_PER_KILOWATT
 
     def pue(self) -> float:
-        """Power Usage Effectiveness du datacenter."""
-        return self._pue
+        """Power Usage Effectiveness du datacenter (point estimate si prior)."""
+        return self._pue_value
+
+    def pue_bounds(self) -> tuple[float, float] | None:
+        """Bornes de sensibilité [low, high] si un `PuePrior` est fourni, sinon None."""
+        return self._pue_prior.sensitivity_bounds() if self._pue_prior else None
 
     @property
     def n_gpus(self) -> int:
@@ -54,5 +68,6 @@ class ServerPowerModel:
 
     def __repr__(self) -> str:
         return (
-            f"ServerPowerModel(tdp_w={self._tdp_w}, pue={self._pue}, n_gpus={self._n_gpus})"
+            f"ServerPowerModel(tdp_w={self._tdp_w}, pue={self._pue_value}, "
+            f"n_gpus={self._n_gpus})"
         )
