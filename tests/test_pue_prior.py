@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from core.pricing.power_model import ServerPowerModel
 from core.pricing.pue_prior import ERCOT_TEXAS_PRIOR, PuePrior
 
 
@@ -45,3 +46,31 @@ def test_mu_outside_support_rejected() -> None:
 def test_texas_prior_matches_l0() -> None:
     assert ERCOT_TEXAS_PRIOR.point_estimate() == pytest.approx(1.45)
     assert ERCOT_TEXAS_PRIOR.sensitivity_bounds() == (1.2, 1.8)
+
+
+# --- Task A3 : ServerPowerModel accepte un PuePrior (rétro-compatible float) ---
+
+
+def test_power_model_accepts_prior() -> None:
+    m = ServerPowerModel(tdp_w=700, pue=ERCOT_TEXAS_PRIOR, n_gpus=8)
+    assert m.pue() == ERCOT_TEXAS_PRIOR.point_estimate()
+
+
+def test_power_model_still_accepts_float() -> None:
+    m = ServerPowerModel(tdp_w=700, pue=1.5, n_gpus=8)
+    assert m.pue() == 1.5
+
+
+def test_pue_bounds_with_prior() -> None:
+    m = ServerPowerModel(tdp_w=700, pue=ERCOT_TEXAS_PRIOR, n_gpus=8)
+    assert m.pue_bounds() == (1.2, 1.8)
+
+
+def test_pue_bounds_none_with_float() -> None:
+    m = ServerPowerModel(tdp_w=700, pue=1.5, n_gpus=8)
+    assert m.pue_bounds() is None
+
+
+def test_power_model_float_below_one_still_rejected() -> None:
+    with pytest.raises(ValueError):
+        ServerPowerModel(tdp_w=700, pue=0.9, n_gpus=8)
