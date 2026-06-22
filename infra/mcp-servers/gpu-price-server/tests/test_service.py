@@ -137,3 +137,12 @@ def test_price_history_lease_type_filter(store):
     # le fixture ne contient que du on_demand → filtrer 'spot' donne 0 relevé
     res = price_history(store, "H100", source="vastai", lease_type="spot")
     assert res["n"] == 0
+
+
+def test_run_query_timestamps_are_utc(store):
+    # DuckDB rend les timestamps en fuseau local ; run_query doit renormaliser en UTC
+    # (cohérence avec les outils structurés, indépendamment du fuseau machine)
+    res = run_query(store, "SELECT snapshotted_at FROM prices ORDER BY snapshotted_at LIMIT 1")
+    ts = res["rows"][0]["snapshotted_at"]
+    assert ts.endswith("+00:00"), ts
+    assert ts == "2026-06-01T12:00:00+00:00"

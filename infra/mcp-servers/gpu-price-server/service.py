@@ -211,8 +211,14 @@ def summary_stats(
 
 
 def _jsonable(value: Any) -> Any:
-    """Rend une valeur DuckDB/pandas sérialisable JSON (Timestamp→ISO, NaN→None, numpy→python)."""
+    """Rend une valeur DuckDB/pandas sérialisable JSON (Timestamp→ISO UTC, NaN→None, numpy→python).
+
+    DuckDB rend les colonnes ``TIMESTAMP WITH TIME ZONE`` dans le fuseau local du process ;
+    on renormalise en UTC pour rester cohérent avec les outils structurés (règle UTC du labo).
+    """
     if isinstance(value, pd.Timestamp):
+        if value.tzinfo is not None:
+            value = value.tz_convert("UTC")
         return value.isoformat()
     try:
         if pd.isna(value):
