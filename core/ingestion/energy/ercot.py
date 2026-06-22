@@ -48,9 +48,16 @@ Unités
 
 from __future__ import annotations
 
+import os
+
 import pandas as pd
 
 from core.ingestion.energy.base import register_market
+from core.ingestion.energy.ercot_transport import (
+    ErcotTransport,
+    GridstatusDirectTransport,
+    GridstatusIoTransport,
+)
 
 # Localisation par défaut pour le prix RTM système ERCOT
 _DEFAULT_RTM_LOCATION = "HB_BUSAVG"
@@ -221,15 +228,24 @@ class ErcotMarket:
     name = "ercot"
     required_env: tuple[str, ...] = ()
 
-    def __init__(self) -> None:
-        self._iso: object | None = None  # lazy init pour ne pas bloquer l'import
+    def __init__(self, transport: ErcotTransport | None = None) -> None:
+        """``transport`` injecté (tests/override) ; sinon résolu paresseusement."""
+        self._injected = transport
+        self._resolved: ErcotTransport | None = None
 
-    def _get_iso(self) -> object:
-        if self._iso is None:
-            import gridstatus  # noqa: PLC0415
-
-            self._iso = gridstatus.Ercot()
-        return self._iso
+    def _transport(self) -> ErcotTransport:
+        """Résout le transport : injecté > hébergé (clé présente) > direct (géobloqué)."""
+        if self._injected is not None:
+            return self._injected
+        resolved = self._resolved
+        if resolved is None:
+            resolved = (
+                GridstatusIoTransport()
+                if os.environ.get("GRIDSTATUS_API_KEY")
+                else GridstatusDirectTransport()
+            )
+            self._resolved = resolved
+        return resolved
 
     def rtm_price(
         self,
@@ -252,17 +268,7 @@ class ErcotMarket:
         pd.Series
             Indexée par Interval Start (UTC), valeurs $/MWh, trié, sans NaN.
         """
-        import gridstatus  # noqa: PLC0415
-
-        iso = self._get_iso()
-        # gridstatus attend des timestamps en US/Central ou "naive" — on passe l'UTC
-        # et laisse gridstatus gérer (il accepte les tz-aware)
-        df = iso.get_spp(  # type: ignore[attr-defined]
-            date=start,
-            end=end,
-            market=gridstatus.Markets.REAL_TIME_15_MIN,
-            locations=[location],
-        )
+        df = self._transport().fetch_rtm_spp(start, end, location)
         return parse_rtm_spp(df, location=location)
 
     def reserve_forecast(
@@ -286,8 +292,7 @@ class ErcotMarket:
         pd.DataFrame
             Colonnes normalisées (voir ``parse_load_forecast``), UTC tz-aware.
         """
-        iso = self._get_iso()
-        df = iso.get_load_forecast(date=start, end=end)  # type: ignore[attr-defined]
+        df = self._transport().fetch_load_forecast(start, end)
         return parse_load_forecast(df)
 
     def reserve_forecast_as_of(
@@ -310,9 +315,7 @@ class ErcotMarket:
         pd.DataFrame
             Sous-ensemble du dernier rapport publié avant ``as_of``.
         """
-        iso = self._get_iso()
-        # On demande les rapports publiés jusqu'à as_of
-        df_raw = iso.get_load_forecast(date=as_of)  # type: ignore[attr-defined]
+        df_raw = self._transport().fetch_load_forecast(as_of, as_of)
         df = parse_load_forecast(df_raw)
         # Filtrer causalement : on ne garde que ce qui était connu à as_of
         return df[df["publish_time"] <= as_of].reset_index(drop=True)
