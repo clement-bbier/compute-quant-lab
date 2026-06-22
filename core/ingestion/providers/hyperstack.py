@@ -1,34 +1,30 @@
-"""Provider Hyperstack (NexGen Cloud) : flavors GPU par région (header ``api_key``).
+"""Provider Hyperstack (NexGen Cloud) : prix GPU par région (header ``api_key``).
 
-La logique pure (``parse_hyperstack``) est isolée de l'appel réseau (``fetch_hyperstack``,
-token-gated). Deux appels sont nécessaires :
+Logique pure (``parse_hyperstack``) isolée du réseau (``fetch_hyperstack``, token-gated).
+Deux appels (validés en live 2026-06-23) :
 
-1. ``GET /v1/core/flavors`` → groupes de flavors par région / modèle GPU ; chaque
-   ``FlavorFields`` porte ``{id, name, gpu, gpu_count, region_name, stock_available}``
-   **sans prix**.
-2. ``GET /v1/pricebook`` → liste plate ``[{name, value, original_value, ...}]`` où
-   ``name`` est le nom du flavor (ex. ``"n3-H100x8"``) et ``value`` est le coût horaire
-   **de la machine entière** (à diviser par ``gpu_count`` pour obtenir le $/GPU·h).
+1. ``GET /v1/core/flavors`` → groupes ``{gpu, region_name, flavors:[...]}`` ; chaque flavor
+   porte ``{name, gpu, gpu_count, region_name, cpu, ram, disk, stock_available}`` **sans prix**.
+2. ``GET /v1/pricebook`` → liste plate ``[{name, value, ...}]`` **par composant** : ``name``
+   est le **type de GPU** (ex. ``"H100-80G-PCIe"``, ``"H100-80G-PCIe-spot"`` — et aussi
+   ``"vCPU"``/``"RAM"``/modèles d'inférence, ignorés), ``value`` une **chaîne** donnant le
+   prix **déjà par GPU et par heure** (ex. ``"1.9"``, ``"0E-9"``).
 
-Jointure : ``FlavorFields.name`` ↔ ``PricebookEntry.name`` (sensible à la casse,
-comme retourné par l'API).
+Jointure : ``flavor.gpu`` ↔ ``pricebook.name`` (et **non** ``flavor.name`` : le pricebook
+n'est pas par-flavor). Le prix est déjà par GPU → **aucune** division par ``gpu_count``. Le
+suffixe ``-spot`` du type distingue le bail et est retiré avant de normaliser le modèle
+(sinon ``"L40-spot"`` → ``"L40S"``). ``value`` étant une chaîne, on la coerce et on écarte
+les composants à prix nul (``"0E-9"``).
 
-Hypothèses **à confirmer en live à la convergence** :
-
-- ``PricebookEntry.value`` est en USD/h pour la machine complète (÷ ``gpu_count`` → $/GPU·h).
-  Alternative possible : prix déjà par GPU.
-- ``PricebookEntry.name`` correspond exactement à ``FlavorFields.name`` (pas d'alias).
-- ``FlavorFields.stock_available`` est un booléen (observé) ; l'API peut renvoyer un entier.
-- L'endpoint ``/v1/pricebook`` est accessible sans scope supplémentaire (même clé que flavors).
-
-⚠️ Si le join ne produit aucun prix (pricebook vide ou noms non concordants),
-``parse_hyperstack`` renvoie ``[]`` proprement (aucune exception).
+Si le join ne produit aucun prix (pricebook vide / noms non concordants), renvoie ``[]``.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import os
+import re
+from decimal import Decimal, InvalidOperation
 from typing import Any, Sequence
 
 import requests
@@ -40,6 +36,11 @@ _HYPERSTACK_BASE_URL = "https://infrahub-api.nexgencloud.com/v1"
 _HYPERSTACK_FLAVORS_URL = f"{_HYPERSTACK_BASE_URL}/core/flavors"
 _HYPERSTACK_PRICEBOOK_URL = f"{_HYPERSTACK_BASE_URL}/pricebook"
 
+#: Suffixe du type de GPU marquant une offre spot (ex. ``"H100-80G-PCIe-spot"``).
+_SPOT_SUFFIX = "-spot"
+#: Mémoire GPU encodée dans le type (ex. ``"H100-80G"`` → 80, ``"H200-141G"`` → 141).
+_VRAM_RE = re.compile(r"(\d+)\s*G", re.IGNORECASE)
+
 
 def _availability(stock: Any) -> int:
     """Normalise ``stock_available`` (booléen ou compteur) en profondeur de stock entière."""
@@ -50,20 +51,40 @@ def _availability(stock: Any) -> int:
     return 0
 
 
-def _build_price_index(pricebook: Sequence[dict[str, Any]]) -> dict[str, float]:
-    """Construit un index ``{flavor_name: prix_machine_par_heure}`` depuis le pricebook.
+def _coerce_price(value: Any) -> float | None:
+    """Coerce une valeur de pricebook (souvent une chaîne, ``"1.9"`` / ``"0E-9"``) en USD/h > 0."""
+    try:
+        price = float(Decimal(str(value)))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+    return price if price > 0 else None
 
-    ``value`` est le prix horaire de la machine (USD/h) — non nul et positif requis.
-    Les entrées sans ``name`` ou avec ``value`` invalide/nul sont ignorées.
-    """
+
+def _build_price_index(pricebook: Sequence[dict[str, Any]]) -> dict[str, float]:
+    """Index ``{type_gpu: prix_par_gpu}`` du pricebook (valeurs en chaînes coercées, > 0 requis)."""
     index: dict[str, float] = {}
     for entry in pricebook:
         name = entry.get("name")
-        value = entry.get("value")
-        if not name or not isinstance(value, (int, float)) or value <= 0:
-            continue
-        index[str(name)] = float(value)
+        price = _coerce_price(entry.get("value"))
+        if name and price is not None:
+            index[str(name)] = price
     return index
+
+
+def _vram_gb(gpu_raw: str) -> float | None:
+    """Extrait la mémoire GPU encodée dans le type (``"H100-80G-PCIe"`` → 80.0), sinon ``None``."""
+    match = _VRAM_RE.search(gpu_raw)
+    return float(match.group(1)) if match else None
+
+
+def _opt_float(value: Any) -> float | None:
+    """Cast optionnel en flottant (``None`` si absent ou non numérique ; un booléen n'est pas un nombre)."""
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _opt_int(value: Any) -> int | None:
+    """Cast optionnel en entier (``None`` si absent ou non numérique)."""
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def parse_hyperstack(
@@ -71,19 +92,19 @@ def parse_hyperstack(
     pricebook: Sequence[dict[str, Any]],
     snapshotted_at: dt.datetime,
 ) -> list[Snapshot]:
-    """Transforme les groupes de flavors Hyperstack + pricebook en snapshots $/GPU·h.
+    """Joint flavors ↔ pricebook (par ``flavor.gpu``) → snapshots $/GPU·h enrichis.
 
-    Chaque groupe (par modèle/région) porte une liste ``flavors``. On retient les flavors
-    avec au moins un GPU (``gpu_count``) dont le **nom est présent dans le pricebook** ; le
-    prix par GPU est ``pricebook[flavor.name] / gpu_count``. Le modèle GPU vient du flavor
-    (repli sur le groupe).
+    On retient les flavors à ≥ 1 GPU dont le **type** ``gpu`` figure au pricebook. Le prix
+    pricebook est **déjà par GPU** (pas de division). Le suffixe ``-spot`` fixe le bail et
+    est retiré avant la normalisation du modèle. Champs descriptifs peuplés depuis le flavor
+    (région, vCPU, RAM, disque) et le type (mémoire GPU).
 
     Parameters
     ----------
     flavor_groups:
-        Réponse de ``GET /v1/core/flavors`` → ``data`` (liste de groupes).
+        ``data`` de ``GET /v1/core/flavors`` (liste de groupes par type/région).
     pricebook:
-        Réponse de ``GET /v1/pricebook`` (liste plate d'entrées tarifaires).
+        Liste plate de ``GET /v1/pricebook`` (entrées tarifaires par composant).
     snapshotted_at:
         Horodatage UTC tz-aware du relevé.
     """
@@ -91,23 +112,29 @@ def parse_hyperstack(
     out: list[Snapshot] = []
     for group in flavor_groups:
         group_gpu = group.get("gpu")
+        group_region = group.get("region_name")
         for flavor in group.get("flavors", []):
-            gpu_count = int(flavor.get("gpu_count", 0) or 0)
-            if gpu_count <= 0:
+            if int(flavor.get("gpu_count", 0) or 0) <= 0:
                 continue
-            flavor_name = flavor.get("name") or ""
-            machine_price = price_index.get(flavor_name)
-            if machine_price is None or machine_price <= 0:
+            gpu_raw = str(flavor.get("gpu") or group_gpu or "")
+            price = price_index.get(gpu_raw)
+            if price is None:
                 continue
-            raw_model = flavor.get("gpu") or group_gpu or ""
+            is_spot = gpu_raw.lower().endswith(_SPOT_SUFFIX)
+            gpu_for_model = gpu_raw[: -len(_SPOT_SUFFIX)] if is_spot else gpu_raw
             out.append(
                 Snapshot(
                     snapshotted_at=snapshotted_at,
                     source="hyperstack",
-                    gpu_model=normalize_gpu_model(str(raw_model)),
-                    price_usd_per_hour=machine_price / gpu_count,
-                    lease_type="on_demand",
+                    gpu_model=normalize_gpu_model(gpu_for_model),
+                    price_usd_per_hour=price,
+                    lease_type="spot" if is_spot else "on_demand",
                     availability=_availability(flavor.get("stock_available")),
+                    region=flavor.get("region_name") or group_region,
+                    gpu_memory_gb=_vram_gb(gpu_raw),
+                    vcpu=_opt_int(flavor.get("cpu")),
+                    ram_gb=_opt_float(flavor.get("ram")),
+                    disk_gb=_opt_float(flavor.get("disk")),
                 )
             )
     return out
@@ -118,8 +145,9 @@ def fetch_hyperstack(
 ) -> list[Snapshot]:
     """Double appel à l'API Hyperstack (flavors + pricebook) → snapshots horodatés.
 
-    Le prix vit dans le pricebook séparé ; les flavors ne portent que les specs.
-    En cas de réponse inattendue (clé absente, JSON malformé), renvoie ``[]``.
+    Le prix vit dans le pricebook séparé ; les flavors ne portent que les specs. En cas de
+    réponse inattendue (clé absente, JSON malformé, HTTP non-2xx), renvoie ``[]`` (jamais
+    d'exception : le collecteur ne doit pas tomber pour une venue).
     """
     headers = {"api_key": api_key}
     try:
@@ -133,12 +161,9 @@ def fetch_hyperstack(
     except Exception:
         return []
 
-    flavor_groups: list[Any] = (
-        flavor_payload.get("data", []) if isinstance(flavor_payload, dict) else []
-    )
+    flavor_groups = flavor_payload.get("data", []) if isinstance(flavor_payload, dict) else []
     flavor_groups = flavor_groups if isinstance(flavor_groups, list) else []
-    # Le pricebook peut être une liste plate ou enveloppée dans {"data": [...]}
-    raw_pb: Any
+    # Le pricebook est une liste plate ; on tolère une enveloppe {"data": [...]} défensivement.
     if isinstance(pricebook_payload, list):
         pricebook: list[Any] = pricebook_payload
     elif isinstance(pricebook_payload, dict):
@@ -157,5 +182,5 @@ class HyperstackProvider:
     required_env: tuple[str, ...] = ("HYPERSTACK_API_KEY",)
 
     def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Relève les flavors Hyperstack (clé garantie par le registre key-gated)."""
+        """Relève les prix GPU Hyperstack (clé garantie par le registre key-gated)."""
         return fetch_hyperstack(os.environ["HYPERSTACK_API_KEY"], now)
