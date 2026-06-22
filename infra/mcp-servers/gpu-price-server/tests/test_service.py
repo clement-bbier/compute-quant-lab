@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from conftest import T0  # fixture module (sys.path injecté par conftest)
+from conftest import T0, T1  # fixture module (sys.path injecté par conftest)
 from service import (
     latest_price,
     list_gpu_models,
+    price_history,
 )
 
 
@@ -59,3 +60,23 @@ def test_latest_price_unknown_model(store):
     assert res["found"] is False
     assert "RTX9999" in res["message"]
     assert "H100" in res["available_models"]
+
+
+def test_price_history_ordered_and_source_filter(store):
+    res = price_history(store, "H100", source="vastai")
+    assert res["n"] == 3  # vastai H100 : T0(2.00), T1(1.80), T1(1.90)
+    times = [o["snapshotted_at"] for o in res["observations"]]
+    assert times == sorted(times)  # ordre croissant
+    assert all(o["source"] == "vastai" for o in res["observations"])
+
+
+def test_price_history_as_of_excludes_future(store):
+    res = price_history(store, "H100", source="vastai", as_of=T0.isoformat())
+    assert res["n"] == 1
+    assert res["observations"][0]["price_usd_per_hour"] == 2.00
+
+
+def test_price_history_start_bound(store):
+    res = price_history(store, "H100", source="vastai", start=T1.isoformat())
+    assert res["n"] == 2
+    assert {o["price_usd_per_hour"] for o in res["observations"]} == {1.80, 1.90}

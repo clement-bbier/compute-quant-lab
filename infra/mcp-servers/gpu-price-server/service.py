@@ -117,7 +117,33 @@ def price_history(
     lease_type: str | None = None,
 ) -> dict[str, Any]:
     """Série temporelle ordonnée des relevés (réel) de ``gpu_model`` dans ``[start, as_of]``."""
-    raise NotImplementedError
+    cutoff = _parse_instant(as_of)
+    start_dt = _parse_instant(start)
+    frame = store.read(as_of=cutoff, source=source)
+    subset = frame[frame["gpu_model"] == gpu_model]
+    if lease_type is not None:
+        subset = subset[subset["lease_type"] == lease_type]
+    if start_dt is not None:
+        subset = subset[subset["snapshotted_at"] >= pd.Timestamp(start_dt)]
+    subset = subset.sort_values("snapshotted_at")
+    observations = [
+        {
+            "snapshotted_at": row.snapshotted_at.isoformat(),
+            "source": row.source,
+            "lease_type": row.lease_type,
+            "price_usd_per_hour": float(row.price_usd_per_hour),
+            "availability": int(row.availability),
+        }
+        for row in subset.itertuples(index=False)
+    ]
+    return {
+        "gpu_model": gpu_model,
+        "start": start_dt.isoformat() if start_dt is not None else None,
+        "as_of": cutoff.isoformat() if cutoff is not None else None,
+        "provenance": PROVENANCE,
+        "n": len(observations),
+        "observations": observations,
+    }
 
 
 def summary_stats(
