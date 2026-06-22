@@ -45,8 +45,9 @@ Zone protégée (jamais touchée en worktree, passe par convergence) : `CLAUDE.m
   + `flops_per_watt`. Responsabilité unique : référentiel d'efficacité, zéro logique.
 - Create: `core/pricing/pue_prior.py` — `PuePrior` (truncated-normal region-keyed) :
   point estimate + bornes de sensibilité. Responsabilité unique : le prior PUE.
-- Create: `core/pricing/tests/test_efficiency.py`, `.../test_pue_prior.py`,
-  `.../test_normalized_spread.py`.
+- Create: `tests/test_efficiency.py`, `tests/test_pue_prior.py`,
+  `tests/test_normalized_spread.py` — **convention fondation réelle : `testpaths = ["tests"]`
+  à la racine** (les tests P01 vivent dans `tests/`, pas dans `tests/`).
 - Modify: `core/pricing/power_model.py` — accepter un `PuePrior` comme source du PUE
   (rétro-compatible : un float reste accepté).
 - Modify: `core/pricing/pricer.py` — exposer un spread **normalisé** par TFLOP et les
@@ -54,7 +55,7 @@ Zone protégée (jamais touchée en worktree, passe par convergence) : `CLAUDE.m
 
 ### Task A1 : Table d'efficacité GPU figée
 
-**Files:** Create `core/pricing/efficiency.py`, `core/pricing/tests/test_efficiency.py`
+**Files:** Create `core/pricing/efficiency.py`, `tests/test_efficiency.py`
 
 - [ ] **Step 1 — Test qui échoue** (`test_efficiency.py`) :
 
@@ -83,7 +84,7 @@ def test_unknown_gpu_raises():
         tflops_fp16("RTX_FANTASY")
 ```
 
-- [ ] **Step 2 — Lancer, vérifier l'échec** : `uv run pytest core/pricing/tests/test_efficiency.py -v` → FAIL (`ModuleNotFoundError`).
+- [ ] **Step 2 — Lancer, vérifier l'échec** : `uv run pytest tests/test_efficiency.py -v` → FAIL (`ModuleNotFoundError`).
 
 - [ ] **Step 3 — Implémentation minimale** (`efficiency.py`) :
 
@@ -127,12 +128,12 @@ def flops_per_watt(gpu: str) -> float:
     return spec.tflops_fp16 / spec.tdp_w
 ```
 
-- [ ] **Step 4 — Lancer, vérifier le succès** : `uv run pytest core/pricing/tests/test_efficiency.py -v` → PASS.
-- [ ] **Step 5 — Commit** : `git add core/pricing/efficiency.py core/pricing/tests/test_efficiency.py && git commit -m "feat(pricing): table d'efficacité GPU figée (FLOPS/Watt FP16 dense)"`
+- [ ] **Step 4 — Lancer, vérifier le succès** : `uv run pytest tests/test_efficiency.py -v` → PASS.
+- [ ] **Step 5 — Commit** : `git add core/pricing/efficiency.py tests/test_efficiency.py && git commit -m "feat(pricing): table d'efficacité GPU figée (FLOPS/Watt FP16 dense)"`
 
 ### Task A2 : `PuePrior` truncated-normal region-keyed
 
-**Files:** Create `core/pricing/pue_prior.py`, `core/pricing/tests/test_pue_prior.py`
+**Files:** Create `core/pricing/pue_prior.py`, `tests/test_pue_prior.py`
 
 - [ ] **Step 1 — Test qui échoue** :
 
@@ -163,7 +164,7 @@ def test_texas_prior_matches_L0():
     assert ERCOT_TEXAS_PRIOR.sensitivity_bounds() == (1.2, 1.8)
 ```
 
-- [ ] **Step 2 — Échec attendu** : `uv run pytest core/pricing/tests/test_pue_prior.py -v` → FAIL.
+- [ ] **Step 2 — Échec attendu** : `uv run pytest tests/test_pue_prior.py -v` → FAIL.
 
 - [ ] **Step 3 — Implémentation** (`pue_prior.py`) :
 
@@ -218,12 +219,12 @@ class PuePrior:
 ERCOT_TEXAS_PRIOR = PuePrior(mu=1.45, sigma=0.15, low=1.2, high=1.8)
 ```
 
-- [ ] **Step 4 — Succès** : `uv run pytest core/pricing/tests/test_pue_prior.py -v` → PASS.
+- [ ] **Step 4 — Succès** : `uv run pytest tests/test_pue_prior.py -v` → PASS.
 - [ ] **Step 5 — Commit** : `git commit -am "feat(pricing): PuePrior truncated-normal region-keyed (L0 §8)"`
 
 ### Task A3 : `ServerPowerModel` accepte un `PuePrior` (rétro-compatible)
 
-**Files:** Modify `core/pricing/power_model.py`, add tests in `core/pricing/tests/test_pue_prior.py`
+**Files:** Modify `core/pricing/power_model.py`, add tests in `tests/test_pue_prior.py`
 
 - [ ] **Step 1 — Test qui échoue** :
 
@@ -240,7 +241,7 @@ def test_power_model_still_accepts_float():
     assert m.pue() == 1.5
 ```
 
-- [ ] **Step 2 — Échec** : `uv run pytest core/pricing/tests/test_pue_prior.py -v` → FAIL.
+- [ ] **Step 2 — Échec** : `uv run pytest tests/test_pue_prior.py -v` → FAIL.
 - [ ] **Step 3 — Implémentation** : dans `power_model.py`, accepter `pue: float | PuePrior`.
   Stocker ; `pue()` retourne `self._pue.point_estimate()` si c'est un `PuePrior`, sinon le float.
   Conserver la validation `pue >= 1.0` sur le float ; pour un prior, la validation vit dans `PuePrior`.
@@ -269,12 +270,12 @@ def pue_bounds(self) -> tuple[float, float] | None:
     return self._pue_prior.sensitivity_bounds() if self._pue_prior else None
 ```
 
-- [ ] **Step 4 — Succès** : `uv run pytest core/pricing/tests/ -v` → PASS (toute la suite pricing).
+- [ ] **Step 4 — Succès** : `uv run pytest tests/ -v` → PASS (toute la suite pricing).
 - [ ] **Step 5 — Commit** : `git commit -am "feat(pricing): ServerPowerModel accepte un PuePrior (rétro-compatible float)"`
 
 ### Task A4 : Spread normalisé par TFLOP + bandes PUE
 
-**Files:** Modify `core/pricing/pricer.py`, create `core/pricing/tests/test_normalized_spread.py`
+**Files:** Modify `core/pricing/pricer.py`, create `tests/test_normalized_spread.py`
 
 - [ ] **Step 1 — Test qui échoue** :
 
@@ -307,12 +308,12 @@ def test_pue_bands_bracket_central_cost():
     assert high.spread.iloc[0] <= res.spread.iloc[0] <= low.spread.iloc[0]
 ```
 
-- [ ] **Step 2 — Échec** : `uv run pytest core/pricing/tests/test_normalized_spread.py -v` → FAIL. *(Vérifier le nom réel de la FX neutre dans `core/pricing/fx.py` ; ajuster l'import si besoin.)*
+- [ ] **Step 2 — Échec** : `uv run pytest tests/test_normalized_spread.py -v` → FAIL. *(Vérifier le nom réel de la FX neutre dans `core/pricing/fx.py` ; ajuster l'import si besoin.)*
 - [ ] **Step 3 — Implémentation** : ajouter à `SparkSpreadPricer` deux méthodes **pures**, sans toucher au chemin central `price()` (parité Rust intacte) :
   - `normalized_spread(res: SpreadResult) -> pd.Series` : `res.spread / tflops_fp16(res.gpu)`.
   - `pue_sensitivity(source, gpu, region) -> tuple[SpreadResult, SpreadResult]` : re-price aux bornes `low`/`high` du prior en injectant temporairement un `ServerPowerModel` au PUE de borne (réutilise le kernel existant).
-- [ ] **Step 4 — Succès** : `uv run pytest core/pricing/tests/ -v` → PASS.
-- [ ] **Step 5 — Vérifier la non-régression parité Rust** : `uv run pytest core/pricing/ -k parity -v` → PASS (le chemin central est inchangé).
+- [ ] **Step 4 — Succès** : `uv run pytest tests/ -v` → PASS.
+- [ ] **Step 5 — Vérifier la non-régression parité Rust** : `uv run pytest tests -k parity -v` → PASS si kernel Rust buildé, sinon `skipped` (état baseline) — le chemin central est inchangé.
 - [ ] **Step 6 — Commit** : `git commit -am "feat(pricing): spread normalisé par TFLOP + bandes de sensibilité PUE"`
 
 ---
