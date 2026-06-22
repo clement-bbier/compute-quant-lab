@@ -119,3 +119,21 @@ def test_run_query_counts_by_model(store):
     rows = {r["gpu_model"]: r["n"] for r in res["rows"]}
     assert rows == {"A100": 1, "B200": 1, "H100": 5}
     assert res["columns"] == ["gpu_model", "n"]
+
+
+def test_latest_price_echoes_user_cutoff(store):
+    # cutoff postérieur aux données : l'as_of renvoyé est le cutoff utilisateur, pas le max observé
+    res = latest_price(store, "H100", as_of="2026-06-03T00:00:00+00:00")
+    assert res["as_of"] == "2026-06-03T00:00:00+00:00"
+
+
+def test_price_history_as_of_defaults_to_observed_max(store):
+    # sans cutoff, as_of effectif = max(snapshotted_at) observé (auditable)
+    res = price_history(store, "H100", source="vastai")
+    assert res["as_of"] == T1.isoformat()
+
+
+def test_price_history_lease_type_filter(store):
+    # le fixture ne contient que du on_demand → filtrer 'spot' donne 0 relevé
+    res = price_history(store, "H100", source="vastai", lease_type="spot")
+    assert res["n"] == 0

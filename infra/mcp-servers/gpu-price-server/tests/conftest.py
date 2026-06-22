@@ -21,7 +21,7 @@ T1 = dt.datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
 
 @pytest.fixture
 def snapshots() -> list[Snapshot]:
-    """6 relevés déterministes : 2 sources, 3 modèles, 2 instants ; vastai a 2 offres H100 à T1."""
+    """7 relevés déterministes : 2 sources, 3 modèles, 2 instants ; vastai a 2 offres H100 à T1."""
     return [
         Snapshot(T0, "vastai", "H100", 2.00, "on_demand", 5),
         Snapshot(T0, "runpod", "H100", 2.20, "on_demand", 3),
