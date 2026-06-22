@@ -1,0 +1,114 @@
+"""Tests du transport injectable ERCOT (P17 — egress hébergé GridStatus.io).
+
+Offline : client hébergé MOCKÉ + fixtures du schéma hébergé *présumé*. Le test live
+(``test_fetch_live.py``) valide le schéma réel avec une vraie clé.
+"""
+
+from __future__ import annotations
+
+import os
+
+import pandas as pd
+import pytest
+
+from core.ingestion.energy.ercot import ErcotMarket
+from core.ingestion.energy.ercot_transport import (
+    GridstatusDirectTransport,
+    GridstatusIoTransport,
+)
+
+
+class _FakeClient:
+    """Client GridStatus.io factice : renvoie des frames figés, enregistre les appels."""
+
+    def __init__(self, frames: dict[str, pd.DataFrame]) -> None:
+        self._frames = frames
+        self.calls: list[tuple[str, dict]] = []
+
+    def get_dataset(self, dataset: str, **kwargs: object) -> pd.DataFrame:
+        self.calls.append((dataset, kwargs))
+        return self._frames[dataset]
+
+
+def _hosted_rtm_frame() -> pd.DataFrame:
+    # Schéma hébergé présumé (snake_case + *_utc). À confirmer par le test live.
+    return pd.DataFrame(
+        {
+            "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T06:15:00Z"],
+            "interval_end_utc": ["2024-01-15T06:15:00Z", "2024-01-15T06:30:00Z"],
+            "location": ["HB_BUSAVG", "HB_BUSAVG"],
+            "location_type": ["Trading Hub", "Trading Hub"],
+            "market": ["REAL_TIME_15_MIN", "REAL_TIME_15_MIN"],
+            "spp": [25.0, 28.0],
+        }
+    )
+
+
+def _hosted_forecast_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "publish_time_utc": ["2024-01-14T23:48:00Z", "2024-01-14T23:48:00Z"],
+            "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T07:00:00Z"],
+            "interval_end_utc": ["2024-01-15T07:00:00Z", "2024-01-15T08:00:00Z"],
+            "system_total": [45000.0, 46000.0],
+        }
+    )
+
+
+def test_hosted_transport_maps_rtm_to_canonical_and_parses() -> None:
+    client = _FakeClient({"ercot_spp_real_time_15_min": _hosted_rtm_frame()})
+    market = ErcotMarket(transport=GridstatusIoTransport(client=client))
+    s = market.rtm_price(pd.Timestamp("2024-01-15", tz="UTC"), pd.Timestamp("2024-01-16", tz="UTC"))
+    assert s.name == "rtm_price_usd_mwh"
+    assert list(s.to_numpy()) == [25.0, 28.0]
+    assert str(s.index.tz) == "UTC"
+    assert client.calls[0][0] == "ercot_spp_real_time_15_min"  # bon dataset
+
+
+def test_hosted_transport_maps_forecast_to_canonical() -> None:
+    client = _FakeClient({"ercot_load_forecast": _hosted_forecast_frame()})
+    market = ErcotMarket(transport=GridstatusIoTransport(client=client))
+    df = market.reserve_forecast(
+        pd.Timestamp("2024-01-14", tz="UTC"), pd.Timestamp("2024-01-16", tz="UTC")
+    )
+    for col in ("publish_time", "interval_start", "forecast_load_mw", "reserve_margin_mw"):
+        assert col in df.columns
+    assert str(df["publish_time"].dt.tz) == "UTC"
+    # point-in-time : la prévision est publiée avant l'intervalle cible
+    assert (df["publish_time"] < df["interval_start"]).all()
+
+
+def test_transport_selection_hosted_when_key_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GRIDSTATUS_API_KEY", "dummy-key")
+    assert isinstance(ErcotMarket()._transport(), GridstatusIoTransport)
+
+
+def test_transport_selection_direct_when_key_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GRIDSTATUS_API_KEY", raising=False)
+    assert isinstance(ErcotMarket()._transport(), GridstatusDirectTransport)
+
+
+def test_injected_transport_takes_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GRIDSTATUS_API_KEY", "dummy-key")
+    direct = GridstatusDirectTransport()
+    assert ErcotMarket(transport=direct)._transport() is direct
+
+
+# --- Test LIVE (réseau + vraie clé) : valide le schéma hébergé réel ------------
+# À lancer par l'utilisateur : `GRIDSTATUS_API_KEY=... uv run pytest -m live`.
+# C'est CE test qui confirme que les mappers (_hosted_*_to_canonical) collent au
+# vrai schéma GridStatus.io. S'il échoue sur une colonne, l'ajustement est localisé.
+
+
+@pytest.mark.live
+def test_hosted_live_rtm_real_schema() -> None:
+    key = os.environ.get("GRIDSTATUS_API_KEY")
+    if not key:
+        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+    market = ErcotMarket(transport=GridstatusIoTransport(limit=50))
+    end = pd.Timestamp.now(tz="UTC").normalize()
+    start = end - pd.Timedelta(days=2)
+    s = market.rtm_price(start, end)
+    assert len(s) > 0
+    assert str(s.index.tz) == "UTC"
+    assert s.name == "rtm_price_usd_mwh"
