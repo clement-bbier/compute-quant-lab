@@ -17,10 +17,12 @@ import pandas as pd
 
 from core.storage.parquet_store import ParquetPriceStore
 
-#: Schéma DuckDB de la vue vide (lac à froid) — aligné sur le cold store + partition.
+#: Schéma DuckDB de la vue vide (lac à froid) — aligné sur le cold store enrichi + partition.
 _EMPTY_VIEW_SCHEMA = (
     "snapshotted_at TIMESTAMP WITH TIME ZONE, source VARCHAR, gpu_model VARCHAR, "
-    "lease_type VARCHAR, price_usd_per_hour DOUBLE, availability BIGINT, month VARCHAR"
+    "lease_type VARCHAR, price_usd_per_hour DOUBLE, availability BIGINT, "
+    "region VARCHAR, gpu_memory_gb DOUBLE, vcpu BIGINT, ram_gb DOUBLE, disk_gb DOUBLE, "
+    "provider_detail VARCHAR, month VARCHAR"
 )
 
 
@@ -49,9 +51,13 @@ def query(sql: str, store: ParquetPriceStore, *, view: str = "prices") -> pd.Dat
             # CREATE VIEW n'accepte pas de paramètre préparé : le glob (chemin interne
             # contrôlé) est inliné en POSIX, simple quote échappée par sécurité.
             glob = (store.root / "**" / "*.parquet").as_posix().replace("'", "''")
+            # union_by_name : le lac est hétérogène (parquet d'avant l'enrichissement du
+            # schéma, sans les colonnes descriptives). Sans union par NOM, DuckDB lit par
+            # position et lève « schema mismatch in glob » dès qu'on sélectionne une colonne
+            # absente des vieux fichiers ; avec, les colonnes manquantes sont NULL-fillées.
             con.execute(
-                f"CREATE VIEW {view} AS "
-                f"SELECT * FROM read_parquet('{glob}', hive_partitioning => true)"
+                f"CREATE VIEW {view} AS SELECT * FROM read_parquet("
+                f"'{glob}', hive_partitioning => true, union_by_name => true)"
             )
         else:
             con.execute(f"CREATE TABLE {view} ({_EMPTY_VIEW_SCHEMA})")
