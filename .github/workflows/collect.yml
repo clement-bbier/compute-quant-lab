@@ -38,10 +38,16 @@ jobs:
       - name: Install deps
         run: uv sync
 
-      - name: Collecte prix GPU (Vast.ai + RunPod)
+      - name: Collecte prix GPU (7 venues, key-gated)
         env:
           VASTAI_API_KEY: ${{ secrets.VASTAI_API_KEY }}
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          PRIMEINTELLECT_API_KEY: ${{ secrets.PRIMEINTELLECT_API_KEY }}
+          DATACRUNCH_CLIENT_ID: ${{ secrets.DATACRUNCH_CLIENT_ID }}
+          DATACRUNCH_CLIENT_SECRET: ${{ secrets.DATACRUNCH_CLIENT_SECRET }}
+          CUDO_API_KEY: ${{ secrets.CUDO_API_KEY }}
+          HYPERSTACK_API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          TENSORDOCK_API_KEY: ${{ secrets.TENSORDOCK_API_KEY }}
         run: uv run python -m infra.collectors.gpu_price_snapshot
 
       - name: Commit & push des snapshots
