@@ -6,6 +6,7 @@ import pytest
 
 from conftest import T0  # fixture module (sys.path injecté par conftest)
 from service import (
+    latest_price,
     list_gpu_models,
 )
 
@@ -34,3 +35,27 @@ def test_empty_store_graceful(tmp_path):
 
     empty = ParquetPriceStore(tmp_path / "empty")
     assert list_gpu_models(empty) == []
+
+
+def test_latest_price_freshest_per_source_cheapest(store):
+    res = latest_price(store, "H100")
+    assert res["found"] is True
+    assert res["provenance"] == "real"
+    by = {d["source"]: d["price_usd_per_hour"] for d in res["by_source"]}
+    # vastai : instant le plus récent = T1, offre la moins chère = 1.80 ; runpod T1 = 2.10
+    assert by == {"vastai": 1.80, "runpod": 2.10}
+    assert res["summary"] == {"min": 1.80, "median": 1.95, "max": 2.10, "n_sources": 2}
+
+
+def test_latest_price_point_in_time(store):
+    res = latest_price(store, "H100", as_of=T0.isoformat())
+    by = {d["source"]: d["price_usd_per_hour"] for d in res["by_source"]}
+    # à T0 les relevés T1 sont exclus → anti look-ahead
+    assert by == {"vastai": 2.00, "runpod": 2.20}
+
+
+def test_latest_price_unknown_model(store):
+    res = latest_price(store, "RTX9999")
+    assert res["found"] is False
+    assert "RTX9999" in res["message"]
+    assert "H100" in res["available_models"]

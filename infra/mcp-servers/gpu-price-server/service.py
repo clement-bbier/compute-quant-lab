@@ -8,8 +8,10 @@ Les prix servis sont **réels** (spot observé) : chaque réponse porte ``proven
 from __future__ import annotations
 
 import datetime as dt
+import statistics
 from typing import Any
 
+import pandas as pd
 
 from core.storage.parquet_store import ParquetPriceStore
 from core.storage.protocols import PriceStore
@@ -50,6 +52,14 @@ def list_gpu_models(store: PriceStore, *, as_of: str | None = None) -> list[str]
     return sorted(frame["gpu_model"].unique().tolist())
 
 
+def _latest_row_per_source(subset: pd.DataFrame) -> pd.DataFrame:
+    """Par source : l'instant le plus récent, puis l'offre la moins chère à cet instant."""
+    freshest_per_source = subset.groupby("source")["snapshotted_at"].transform("max")
+    freshest = subset[subset["snapshotted_at"] == freshest_per_source]
+    cheapest_idx = freshest.groupby("source")["price_usd_per_hour"].idxmin()
+    return freshest.loc[cheapest_idx].sort_values("source")
+
+
 def latest_price(
     store: PriceStore,
     gpu_model: str,
@@ -58,7 +68,43 @@ def latest_price(
     as_of: str | None = None,
 ) -> dict[str, Any]:
     """Dernier prix par source pour ``gpu_model``/``lease_type`` (réel) + résumé min/médian/max."""
-    raise NotImplementedError
+    frame = store.read(as_of=_parse_instant(as_of))
+    subset = frame[(frame["gpu_model"] == gpu_model) & (frame["lease_type"] == lease_type)]
+    if subset.empty:
+        available = sorted(frame["gpu_model"].unique().tolist()) if not frame.empty else []
+        return {
+            "gpu_model": gpu_model,
+            "lease_type": lease_type,
+            "found": False,
+            "provenance": PROVENANCE,
+            "message": f"Aucun relevé pour gpu_model={gpu_model!r}, lease_type={lease_type!r}.",
+            "available_models": available,
+        }
+    latest = _latest_row_per_source(subset)
+    by_source = [
+        {
+            "source": row.source,
+            "price_usd_per_hour": float(row.price_usd_per_hour),
+            "availability": int(row.availability),
+            "snapshotted_at": row.snapshotted_at.isoformat(),
+        }
+        for row in latest.itertuples(index=False)
+    ]
+    prices = [item["price_usd_per_hour"] for item in by_source]
+    return {
+        "gpu_model": gpu_model,
+        "lease_type": lease_type,
+        "found": True,
+        "provenance": PROVENANCE,
+        "as_of": subset["snapshotted_at"].max().isoformat(),
+        "by_source": by_source,
+        "summary": {
+            "min": min(prices),
+            "median": round(statistics.median(prices), 10),
+            "max": max(prices),
+            "n_sources": len(prices),
+        },
+    }
 
 
 def price_history(
