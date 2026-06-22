@@ -9,6 +9,7 @@ from service import (
     latest_price,
     list_gpu_models,
     price_history,
+    summary_stats,
 )
 
 
@@ -80,3 +81,30 @@ def test_price_history_start_bound(store):
     res = price_history(store, "H100", source="vastai", start=T1.isoformat())
     assert res["n"] == 2
     assert {o["price_usd_per_hour"] for o in res["observations"]} == {1.80, 1.90}
+
+
+def test_summary_stats_overall_and_by_source(store):
+    res = summary_stats(store, "H100")
+    # prix H100 : 2.00, 2.20, 1.80, 1.90, 2.10  → 5 obs, mean 2.00, median 2.00
+    assert res["n"] == 5
+    overall = res["overall"]
+    assert overall["count"] == 5
+    assert overall["min"] == 1.80
+    assert overall["max"] == 2.20
+    assert overall["median"] == 2.00
+    assert round(overall["mean"], 6) == 2.00
+    by = {d["source"]: d["count"] for d in res["by_source"]}
+    assert by == {"runpod": 2, "vastai": 3}
+
+
+def test_summary_stats_as_of(store):
+    res = summary_stats(store, "H100", as_of=T0.isoformat())
+    assert res["n"] == 2  # T0 seulement : 2.00 (vastai), 2.20 (runpod)
+    assert res["overall"]["min"] == 2.00
+    assert res["overall"]["max"] == 2.20
+
+
+def test_summary_stats_unknown_model(store):
+    res = summary_stats(store, "RTX9999")
+    assert res["found"] is False
+    assert res["n"] == 0

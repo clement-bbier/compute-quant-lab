@@ -154,7 +154,52 @@ def summary_stats(
     as_of: str | None = None,
 ) -> dict[str, Any]:
     """Stats descriptives (réel) des prix de ``gpu_model``, bornées au point-in-time ``as_of``."""
-    raise NotImplementedError
+    cutoff = _parse_instant(as_of)
+    frame = store.read(as_of=cutoff)
+    subset = frame[frame["gpu_model"] == gpu_model]
+    if lease_type is not None:
+        subset = subset[subset["lease_type"] == lease_type]
+    if subset.empty:
+        return {
+            "gpu_model": gpu_model,
+            "found": False,
+            "provenance": PROVENANCE,
+            "n": 0,
+            "message": f"Aucun relevé pour gpu_model={gpu_model!r}.",
+        }
+    prices = subset["price_usd_per_hour"]
+    overall = {
+        "count": int(prices.count()),
+        "min": float(prices.min()),
+        "max": float(prices.max()),
+        "mean": float(prices.mean()),
+        "median": float(prices.median()),
+        "std": float(prices.std(ddof=0)),  # population : défini même pour n=1
+    }
+    by_source = [
+        {
+            "source": str(src),
+            "count": int(grp["price_usd_per_hour"].count()),
+            "min": float(grp["price_usd_per_hour"].min()),
+            "max": float(grp["price_usd_per_hour"].max()),
+            "mean": float(grp["price_usd_per_hour"].mean()),
+            "median": float(grp["price_usd_per_hour"].median()),
+        }
+        for src, grp in subset.groupby("source")
+    ]
+    return {
+        "gpu_model": gpu_model,
+        "found": True,
+        "provenance": PROVENANCE,
+        "as_of": cutoff.isoformat()
+        if cutoff is not None
+        else subset["snapshotted_at"].max().isoformat(),
+        "n": int(prices.count()),
+        "overall": overall,
+        "by_source": sorted(by_source, key=lambda d: d["source"]),
+        "first_obs_at": subset["snapshotted_at"].min().isoformat(),
+        "last_obs_at": subset["snapshotted_at"].max().isoformat(),
+    }
 
 
 def run_query(store: ParquetPriceStore, sql: str) -> dict[str, Any]:
