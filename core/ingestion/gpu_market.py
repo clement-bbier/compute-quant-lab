@@ -1,160 +1,36 @@
-"""Connecteur marketplace GPU (données réelles, jambe compute du PoC).
+"""Connecteur marketplace GPU — **shim de compatibilité** (la logique vit dans ``providers/``).
 
-Relève les prix de location *live* sur les marketplaces publiques (Vast.ai aujourd'hui,
-RunPod en extension) et les normalise en :class:`~core.ingestion.protocols.Snapshot`.
-La logique pure (parsing, normalisation des modèles) est isolée de l'appel réseau pour
-être testable ; l'accès live est *token-gated* (clé via ``.env``), avec échec explicite
-si aucune source n'est configurée.
+Historiquement Vast.ai et RunPod étaient implémentés ici. Pour ajouter des venues en
+parallèle sans collision (*1 fichier = 1 venue*), la logique a migré dans le paquet
+pluggable :mod:`core.ingestion.providers` (un module par venue + un protocole + un registre
+key-gated). Ce module reste l'**API publique stable** :
 
-Unité de sortie : USD par GPU·heure (le prix machine ``dph_total`` est divisé par le
-nombre de GPU). Type de bail : on-demand.
+- il **ré-exporte** les symboles historiques (``normalize_gpu_model``, ``parse_*``,
+  ``fetch_*``) pour ne casser aucun importateur existant (façade ``core.ingestion``,
+  tests P04) ;
+- ``fetch_live_gpu_prices`` **délègue au registre** :func:`core.ingestion.providers.fetch_all`,
+  en conservant sa signature et son comportement exacts (le collecteur planifié
+  ``infra/collectors/gpu_price_snapshot.py`` et la collecte live GitHub Actions en dépendent).
+
+Unité de sortie : USD par GPU·heure. Type de bail : on-demand.
 """
 
 from __future__ import annotations
 
 import datetime as dt
-import logging
-import os
-import re
-from typing import Any, Sequence
-
-import requests
 
 from core.ingestion.protocols import Snapshot
-
-logger = logging.getLogger(__name__)
-
-#: Familles de GPU datacenter reconnues (ordre = priorité de désambiguïsation).
-_GPU_FAMILIES: tuple[str, ...] = (
-    "B200",
-    "H200",
-    "H100",
-    "A100",
-    "L40S",
-    "L40",
-    "A6000",
-    "A40",
-    "V100",
-    "RTX5090",
-    "RTX4090",
-)
-
-_VASTAI_OFFERS_URL = "https://console.vast.ai/api/v0/bundles/"
-
-_RUNPOD_GRAPHQL_URL = "https://api.runpod.io/graphql"
-#: Prix on-demand par type de GPU (secure + community cloud). Le bid/spot
-#: (``minimumBidPrice``) est volontairement exclu : autre type de bail.
-_RUNPOD_QUERY = "{ gpuTypes { id displayName memoryInGb securePrice communityPrice } }"
-
-
-def normalize_gpu_model(raw_name: str) -> str:
-    """Extrait la famille canonique d'un nom de GPU hétérogène.
-
-    ``"H100 SXM"`` → ``"H100"`` ; ``"NVIDIA A100-SXM4-80GB"`` → ``"A100"``. Si aucune
-    famille connue n'est trouvée, renvoie le nom nettoyé (majuscules, alphanumérique).
-    """
-    compact = re.sub(r"[^A-Z0-9]", "", raw_name.upper())
-    for family in _GPU_FAMILIES:
-        if family in compact:
-            return family
-    return compact
-
-
-def parse_vastai_offers(
-    offers: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
-) -> list[Snapshot]:
-    """Transforme des offres Vast.ai en snapshots $/GPU·h (logique pure, testable).
-
-    On ne retient que les offres louables (``rentable``) avec au moins un GPU ; le prix
-    par GPU est ``dph_total / num_gpus``.
-    """
-    out: list[Snapshot] = []
-    for offer in offers:
-        if not offer.get("rentable", False):
-            continue
-        num_gpus = int(offer.get("num_gpus", 0) or 0)
-        if num_gpus <= 0:
-            continue
-        dph_total = float(offer.get("dph_total", 0.0))
-        out.append(
-            Snapshot(
-                snapshotted_at=snapshotted_at,
-                source="vastai",
-                gpu_model=normalize_gpu_model(str(offer.get("gpu_name", ""))),
-                price_usd_per_hour=dph_total / num_gpus,
-                lease_type="on_demand",
-                availability=num_gpus,
-            )
-        )
-    return out
-
-
-def fetch_vastai(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
-) -> list[Snapshot]:
-    """Appel réel à l'API Vast.ai → snapshots horodatés (I/O, non testé en unitaire)."""
-    response = requests.get(
-        _VASTAI_OFFERS_URL,
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=timeout,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    return parse_vastai_offers(payload.get("offers", []), snapshotted_at)
-
-
-def parse_runpod_gpu_types(
-    gpu_types: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
-) -> list[Snapshot]:
-    """Transforme la réponse RunPod ``gpuTypes`` en snapshots $/GPU·h (logique pure).
-
-    RunPod cote déjà par GPU. On retient le **plus bas prix on-demand disponible**
-    entre secure et community cloud (en ignorant 0/``None`` = indisponible), ce qui
-    donne un prix représentatif par modèle, robuste à la dédup ``(t, source, modèle)``.
-    """
-    out: list[Snapshot] = []
-    for gpu in gpu_types:
-        prices = [
-            float(p)
-            for p in (gpu.get("securePrice"), gpu.get("communityPrice"))
-            if isinstance(p, (int, float)) and p > 0
-        ]
-        if not prices:
-            continue
-        out.append(
-            Snapshot(
-                snapshotted_at=snapshotted_at,
-                source="runpod",
-                gpu_model=normalize_gpu_model(str(gpu.get("displayName", ""))),
-                price_usd_per_hour=min(prices),
-                lease_type="on_demand",
-                availability=1,
-            )
-        )
-    return out
-
-
-def fetch_runpod(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
-) -> list[Snapshot]:
-    """Appel réel à l'API GraphQL RunPod → snapshots horodatés (I/O, non testé en unitaire)."""
-    response = requests.post(
-        _RUNPOD_GRAPHQL_URL,
-        params={"api_key": api_key},
-        json={"query": _RUNPOD_QUERY},
-        timeout=timeout,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    gpu_types = (payload.get("data") or {}).get("gpuTypes") or []
-    return parse_runpod_gpu_types(gpu_types, snapshotted_at)
+from core.ingestion.providers import fetch_all
+from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.runpod import fetch_runpod, parse_runpod_gpu_types
+from core.ingestion.providers.vastai import fetch_vastai, parse_vastai_offers
 
 
 def fetch_live_gpu_prices(now: dt.datetime | None = None) -> list[Snapshot]:
     """Relève le prix live de toutes les marketplaces configurées (par token ``.env``).
 
-    Cible appelée par le collecteur planifié. Vast.ai est branché ; RunPod (GraphQL,
-    ``RUNPOD_API_KEY``) est une extension documentée à ajouter ici.
+    Cible appelée par le collecteur planifié. Délègue au registre pluggable
+    :func:`core.ingestion.providers.fetch_all` (key-gated : une venue sans clé est sautée).
 
     Raises
     ------
@@ -162,23 +38,21 @@ def fetch_live_gpu_prices(now: dt.datetime | None = None) -> list[Snapshot]:
         Si aucune source n'est configurée (aucun token marketplace dans l'environnement).
     """
     now = now or dt.datetime.now(dt.timezone.utc)
-    snapshots: list[Snapshot] = []
-
-    vastai_key = os.environ.get("VASTAI_API_KEY")
-    if vastai_key:
-        snapshots.extend(fetch_vastai(vastai_key, now))
-    else:
-        logger.warning("VASTAI_API_KEY absent : Vast.ai ignoré.")
-
-    runpod_key = os.environ.get("RUNPOD_API_KEY")
-    if runpod_key:
-        snapshots.extend(fetch_runpod(runpod_key, now))
-    else:
-        logger.warning("RUNPOD_API_KEY absent : RunPod ignoré.")
-
+    snapshots = fetch_all(now)
     if not snapshots:
         raise RuntimeError(
             "Aucune source marketplace configurée : définir VASTAI_API_KEY ou "
             "RUNPOD_API_KEY (cf. .env / .env.example)."
         )
     return snapshots
+
+
+#: Symboles historiques ré-exportés (compat ascendante : ne pas retirer sans convergence).
+__all__ = [
+    "normalize_gpu_model",
+    "parse_vastai_offers",
+    "fetch_vastai",
+    "parse_runpod_gpu_types",
+    "fetch_runpod",
+    "fetch_live_gpu_prices",
+]
