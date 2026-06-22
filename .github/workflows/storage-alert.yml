@@ -1,0 +1,40 @@
+name: storage-alert
+
+# Alerte avant de saturer le stockage GitHub (le repo accumule l'historique compute
+# sur la branche data-snapshots). Hebdomadaire : si la taille du repo depasse le seuil,
+# ouvre une issue -> GitHub t'envoie un mail (notifications issues activees par defaut).
+# Aucun secret requis (GITHUB_TOKEN suffit).
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # tous les lundis 08:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  check-size:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      THRESHOLD_KB: "700000" # ~700 Mo (alerte AVANT la limite douce ~1 Go de GitHub)
+    steps:
+      - name: Mesurer la taille du repo et alerter si depassement
+        run: |
+          size=$(gh api "repos/${{ github.repository }}" --jq .size)
+          echo "Taille repo : ${size} Ko (seuil ${THRESHOLD_KB} Ko)"
+          if [ "$size" -lt "$THRESHOLD_KB" ]; then
+            echo "Sous le seuil, rien a faire."
+            exit 0
+          fi
+          # Dedup : ne pas rouvrir si une alerte est deja ouverte.
+          open=$(gh issue list --state open --json title \
+            --jq '[.[] | select(.title | startswith("URGENT stockage"))] | length')
+          if [ "$open" -gt 0 ]; then
+            echo "Alerte deja ouverte, on ne duplique pas."
+            exit 0
+          fi
+          gh issue create \
+            --title "URGENT stockage GitHub : ${size} Ko (seuil ${THRESHOLD_KB})" \
+            --body "Le repo atteint ${size} Ko. Action : migrer l'historique data-snapshots vers du stockage objet (S3/R2 via DVC) ou compacter la branche. Cf. docs/storage-roadmap.md. (Alerte auto storage-alert.yml.)"
