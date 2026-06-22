@@ -58,6 +58,12 @@ class Snapshot:
     Unité append-only stockée et dédupliquée par le :class:`SnapshotStore`. Le prix
     est en USD par GPU·heure. ``lease_type`` distingue on-demand / spot / reserved :
     on n'agrège jamais des types de bail différents (standard Silicon Data).
+
+    Les champs descriptifs optionnels (``region``, ``gpu_memory_gb``, ``vcpu``,
+    ``ram_gb``, ``disk_gb``, ``provider_detail``) enrichissent le relevé quand l'API
+    de la venue les expose. Ils N'entrent PAS dans ``dedup_key`` : l'idempotence
+    reste (instant, source, modèle, bail) — les métadonnées hardware ne brisent pas
+    la dédup point-in-time.
     """
 
     snapshotted_at: dt.datetime
@@ -66,6 +72,13 @@ class Snapshot:
     price_usd_per_hour: float
     lease_type: str = "on_demand"
     availability: int = 0
+    # ── champs descriptifs optionnels (compat ascendante : tout existant compile) ──
+    region: str | None = None
+    gpu_memory_gb: float | None = None
+    vcpu: int | None = None
+    ram_gb: float | None = None
+    disk_gb: float | None = None
+    provider_detail: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "snapshotted_at", ensure_utc(self.snapshotted_at))

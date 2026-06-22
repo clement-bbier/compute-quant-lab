@@ -48,6 +48,10 @@ def parse_cudo(
     On retient les machines équipées d'un GPU (``gpuModel`` non vide) avec un
     ``gpuPriceHr.value`` strictement positif. Ce prix est **directement** le $/GPU·h ;
     la disponibilité est ``totalGpuFree``.
+
+    Champs descriptifs propagés :
+    - ``region`` : ``dataCenterId`` (ex. ``"no-luster-1"``).
+    - ``gpu_memory_gb`` : ``gpuMemoryGib`` (GiB → Go, ratio 1:1 en pratique).
     """
     out: list[Snapshot] = []
     for mt in machine_types:
@@ -55,6 +59,13 @@ def parse_cudo(
         price = _price_value(mt.get("gpuPriceHr"))
         if not gpu_model or price is None or price <= 0:
             continue
+
+        dc_id = mt.get("dataCenterId")
+        region: str | None = str(dc_id) if dc_id else None
+
+        mem_gib = mt.get("gpuMemoryGib")
+        gpu_memory_gb: float | None = float(mem_gib) if mem_gib is not None else None
+
         out.append(
             Snapshot(
                 snapshotted_at=snapshotted_at,
@@ -63,6 +74,8 @@ def parse_cudo(
                 price_usd_per_hour=price,
                 lease_type="on_demand",
                 availability=int(mt.get("totalGpuFree", 0) or 0),
+                region=region,
+                gpu_memory_gb=gpu_memory_gb,
             )
         )
     return out
