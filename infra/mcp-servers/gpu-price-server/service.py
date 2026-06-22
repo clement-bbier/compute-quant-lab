@@ -13,6 +13,7 @@ from typing import Any
 
 import pandas as pd
 
+from core.storage import query as duckdb_query
 from core.storage.parquet_store import ParquetPriceStore
 from core.storage.protocols import PriceStore
 
@@ -202,6 +203,29 @@ def summary_stats(
     }
 
 
+def _jsonable(value: Any) -> Any:
+    """Rend une valeur DuckDB/pandas sérialisable JSON (Timestamp→ISO, NaN→None, numpy→python)."""
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(value, "item"):  # scalaires numpy
+        return value.item()
+    return value
+
+
 def run_query(store: ParquetPriceStore, sql: str) -> dict[str, Any]:
     """Exécute ``sql`` (DuckDB **brut**) sur la vue ``prices`` du lac. Aucun garde point-in-time."""
-    raise NotImplementedError
+    frame = duckdb_query(sql, store)
+    rows = [
+        {k: _jsonable(v) for k, v in record.items()} for record in frame.to_dict(orient="records")
+    ]
+    return {
+        "columns": list(frame.columns),
+        "rows": rows,
+        "n": len(rows),
+        "note": "SQL DuckDB brut — AUCUN garde point-in-time ; le filtrage as_of est à la charge de la requête.",
+    }

@@ -9,6 +9,7 @@ from service import (
     latest_price,
     list_gpu_models,
     price_history,
+    run_query,
     summary_stats,
 )
 
@@ -108,3 +109,13 @@ def test_summary_stats_unknown_model(store):
     res = summary_stats(store, "RTX9999")
     assert res["found"] is False
     assert res["n"] == 0
+
+
+def test_run_query_counts_by_model(store):
+    res = run_query(
+        store, "SELECT gpu_model, count(*) AS n FROM prices GROUP BY gpu_model ORDER BY gpu_model"
+    )
+    assert "note" in res and "point-in-time" in res["note"]
+    rows = {r["gpu_model"]: r["n"] for r in res["rows"]}
+    assert rows == {"A100": 1, "B200": 1, "H100": 5}
+    assert res["columns"] == ["gpu_model", "n"]
