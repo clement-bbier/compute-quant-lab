@@ -26,13 +26,28 @@ import os
 
 from core.ingestion.protocols import Snapshot
 from core.ingestion.providers.base import GpuPriceProvider
+from core.ingestion.providers.cudo import CudoProvider
+from core.ingestion.providers.datacrunch import DatacrunchProvider
+from core.ingestion.providers.hyperstack import HyperstackProvider
+from core.ingestion.providers.primeintellect import PrimeintellectProvider
 from core.ingestion.providers.runpod import RunpodProvider
+from core.ingestion.providers.tensordock import TensordockProvider
 from core.ingestion.providers.vastai import VastaiProvider
 
 logger = logging.getLogger(__name__)
 
-#: Venues enregistrées. L'ordre fixe l'ordre d'agrégation des relevés.
-PROVIDERS: tuple[GpuPriceProvider, ...] = (VastaiProvider(), RunpodProvider())
+#: Venues enregistrées (7 actives). L'ordre fixe l'ordre d'agrégation des relevés :
+#: la fondation W1 (Vast.ai, RunPod) puis les venues W2. Chacune est key-gated dans
+#: :func:`fetch_all` ; une venue sans clé est simplement sautée (avertissement loggué).
+PROVIDERS: tuple[GpuPriceProvider, ...] = (
+    VastaiProvider(),
+    RunpodProvider(),
+    PrimeintellectProvider(),
+    DatacrunchProvider(),
+    CudoProvider(),
+    HyperstackProvider(),
+    TensordockProvider(),
+)
 
 
 def fetch_all(now: dt.datetime) -> list[Snapshot]:
