@@ -4,9 +4,12 @@ La logique pure (``parse_tensordock``) est isolée de l'appel réseau (``fetch_t
 token-gated). L'authentification utilise un Bearer sur ``TENSORDOCK_API_KEY``.
 
 Endpoint retenu : ``GET https://dashboard.tensordock.com/api/v2/hostnodes``
-- retourne 403 sans auth (confirmé ; auth Bearer → 200 attendu)
-- l'enveloppe ``hostnodes`` peut être une **liste** ou un **mapping indexé par id** ;
-  le helper ``_hostnodes_records`` tolère les deux.
+- retourne 403 sans auth, **200 avec Bearer** (vérifié en live 2026-06-23)
+- enveloppe réelle : ``{"data": {"hostnodes": [...]}}`` — tout est sous ``data`` ; le helper
+  ``_hostnodes_records`` lit ``data.hostnodes`` et tolère l'ancienne forme plate
+  ``{"hostnodes": ...}`` ainsi qu'un mapping indexé par id.
+- ⚠️ au test live l'inventaire était **vide** (``{"data": {"hostnodes": []}}``) : le détail
+  par nœud (ci-dessous) est conçu sur la forme documentée et reste à confirmer en charge.
 
 Schéma attendu par nœud (à confirmer en live) :
 
@@ -52,8 +55,15 @@ _TENSORDOCK_HOSTNODES_URL = "https://dashboard.tensordock.com/api/v2/hostnodes"
 
 
 def _hostnodes_records(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Extrait la liste des nœuds, que ``hostnodes`` soit une liste ou un mapping par id."""
-    hostnodes = payload.get("hostnodes", [])
+    """Extrait la liste des nœuds depuis l'enveloppe ``{"data": {"hostnodes": ...}}``.
+
+    Tolère aussi l'ancienne forme plate ``{"hostnodes": ...}`` (repli sur ``payload``) et que
+    ``hostnodes`` soit une liste ou un mapping indexé par id.
+    """
+    container = payload.get("data")
+    if not isinstance(container, dict):
+        container = payload
+    hostnodes = container.get("hostnodes", [])
     if isinstance(hostnodes, dict):
         return list(hostnodes.values())
     if isinstance(hostnodes, list):
@@ -61,14 +71,50 @@ def _hostnodes_records(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _opt_float(value: Any) -> float | None:
+    """Cast optionnel en flottant (``None`` si absent/non numérique ; un booléen n'est pas un nombre)."""
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None:
+    """Convertit un nœud TensorDock en ``Snapshot``, ou ``None`` si non conforme/indisponible.
+
+    Retient les nœuds dont ``specs.gpu`` expose une quantité dispo (``amount``) et un prix
+    strictement positifs. ``specs.gpu.price`` est supposé être le $/GPU·h ; le stock est
+    ``specs.gpu.amount``. Région et mémoire viennent de ``location`` / ``specs.gpu.vram``.
+    """
+    if not isinstance(node, dict):
+        return None
+    specs = node.get("specs")
+    gpu = specs.get("gpu") if isinstance(specs, dict) else None
+    if not isinstance(gpu, dict):
+        return None
+    try:
+        amount = int(gpu.get("amount") or 0)
+    except (TypeError, ValueError):
+        return None
+    price = _opt_float(gpu.get("price"))
+    if amount <= 0 or price is None or price <= 0:
+        return None
+    location = node.get("location")
+    if not isinstance(location, dict):
+        location = {}
+    return Snapshot(
+        snapshotted_at=snapshotted_at,
+        source="tensordock",
+        gpu_model=normalize_gpu_model(str(gpu.get("type") or "")),
+        price_usd_per_hour=price,
+        lease_type="on_demand",
+        availability=amount,
+        region=location.get("region") or location.get("country"),
+        gpu_memory_gb=_opt_float(gpu.get("vram")),
+    )
+
+
 def parse_tensordock(
     hostnodes: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
 ) -> list[Snapshot]:
-    """Transforme les hostnodes TensorDock en snapshots $/GPU·h (logique pure).
-
-    On retient les nœuds dont ``specs.gpu`` expose une quantité disponible (``amount``)
-    strictement positive et un prix positif. ``specs.gpu.price`` est supposé être le
-    $/GPU·h ; la profondeur de stock est ``specs.gpu.amount``.
+    """Transforme les hostnodes TensorDock en snapshots $/GPU·h enrichis (logique pure).
 
     Parameters
     ----------
@@ -77,38 +123,8 @@ def parse_tensordock(
     snapshotted_at:
         Horodatage UTC tz-aware du relevé.
     """
-    out: list[Snapshot] = []
-    for node in hostnodes:
-        if not isinstance(node, dict):
-            continue
-        specs = node.get("specs") or {}
-        if not isinstance(specs, dict):
-            continue
-        gpu = specs.get("gpu") or {}
-        if not isinstance(gpu, dict):
-            continue
-        amount = gpu.get("amount")
-        try:
-            amount = int(amount or 0)
-        except (TypeError, ValueError):
-            continue
-        if amount <= 0:
-            continue
-        price = gpu.get("price")
-        if not isinstance(price, (int, float)) or price <= 0:
-            continue
-        gpu_type = str(gpu.get("type") or "")
-        out.append(
-            Snapshot(
-                snapshotted_at=snapshotted_at,
-                source="tensordock",
-                gpu_model=normalize_gpu_model(gpu_type),
-                price_usd_per_hour=float(price),
-                lease_type="on_demand",
-                availability=amount,
-            )
-        )
-    return out
+    snaps = (_node_to_snapshot(node, snapshotted_at) for node in hostnodes)
+    return [s for s in snaps if s is not None]
 
 
 def fetch_tensordock(

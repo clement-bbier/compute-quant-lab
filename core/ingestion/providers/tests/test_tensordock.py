@@ -53,6 +53,14 @@ def test_hostnodes_records_unexpected_type_returns_empty() -> None:
     assert _hostnodes_records({"hostnodes": "not-a-list"}) == []
 
 
+def test_hostnodes_records_reads_data_envelope(
+    tensordock_hostnodes: list[dict[str, Any]],
+) -> None:
+    """Enveloppe v2 réelle (vérifiée en live) : ``{"data": {"hostnodes": [...]}}``."""
+    result = _hostnodes_records({"data": {"hostnodes": tensordock_hostnodes}})
+    assert result == tensordock_hostnodes
+
+
 # ── parse_tensordock ──────────────────────────────────────────────────────────
 
 
@@ -66,6 +74,15 @@ def test_parse_tensordock_happy_path(
     assert by_model["H100"].availability == 4
     assert by_model["RTX4090"].price_usd_per_hour == 0.45
     assert by_model["RTX4090"].availability == 2
+
+
+def test_parse_tensordock_populates_region_and_vram(
+    tensordock_hostnodes: list[dict[str, Any]],
+) -> None:
+    snaps = parse_tensordock(tensordock_hostnodes, _TS)
+    h100 = next(s for s in snaps if s.gpu_model == "H100")
+    assert h100.region == "us-east"  # location.region
+    assert h100.gpu_memory_gb == 80.0  # specs.gpu.vram
 
 
 def test_parse_tensordock_skips_zero_amount(

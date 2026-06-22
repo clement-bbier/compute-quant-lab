@@ -217,21 +217,23 @@ def cudo_machine_types() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def hyperstack_flavors() -> list[dict[str, Any]]:
-    """Groupes de flavors Hyperstack ``/v1/core/flavors`` (schéma réel : SANS ``price_per_hour``).
+    """Groupes de flavors Hyperstack ``/v1/core/flavors`` (schéma réel : SANS prix).
 
-    Le prix vit dans le pricebook séparé ``/v1/pricebook`` ; chaque ``FlavorFields``
-    expose uniquement les specs matérielles. Jointure : ``flavor.name`` ↔ ``pricebook.name``.
+    Le prix vit dans le pricebook séparé. Jointure : ``flavor.gpu`` (**type GPU**, ex.
+    ``"H100-80G-PCIe"``) ↔ ``pricebook.name``. Le suffixe ``-spot`` du type = bail spot.
+    A100-80G-SXM4 est présent ici mais absent du pricebook → écarté (non-concordance).
     """
     return [
         {
-            "gpu": "H100",
-            "region_name": "NORWAY-1",
+            "gpu": "H100-80G-PCIe",
+            "region_name": "CANADA-1",
             "flavors": [
                 {
                     "id": 101,
                     "name": "n3-H100x8",
-                    "gpu": "H100",
+                    "gpu": "H100-80G-PCIe",
                     "gpu_count": 8,
+                    "region_name": "CANADA-1",
                     "cpu": 192,
                     "ram": 1800,
                     "disk": 32000,
@@ -240,21 +242,46 @@ def hyperstack_flavors() -> list[dict[str, Any]]:
                 {
                     "id": 102,
                     "name": "n3-H100x1",
-                    "gpu": "H100",
+                    "gpu": "H100-80G-PCIe",
                     "gpu_count": 1,
+                    "region_name": "CANADA-1",
+                    "cpu": 28,
+                    "ram": 180,
+                    "disk": 100,
+                    "stock_available": True,
+                },
+            ],
+        },
+        {
+            "gpu": "H100-80G-PCIe-spot",
+            "region_name": "CANADA-1",
+            "flavors": [
+                {
+                    "id": 110,
+                    "name": "n3-H100x1-spot",
+                    "gpu": "H100-80G-PCIe-spot",
+                    "gpu_count": 1,
+                    "region_name": "CANADA-1",
+                    "cpu": 28,
+                    "ram": 180,
+                    "disk": 100,
                     "stock_available": True,
                 },
             ],
         },
         {
             "gpu": "L40",
-            "region_name": "CANADA-1",
+            "region_name": "NORWAY-1",
             "flavors": [
                 {
                     "id": 201,
-                    "name": "n2-L40x1",
+                    "name": "n3-L40x1",
                     "gpu": "L40",
                     "gpu_count": 1,
+                    "region_name": "NORWAY-1",
+                    "cpu": 16,
+                    "ram": 60,
+                    "disk": 100,
                     "stock_available": False,
                 },
                 {  # flavor CPU (0 GPU) → écarté
@@ -266,55 +293,40 @@ def hyperstack_flavors() -> list[dict[str, Any]]:
                 },
             ],
         },
+        {  # A100 en flavors mais ABSENT du pricebook → écarté (test non-concordance)
+            "gpu": "A100-80G-SXM4",
+            "region_name": "US-1",
+            "flavors": [
+                {
+                    "id": 401,
+                    "name": "n3-A100-SXM4x8",
+                    "gpu": "A100-80G-SXM4",
+                    "gpu_count": 8,
+                    "region_name": "US-1",
+                    "cpu": 192,
+                    "ram": 1900,
+                    "disk": 20000,
+                    "stock_available": True,
+                },
+            ],
+        },
     ]
 
 
 @pytest.fixture
 def hyperstack_pricebook() -> list[dict[str, Any]]:
-    """Pricebook Hyperstack ``/v1/pricebook`` (``value`` = coût horaire machine entière en USD).
+    """Pricebook Hyperstack ``/v1/pricebook`` (schéma réel : par composant, ``value`` = CHAÎNE).
 
-    La jointure se fait par ``name`` (= ``FlavorFields.name``). ``value`` est supposé être
-    le prix de la machine complète (÷ ``gpu_count`` → $/GPU·h).
-
-    ⚠️ À confirmer en live : ``value`` par machine vs déjà par GPU.
+    ``name`` = type de GPU (+ vCPU/RAM/modèles d'inférence, jamais joints) ; ``value`` = prix
+    **déjà par GPU et par heure** sous forme de chaîne (ex. ``"1.9"``, ``"0E-9"`` pour nul).
     """
     return [
-        {
-            "id": 1,
-            "name": "n3-H100x8",
-            "value": 27.92,
-            "original_value": 27.92,
-            "discount_applied": False,
-            "start_time": None,
-            "end_time": None,
-        },
-        {
-            "id": 2,
-            "name": "n3-H100x1",
-            "value": 3.49,
-            "original_value": 3.49,
-            "discount_applied": False,
-            "start_time": None,
-            "end_time": None,
-        },
-        {
-            "id": 3,
-            "name": "n2-L40x1",
-            "value": 1.00,
-            "original_value": 1.00,
-            "discount_applied": False,
-            "start_time": None,
-            "end_time": None,
-        },
-        {  # cpu-small : gpu_count=0 → écarté par parse_hyperstack
-            "id": 4,
-            "name": "cpu-small",
-            "value": 0.05,
-            "original_value": 0.05,
-            "discount_applied": False,
-            "start_time": None,
-            "end_time": None,
-        },
+        {"id": 1, "name": "vCPU", "value": "0E-9"},  # composant nul → ignoré
+        {"id": 2, "name": "RAM", "value": "0.0015"},  # composant non-GPU → jamais joint
+        {"id": 3, "name": "H100-80G-PCIe", "value": "1.9", "original_value": "1.9"},
+        {"id": 4, "name": "H100-80G-PCIe-spot", "value": "1.52"},
+        {"id": 5, "name": "L40", "value": "0.99"},
+        {"id": 6, "name": "deepseek-ai/DeepSeek-R1 (output)", "value": "2.55"},  # inférence
     ]
 
 
@@ -435,8 +447,11 @@ def patch_tensordock_network(
     def _patch(hostnodes: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import tensordock
 
+        # Enveloppe v2 réelle : tout est sous "data".
         monkeypatch.setattr(
-            tensordock.requests, "get", lambda *a, **k: FakeResponse({"hostnodes": hostnodes})
+            tensordock.requests,
+            "get",
+            lambda *a, **k: FakeResponse({"data": {"hostnodes": hostnodes}}),
         )
 
     return _patch

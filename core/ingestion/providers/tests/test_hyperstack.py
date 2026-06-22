@@ -1,8 +1,9 @@
-"""Tests du connecteur Hyperstack : double appel (flavors + pricebook), jointure, robustesse.
+"""Tests du connecteur Hyperstack : jointure ``flavor.gpu`` ↔ pricebook (prix par GPU).
 
-Patron TDD : on appelle ``parse_hyperstack`` directement (zéro réseau) et on vérifie
-les ``Snapshot`` produits — jointure correcte, division par gpu_count, exclusions,
-cas dégénérés. Les tests réseau utilisent ``patch_hyperstack_network`` (conftest).
+Modèle réel (vérifié en live 2026-06-23) : le pricebook est **par composant**, ``value`` est
+une **chaîne** donnant le prix **déjà par GPU** ; la jointure se fait sur ``flavor.gpu`` (type
+GPU, ex. ``"H100-80G-PCIe"``), pas sur ``flavor.name``. Le suffixe ``-spot`` du type fixe le
+bail. Patron TDD : ``parse_hyperstack`` appelée directement (zéro réseau).
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ import pytest
 from core.ingestion.providers import hyperstack
 from core.ingestion.providers.hyperstack import (
     _build_price_index,
+    _coerce_price,
+    _vram_gb,
     fetch_hyperstack,
     parse_hyperstack,
 )
@@ -22,58 +25,108 @@ from core.ingestion.providers.hyperstack import (
 _TS = dt.datetime(2026, 6, 23, tzinfo=dt.timezone.utc)
 
 
-# ── _build_price_index ────────────────────────────────────────────────────────
+# ── _coerce_price / _build_price_index ──────────────────────────────────────────
 
 
-def test_build_price_index_filters_invalid_entries() -> None:
+def test_coerce_price_parses_string_values() -> None:
+    assert _coerce_price("1.9") == 1.9
+    assert _coerce_price(2) == 2.0
+
+
+def test_coerce_price_rejects_zero_and_invalid() -> None:
+    assert _coerce_price("0E-9") is None  # composant nul (chaîne décimale)
+    assert _coerce_price("-1.0") is None
+    assert _coerce_price(None) is None
+    assert _coerce_price("abc") is None
+
+
+def test_build_price_index_coerces_strings_and_drops_zero(
+    hyperstack_pricebook: list[dict[str, Any]],
+) -> None:
+    idx = _build_price_index(hyperstack_pricebook)
+    assert idx["H100-80G-PCIe"] == 1.9
+    assert idx["H100-80G-PCIe-spot"] == 1.52
+    assert idx["L40"] == 0.99
+    assert "vCPU" not in idx  # value "0E-9" → écarté
+
+
+def test_build_price_index_skips_missing_name_or_value() -> None:
     pricebook: list[dict[str, Any]] = [
-        {"name": "flavor-a", "value": 5.0},
-        {"name": "flavor-b", "value": 0},  # valeur nulle → ignorée
-        {"name": "flavor-c", "value": -1.0},  # valeur négative → ignorée
-        {"name": None, "value": 2.0},  # pas de nom → ignorée
-        {"value": 3.0},  # clé name absente → ignorée
-        {"name": "flavor-d", "value": 1.5},
+        {"name": "X", "value": "5"},
+        {"value": "3"},  # pas de name
+        {"name": None, "value": "2"},
+        {"name": "Y"},  # pas de value
     ]
-    idx = _build_price_index(pricebook)
-    assert idx == {"flavor-a": 5.0, "flavor-d": 1.5}
+    assert _build_price_index(pricebook) == {"X": 5.0}
 
 
-def test_build_price_index_accepts_int_value() -> None:
-    pricebook = [{"name": "flavor-x", "value": 10}]
-    assert _build_price_index(pricebook) == {"flavor-x": 10.0}
+# ── _vram_gb ────────────────────────────────────────────────────────────────────
 
 
-# ── parse_hyperstack ──────────────────────────────────────────────────────────
+def test_vram_gb_extracts_memory_from_type() -> None:
+    assert _vram_gb("H100-80G-PCIe") == 80.0
+    assert _vram_gb("H200-141G-SXM5") == 141.0
+    assert _vram_gb("B200-SXM") is None
+    assert _vram_gb("L40") is None
 
 
-def test_parse_hyperstack_join_and_per_gpu_division(
+# ── parse_hyperstack ────────────────────────────────────────────────────────────
+
+
+def test_parse_hyperstack_joins_on_gpu_type_per_gpu_price(
     hyperstack_flavors: list[dict[str, Any]],
     hyperstack_pricebook: list[dict[str, Any]],
 ) -> None:
     snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
-    assert len(snaps) == 3
-    by_name = {s.gpu_model: s for s in snaps}
-    assert "H100" in by_name
-    assert "L40" in by_name
-    # n3-H100x8 : 27.92 / 8 = 3.49
-    h100_multi = next(s for s in snaps if s.gpu_model == "H100" and s.availability == 1)
-    assert abs(h100_multi.price_usd_per_hour - 27.92 / 8) < 1e-9
-    # n3-H100x1 : 3.49 / 1 = 3.49
-    h100_single = next(
-        s
-        for s in snaps
-        if s.gpu_model == "H100" and s.availability == 1 and abs(s.price_usd_per_hour - 3.49) < 1e-9
-    )
-    assert h100_single.lease_type == "on_demand"
+    # 2 H100 on_demand + 1 H100 spot + 1 L40 ; cpu-small et A100 (hors pricebook) écartés
+    assert len(snaps) == 4
+    assert all(s.source == "hyperstack" for s in snaps)
+    # le prix pricebook est DÉJÀ par GPU : aucun n3-H100* ne vaut 1.9/8
+    h100_od = [s for s in snaps if s.gpu_model == "H100" and s.lease_type == "on_demand"]
+    assert len(h100_od) == 2
+    assert all(s.price_usd_per_hour == 1.9 for s in h100_od)
 
 
-def test_parse_hyperstack_stock_available_false_gives_zero_availability(
+def test_parse_hyperstack_spot_suffix_sets_lease_and_clean_model(
+    hyperstack_flavors: list[dict[str, Any]],
+    hyperstack_pricebook: list[dict[str, Any]],
+) -> None:
+    snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
+    spot = [s for s in snaps if s.lease_type == "spot"]
+    assert len(spot) == 1
+    assert spot[0].gpu_model == "H100"  # "-spot" retiré avant normalisation (pas "L40S")
+    assert spot[0].price_usd_per_hour == 1.52
+
+
+def test_parse_hyperstack_populates_descriptive_fields(
+    hyperstack_flavors: list[dict[str, Any]],
+    hyperstack_pricebook: list[dict[str, Any]],
+) -> None:
+    snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
+    big = next(s for s in snaps if s.vcpu == 192)
+    assert big.gpu_model == "H100"
+    assert big.region == "CANADA-1"
+    assert big.gpu_memory_gb == 80.0
+    assert big.ram_gb == 1800.0
+    assert big.disk_gb == 32000.0
+
+
+def test_parse_hyperstack_stock_available_false_gives_zero(
     hyperstack_flavors: list[dict[str, Any]],
     hyperstack_pricebook: list[dict[str, Any]],
 ) -> None:
     snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
     l40 = next(s for s in snaps if s.gpu_model == "L40")
     assert l40.availability == 0
+    assert l40.gpu_memory_gb is None  # "L40" ne porte pas de mémoire dans le type
+
+
+def test_parse_hyperstack_skips_gpu_absent_from_pricebook(
+    hyperstack_flavors: list[dict[str, Any]],
+    hyperstack_pricebook: list[dict[str, Any]],
+) -> None:
+    snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
+    assert all(s.gpu_model != "A100" for s in snaps)  # A100-80G-SXM4 hors pricebook
 
 
 def test_parse_hyperstack_skips_zero_gpu_count(
@@ -81,37 +134,30 @@ def test_parse_hyperstack_skips_zero_gpu_count(
 ) -> None:
     groups = [
         {
-            "gpu": "A100",
-            "flavors": [
-                {"name": "cpu-small", "gpu": None, "gpu_count": 0, "stock_available": True}
-            ],
+            "gpu": "L40",
+            "flavors": [{"name": "cpu", "gpu": "L40", "gpu_count": 0, "stock_available": True}],
         }
     ]
-    snaps = parse_hyperstack(groups, hyperstack_pricebook, _TS)
-    assert snaps == []
+    assert parse_hyperstack(groups, hyperstack_pricebook, _TS) == []
 
 
 def test_parse_hyperstack_empty_pricebook_returns_empty(
     hyperstack_flavors: list[dict[str, Any]],
 ) -> None:
-    snaps = parse_hyperstack(hyperstack_flavors, [], _TS)
-    assert snaps == []
+    assert parse_hyperstack(hyperstack_flavors, [], _TS) == []
 
 
-def test_parse_hyperstack_no_matching_name_returns_empty(
-    hyperstack_flavors: list[dict[str, Any]],
-) -> None:
-    pricebook = [{"name": "unknown-flavor", "value": 99.0}]
-    snaps = parse_hyperstack(hyperstack_flavors, pricebook, _TS)
-    assert snaps == []
-
-
-def test_parse_hyperstack_source_is_hyperstack(
-    hyperstack_flavors: list[dict[str, Any]],
+def test_parse_hyperstack_falls_back_to_group_gpu(
     hyperstack_pricebook: list[dict[str, Any]],
 ) -> None:
-    snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
-    assert all(s.source == "hyperstack" for s in snaps)
+    # flavor sans 'gpu' → repli sur le 'gpu' du groupe pour la jointure
+    groups = [
+        {"gpu": "L40", "flavors": [{"name": "n3-L40x1", "gpu_count": 1, "stock_available": True}]}
+    ]
+    snaps = parse_hyperstack(groups, hyperstack_pricebook, _TS)
+    assert len(snaps) == 1
+    assert snaps[0].gpu_model == "L40"
+    assert snaps[0].price_usd_per_hour == 0.99
 
 
 def test_parse_hyperstack_snapshotted_at_preserved(
@@ -123,47 +169,10 @@ def test_parse_hyperstack_snapshotted_at_preserved(
 
 
 def test_parse_hyperstack_handles_empty_groups() -> None:
-    snaps = parse_hyperstack([], [], _TS)
-    assert snaps == []
+    assert parse_hyperstack([], [], _TS) == []
 
 
-def test_parse_hyperstack_handles_malformed_flavor_no_name(
-    hyperstack_pricebook: list[dict[str, Any]],
-) -> None:
-    """Un flavor sans ``name`` ne doit pas lever d'exception."""
-    groups = [
-        {
-            "gpu": "H100",
-            "flavors": [{"gpu_count": 1, "stock_available": True}],  # pas de name
-        }
-    ]
-    snaps = parse_hyperstack(groups, hyperstack_pricebook, _TS)
-    assert snaps == []  # nom absent → pas dans price_index → écarté proprement
-
-
-def test_parse_hyperstack_handles_pricebook_enveloped_in_data() -> None:
-    """``value`` doit être extrait correctement même avec pricebook comme liste plate."""
-    flavor_groups = [
-        {
-            "gpu": "A100",
-            "flavors": [
-                {
-                    "id": 1,
-                    "name": "n1-A100x2",
-                    "gpu": "A100",
-                    "gpu_count": 2,
-                    "stock_available": True,
-                }
-            ],
-        }
-    ]
-    pricebook = [{"id": 10, "name": "n1-A100x2", "value": 6.0, "original_value": 6.0}]
-    snaps = parse_hyperstack(flavor_groups, pricebook, _TS)
-    assert len(snaps) == 1
-    assert snaps[0].price_usd_per_hour == 3.0  # 6.0 / 2
-
-
-# ── fetch_hyperstack (réseau mocké) ──────────────────────────────────────────
+# ── fetch_hyperstack (réseau mocké) ──────────────────────────────────────────────
 
 
 def test_fetch_hyperstack_calls_both_endpoints_and_joins(
@@ -173,7 +182,7 @@ def test_fetch_hyperstack_calls_both_endpoints_and_joins(
 ) -> None:
     patch_hyperstack_network(hyperstack_flavors, hyperstack_pricebook)
     snaps = fetch_hyperstack("dummy-key", _TS)
-    assert len(snaps) == 3
+    assert len(snaps) == 4
     assert all(s.source == "hyperstack" for s in snaps)
 
 
@@ -184,8 +193,7 @@ def test_fetch_hyperstack_returns_empty_on_network_error(
         raise OSError("network down")
 
     monkeypatch.setattr(hyperstack.requests, "get", _raise)
-    snaps = fetch_hyperstack("dummy-key", _TS)
-    assert snaps == []
+    assert fetch_hyperstack("dummy-key", _TS) == []
 
 
 def test_fetch_hyperstack_returns_empty_on_http_error(
@@ -198,15 +206,14 @@ def test_fetch_hyperstack_returns_empty_on_http_error(
             raise Exception("HTTP 401")
 
     monkeypatch.setattr(hyperstack.requests, "get", lambda *a, **k: BadResponse({}))
-    snaps = fetch_hyperstack("dummy-key", _TS)
-    assert snaps == []
+    assert fetch_hyperstack("dummy-key", _TS) == []
 
 
 def test_fetch_hyperstack_handles_non_dict_pricebook_response(
     monkeypatch: pytest.MonkeyPatch,
     hyperstack_flavors: list[dict[str, Any]],
 ) -> None:
-    """Si le pricebook renvoie null/vide, on renvoie [] sans exception."""
+    """Si le pricebook renvoie null, on renvoie [] sans exception (les 2 appels ont lieu)."""
     from core.ingestion.providers.tests.conftest import FakeResponse
 
     call_count = 0
@@ -219,6 +226,5 @@ def test_fetch_hyperstack_handles_non_dict_pricebook_response(
         return FakeResponse({"data": hyperstack_flavors})
 
     monkeypatch.setattr(hyperstack.requests, "get", _fake_get)
-    snaps = fetch_hyperstack("dummy-key", _TS)
-    assert snaps == []
-    assert call_count == 2  # les 2 appels ont bien eu lieu
+    assert fetch_hyperstack("dummy-key", _TS) == []
+    assert call_count == 2
