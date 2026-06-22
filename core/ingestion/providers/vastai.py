@@ -25,7 +25,8 @@ def parse_vastai_offers(
     """Transforme des offres Vast.ai en snapshots $/GPU·h (logique pure, testable).
 
     On ne retient que les offres louables (``rentable``) avec au moins un GPU ; le prix
-    par GPU est ``dph_total / num_gpus``.
+    par GPU est ``dph_total / num_gpus``. Les champs descriptifs disponibles dans le
+    payload (région, mémoire GPU, vCPU, RAM, disque) sont propagés quand présents.
     """
     out: list[Snapshot] = []
     for offer in offers:
@@ -35,6 +36,25 @@ def parse_vastai_offers(
         if num_gpus <= 0:
             continue
         dph_total = float(offer.get("dph_total", 0.0))
+
+        # Région : Vast.ai expose ``geolocation`` (ex. "US, GA") ou ``location``.
+        region_raw = offer.get("geolocation") or offer.get("location")
+        region: str | None = str(region_raw) if region_raw else None
+
+        # Mémoire GPU : ``gpu_ram`` en Mo → Go.
+        gpu_mem_mb = offer.get("gpu_ram")
+        gpu_memory_gb: float | None = float(gpu_mem_mb) / 1024.0 if gpu_mem_mb else None
+
+        # vCPU et RAM (Go).
+        cpu_cores = offer.get("cpu_cores_effective") or offer.get("cpu_cores")
+        vcpu: int | None = int(cpu_cores) if cpu_cores else None
+        ram_raw = offer.get("cpu_ram")
+        ram_gb: float | None = float(ram_raw) / 1024.0 if ram_raw else None
+
+        # Disque (Go).
+        disk_raw = offer.get("disk_space")
+        disk_gb: float | None = float(disk_raw) if disk_raw else None
+
         out.append(
             Snapshot(
                 snapshotted_at=snapshotted_at,
@@ -43,6 +63,11 @@ def parse_vastai_offers(
                 price_usd_per_hour=dph_total / num_gpus,
                 lease_type="on_demand",
                 availability=num_gpus,
+                region=region,
+                gpu_memory_gb=gpu_memory_gb,
+                vcpu=vcpu,
+                ram_gb=ram_gb,
+                disk_gb=disk_gb,
             )
         )
     return out
