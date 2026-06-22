@@ -157,8 +157,8 @@ def datacrunch_instance_types() -> list[dict[str, Any]]:
         {
             "id": "it-1",
             "instance_type": "8H100.80S.176V",
-            "price_per_hour": 24.0,
-            "spot_price_per_hour": 12.0,
+            "price_per_hour": "24.0",  # DataCrunch cote en chaînes
+            "spot_price": "12.0",
             "description": "8x H100 SXM5 80GB",
             "cpu": {"description": "176 CPU", "number_of_cores": 176},
             "gpu": {"description": "8x H100 SXM5 80GB", "number_of_gpus": 8},
@@ -169,15 +169,15 @@ def datacrunch_instance_types() -> list[dict[str, Any]]:
         {  # spot 0 → seule l'on-demand est émise
             "id": "it-2",
             "instance_type": "1A100.22V",
-            "price_per_hour": 1.20,
-            "spot_price_per_hour": 0.0,
+            "price_per_hour": "1.20",
+            "spot_price": "0",
             "gpu": {"description": "1x A100 SXM4 40GB", "number_of_gpus": 1},
         },
         {  # instance CPU (0 GPU) → écartée
             "id": "it-3",
             "instance_type": "CPU.4V",
-            "price_per_hour": 0.10,
-            "spot_price_per_hour": 0.05,
+            "price_per_hour": "0.10",
+            "spot_price": "0.05",
             "gpu": {"description": "", "number_of_gpus": 0},
         },
     ]
