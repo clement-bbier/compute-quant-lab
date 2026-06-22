@@ -69,7 +69,15 @@ def fetch_primeintellect(
     )
     response.raise_for_status()
     payload = response.json()
-    return parse_primeintellect(payload.get("items", []), snapshotted_at)
+    # La réponse est un dict {gpu_type: [offres, ...]} → aplatir en une liste d'offres.
+    items = [
+        offer
+        for offers in payload.values()
+        if isinstance(offers, list)
+        for offer in offers
+        if isinstance(offer, dict)
+    ]
+    return parse_primeintellect(items, snapshotted_at)
 
 
 class PrimeintellectProvider:

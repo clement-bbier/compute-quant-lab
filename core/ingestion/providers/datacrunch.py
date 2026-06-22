@@ -38,9 +38,13 @@ def parse_datacrunch(
         if n_gpus <= 0:
             continue
         model = normalize_gpu_model(str(gpu.get("description", "")))
-        for lease_type, key in (("on_demand", "price_per_hour"), ("spot", "spot_price_per_hour")):
-            price = it.get(key)
-            if not isinstance(price, (int, float)) or price <= 0:
+        # DataCrunch cote en chaînes ("2.19") et nomme le spot 'spot_price'.
+        for lease_type, key in (("on_demand", "price_per_hour"), ("spot", "spot_price")):
+            try:
+                price = float(it.get(key))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                continue
+            if price <= 0:
                 continue
             out.append(
                 Snapshot(
