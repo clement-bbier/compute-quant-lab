@@ -69,7 +69,8 @@ def latest_price(
     as_of: str | None = None,
 ) -> dict[str, Any]:
     """Dernier prix par source pour ``gpu_model``/``lease_type`` (réel) + résumé min/médian/max."""
-    frame = store.read(as_of=_parse_instant(as_of))
+    cutoff = _parse_instant(as_of)
+    frame = store.read(as_of=cutoff)
     subset = frame[(frame["gpu_model"] == gpu_model) & (frame["lease_type"] == lease_type)]
     if subset.empty:
         available = sorted(frame["gpu_model"].unique().tolist()) if not frame.empty else []
@@ -97,11 +98,15 @@ def latest_price(
         "lease_type": lease_type,
         "found": True,
         "provenance": PROVENANCE,
-        "as_of": subset["snapshotted_at"].max().isoformat(),
+        "as_of": cutoff.isoformat()
+        if cutoff is not None
+        else subset["snapshotted_at"].max().isoformat(),
         "by_source": by_source,
         "summary": {
             "min": min(prices),
-            "median": round(statistics.median(prices), 10),
+            "median": round(
+                statistics.median(prices), 10
+            ),  # round : la médiane flottante de 2 prix (ex. 1.95) évite l'artefact IEEE-754
             "max": max(prices),
             "n_sources": len(prices),
         },
@@ -140,7 +145,9 @@ def price_history(
     return {
         "gpu_model": gpu_model,
         "start": start_dt.isoformat() if start_dt is not None else None,
-        "as_of": cutoff.isoformat() if cutoff is not None else None,
+        "as_of": cutoff.isoformat()
+        if cutoff is not None
+        else (subset["snapshotted_at"].max().isoformat() if not subset.empty else None),
         "provenance": PROVENANCE,
         "n": len(observations),
         "observations": observations,
@@ -218,7 +225,11 @@ def _jsonable(value: Any) -> Any:
 
 
 def run_query(store: ParquetPriceStore, sql: str) -> dict[str, Any]:
-    """Exécute ``sql`` (DuckDB **brut**) sur la vue ``prices`` du lac. Aucun garde point-in-time."""
+    """Exécute ``sql`` (DuckDB **brut**) sur la vue ``prices`` du lac. Aucun garde point-in-time.
+
+    Requiert un ``ParquetPriceStore`` concret (DuckDB a besoin de ``store.root``) ;
+    les autres fonctions acceptent n'importe quel ``PriceStore``.
+    """
     frame = duckdb_query(sql, store)
     rows = [
         {k: _jsonable(v) for k, v in record.items()} for record in frame.to_dict(orient="records")
