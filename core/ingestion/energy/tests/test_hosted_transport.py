@@ -45,12 +45,26 @@ def _hosted_rtm_frame() -> pd.DataFrame:
 
 
 def _hosted_forecast_frame() -> pd.DataFrame:
+    # Schéma hébergé *par modèle* : 2 modèles (1 in-use, 1 non) × 2 intervalles.
+    # Le mapper doit filtrer in_use_flag pour ne garder qu'une prévision par intervalle.
     return pd.DataFrame(
         {
-            "publish_time_utc": ["2024-01-14T23:48:00Z", "2024-01-14T23:48:00Z"],
-            "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T07:00:00Z"],
-            "interval_end_utc": ["2024-01-15T07:00:00Z", "2024-01-15T08:00:00Z"],
-            "system_total": [45000.0, 46000.0],
+            "publish_time_utc": ["2024-01-14T23:48:00Z"] * 4,
+            "interval_start_utc": [
+                "2024-01-15T06:00:00Z",
+                "2024-01-15T07:00:00Z",
+                "2024-01-15T06:00:00Z",
+                "2024-01-15T07:00:00Z",
+            ],
+            "interval_end_utc": [
+                "2024-01-15T07:00:00Z",
+                "2024-01-15T08:00:00Z",
+                "2024-01-15T07:00:00Z",
+                "2024-01-15T08:00:00Z",
+            ],
+            "system_total": [45000.0, 46000.0, 99999.0, 99999.0],
+            "model": ["ACTUAL", "ACTUAL", "HIGHCASE", "HIGHCASE"],
+            "in_use_flag": [True, True, False, False],
         }
     )
 
@@ -76,6 +90,11 @@ def test_hosted_transport_maps_forecast_to_canonical() -> None:
     assert str(df["publish_time"].dt.tz) == "UTC"
     # point-in-time : la prévision est publiée avant l'intervalle cible
     assert (df["publish_time"] < df["interval_start"]).all()
+    # filtrage modèle : une seule prévision par intervalle (le HIGHCASE non-in-use écarté)
+    assert not df.duplicated(["publish_time", "interval_start"]).any()
+    assert list(df["forecast_load_mw"]) == [45000.0, 46000.0]
+    # capacité non fabriquée → marge de réserve NaN (point 2 : plus de placeholder 70 GW)
+    assert df["reserve_margin_mw"].isna().all()
 
 
 def test_transport_selection_hosted_when_key_present(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -112,3 +131,25 @@ def test_hosted_live_rtm_real_schema() -> None:
     assert len(s) > 0
     assert str(s.index.tz) == "UTC"
     assert s.name == "rtm_price_usd_mwh"
+
+
+@pytest.mark.live
+def test_hosted_live_forecast_real_schema() -> None:
+    """Valide le chemin prévision réel : schéma hébergé + filtrage modèle (point 1).
+
+    Confirme `_hosted_forecast_to_canonical` (colonnes `*_utc`, `system_total`,
+    `in_use_flag`) contre la vraie donnée. Si une colonne diffère, le fix est localisé.
+    """
+    key = os.environ.get("GRIDSTATUS_API_KEY")
+    if not key:
+        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+    market = ErcotMarket(transport=GridstatusIoTransport(limit=500))
+    end = pd.Timestamp.now(tz="UTC").normalize()
+    start = end - pd.Timedelta(days=1)
+    df = market.reserve_forecast(start, end)
+    assert len(df) > 0
+    assert {"publish_time", "interval_start", "forecast_load_mw"} <= set(df.columns)
+    assert str(df["publish_time"].dt.tz) == "UTC"
+    assert (df["forecast_load_mw"] > 0).all()
+    # filtrage modèle : pas d'intervalle dupliqué (sinon plusieurs modèles passent)
+    assert not df.duplicated(["publish_time", "interval_start"]).any()

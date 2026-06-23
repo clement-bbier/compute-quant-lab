@@ -170,13 +170,14 @@ class TestParseLoadForecast:
             expected.reset_index(drop=True),
         )
 
-    def test_forecast_capacity_populated(self) -> None:
-        """forecast_capacity_mw est renseigné (non nul, non NaN).
+    def test_capacity_nan_when_no_real_source(self) -> None:
+        """Sans source de capacité RÉELLE, forecast_capacity_mw est NaN — jamais fabriqué.
 
-        Note: la fixture utilise 'System Total' comme proxy de charge ;
-        la capacité est fournie séparément par un autre rapport.
-        Pour ce parser, capacity = charge + marge fixe (fixture simplifiée).
+        Le placeholder 70 GW a été retiré (revue risk-validator) : fabriquer la
+        capacité corromprait silencieusement le prédicteur de marge de réserve de L0.
+        NaN visible > faux nombre. La capacité réelle (Short-Term System Adequacy)
+        sera câblée par une tâche dédiée. La fixture de charge ne porte pas de capacité.
         """
         result = parse_load_forecast(self._load())
-        assert not result["forecast_capacity_mw"].isna().any()
-        assert (result["forecast_capacity_mw"] > 0).all()
+        assert result["forecast_capacity_mw"].isna().all()
+        assert result["reserve_margin_mw"].isna().all()
