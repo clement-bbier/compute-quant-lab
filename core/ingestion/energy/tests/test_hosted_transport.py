@@ -136,5 +136,53 @@ def test_hosted_live_forecast_real_schema() -> None:
     assert {"publish_time", "interval_start", "forecast_load_mw"} <= set(df.columns)
     assert str(df["publish_time"].dt.tz) == "UTC"
     assert (df["forecast_load_mw"] > 0).all()
-    # filtrage modèle : pas d'intervalle dupliqué (sinon plusieurs modèles passent)
     assert not df.duplicated(["publish_time", "interval_start"]).any()
+
+
+def test_reserve_forecast_as_of_joins_capacity_no_lookahead() -> None:
+    """Jointure charge⋈capacité STSA point-in-time : rien publié APRÈS as_of n'entre.
+
+    Test anti-look-ahead central (P20) : load et capacité ont chacun une version
+    publiée AVANT as_of et une APRÈS ; seules les versions d'avant doivent compter.
+    """
+    as_of = pd.Timestamp("2024-01-15T00:00:00Z")
+    load = pd.DataFrame(
+        {
+            "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T06:00:00Z"],
+            "interval_end_utc": ["2024-01-15T07:00:00Z", "2024-01-15T07:00:00Z"],
+            "publish_time_utc": ["2024-01-14T18:00:00Z", "2024-01-15T06:00:00Z"],
+            "load_forecast": [45000.0, 50000.0],
+        }
+    )
+    cap = pd.DataFrame(
+        {
+            "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T06:00:00Z"],
+            "interval_end_utc": ["2024-01-15T07:00:00Z", "2024-01-15T07:00:00Z"],
+            "publish_time_utc": ["2024-01-14T20:00:00Z", "2024-01-15T12:00:00Z"],
+            "available_capacity_generation": [70000.0, 60000.0],
+        }
+    )
+    client = _FakeClient({"ercot_load_forecast": load, "ercot_short_term_system_adequacy": cap})
+    market = ErcotMarket(transport=GridstatusIoTransport(client=client))
+    df = market.reserve_forecast_as_of(as_of)
+    assert len(df) == 1
+    r = df.iloc[0]
+    assert r["forecast_load_mw"] == 45000.0  # publié avant as_of (pas le 50000 d'après)
+    assert r["forecast_capacity_mw"] == 70000.0  # publié avant as_of (pas le 60000 d'après)
+    assert r["reserve_margin_mw"] == 25000.0  # 70000 - 45000
+
+
+@pytest.mark.live
+def test_hosted_live_reserve_margin_real() -> None:
+    """Marge de réserve réelle (charge ⋈ capacité STSA), point-in-time, sur vraie donnée."""
+    key = os.environ.get("GRIDSTATUS_API_KEY")
+    if not key:
+        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+    market = ErcotMarket(transport=GridstatusIoTransport(limit=2000))
+    as_of = pd.Timestamp.now(tz="UTC").floor("h")
+    df = market.reserve_forecast_as_of(as_of)
+    assert len(df) > 0
+    expected = {"forecast_load_mw", "forecast_capacity_mw", "reserve_margin_mw"}
+    assert expected <= set(df.columns)
+    assert (df["publish_time"] <= as_of).all()  # point-in-time
+    assert df["forecast_capacity_mw"].notna().any()  # capacité réelle jointe

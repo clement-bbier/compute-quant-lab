@@ -29,6 +29,10 @@ import pandas as pd
 #: Dataset IDs de l'API hébergée GridStatus.io (à confirmer via ``list_datasets()``).
 RTM_DATASET = "ercot_spp_real_time_15_min"
 FORECAST_DATASET = "ercot_load_forecast"
+ADEQUACY_DATASET = "ercot_short_term_system_adequacy"
+
+#: Colonne de capacité hébergée retenue pour la marge de réserve L0 (à confirmer live).
+_HOSTED_CAPACITY_COL = "available_capacity_generation"
 
 
 class ErcotTransport(Protocol):
@@ -40,6 +44,10 @@ class ErcotTransport(Protocol):
 
     def fetch_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
         """Frame prévision de charge brut (colonnes canoniques ``Publish Time``/…)."""
+        ...
+
+    def fetch_system_adequacy(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+        """Frame STSA brut (capacité prévue, colonne ``Available Capacity Generation``)."""
         ...
 
 
@@ -73,6 +81,11 @@ class GridstatusDirectTransport:
 
     def fetch_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
         return self._get_iso().get_load_forecast(  # type: ignore[attr-defined,no-any-return]
+            date=start, end=end
+        )
+
+    def fetch_system_adequacy(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+        return self._get_iso().get_short_term_system_adequacy(  # type: ignore[attr-defined,no-any-return]
             date=start, end=end
         )
 
@@ -136,6 +149,15 @@ class GridstatusIoTransport:
         )
         return _hosted_forecast_to_canonical(raw)
 
+    def fetch_system_adequacy(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+        raw = self._get_client().get_dataset(  # type: ignore[attr-defined]
+            ADEQUACY_DATASET,
+            start=_date_str(start),
+            end=_date_str(end),
+            limit=self._limit,
+        )
+        return _hosted_adequacy_to_canonical(raw)
+
 
 # ---------------------------------------------------------------------------
 # Mappers schéma hébergé → schéma canonique gridstatus (point de confirmation live)
@@ -172,5 +194,22 @@ def _hosted_forecast_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
             "Interval Start": pd.to_datetime(df["interval_start_utc"], utc=True),
             "Interval End": pd.to_datetime(df["interval_end_utc"], utc=True),
             "System Total": df["load_forecast"].astype(float).to_numpy(),
+        }
+    )
+
+
+def _hosted_adequacy_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
+    """Renomme le schéma hébergé ``ercot_short_term_system_adequacy`` vers le canonique.
+
+    STSA est un rapport de **capacité** (PAS de demande). On retient
+    ``available_capacity_generation`` (capacité de génération disponible prévue)
+    comme capacité de la marge de réserve L0. Nom hébergé à confirmer par le test live.
+    """
+    return pd.DataFrame(
+        {
+            "Publish Time": pd.to_datetime(df["publish_time_utc"], utc=True),
+            "Interval Start": pd.to_datetime(df["interval_start_utc"], utc=True),
+            "Interval End": pd.to_datetime(df["interval_end_utc"], utc=True),
+            "Available Capacity Generation": df[_HOSTED_CAPACITY_COL].astype(float).to_numpy(),
         }
     )
