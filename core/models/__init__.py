@@ -13,9 +13,10 @@ Briques réutilisables :
   - `strategy`    : `PrecomputedSignalStrategy` (adaptateur vers `core.backtest`).
 """
 
+from typing import TYPE_CHECKING, Any
+
 from core.models.pipeline import FeaturePipeline, SpreadFeatureSpec, build_labels
 from core.models.protocols import FloatArray, IntArray, Model, Splitter
-from core.models.strategy import PrecomputedSignalStrategy
 from core.models.validation import (
     PurgedKFold,
     deflated_sharpe_ratio,
@@ -23,6 +24,24 @@ from core.models.validation import (
     oos_predict,
 )
 from core.models.xgboost_model import SeedBaggingEnsemble, XGBoostDirectionModel
+
+if TYPE_CHECKING:
+    from core.models.strategy import PrecomputedSignalStrategy
+
+
+def __getattr__(name: str) -> Any:
+    """Import paresseux de l'adaptateur backtest.
+
+    `strategy` tire `core.backtest` (kernel Rust). On le charge à la demande pour que
+    `import core.models` (ou ses utilitaires purs `validation`/`pipeline`) ne dépende
+    pas du build Rust — découplage des bricks pures de l'adaptateur de backtest.
+    """
+    if name == "PrecomputedSignalStrategy":
+        from core.models.strategy import PrecomputedSignalStrategy
+
+        return PrecomputedSignalStrategy
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # Contrats.
