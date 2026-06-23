@@ -62,10 +62,6 @@ from core.ingestion.energy.ercot_transport import (
 # Localisation par défaut pour le prix RTM système ERCOT
 _DEFAULT_RTM_LOCATION = "HB_BUSAVG"
 
-# Marge de réserve fictive utilisée quand le rapport de capacité n'est pas disponible
-# (raisonnement : ERCOT opère typiquement avec ~70 GW de capacité installée)
-_ERCOT_INSTALLED_CAPACITY_MW = 70_000.0
-
 # Noms de colonnes gridstatus (constantes pour éviter les littéraux dupliqués)
 _COL_INTERVAL_START = "Interval Start"
 _COL_INTERVAL_END = "Interval End"
@@ -137,11 +133,12 @@ def parse_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
     - ``interval_start``      : heure cible début (UTC tz-aware).
     - ``interval_end``        : heure cible fin (UTC tz-aware).
     - ``forecast_load_mw``    : charge prévue (System Total, MW).
-    - ``forecast_capacity_mw``: capacité disponible prévue (MW).
-      Si absente du rapport, estimée à ``_ERCOT_INSTALLED_CAPACITY_MW``
-      (valeur nominale conservatrice ; sera remplacée par get_capacity_forecast
-      quand disponible).
-    - ``reserve_margin_mw``   : marge = capacité − charge (MW).
+    - ``forecast_capacity_mw``: capacité disponible prévue (MW), **uniquement depuis
+      une source réelle**. Absente du rapport de charge → ``NaN`` (jamais fabriquée :
+      un placeholder corromprait silencieusement le prédicteur de marge de réserve
+      de L0). Câblage d'une vraie capacité (Short-Term System Adequacy) = tâche dédiée.
+    - ``reserve_margin_mw``   : marge = capacité − charge (MW), ``NaN`` tant que la
+      capacité réelle n'est pas câblée.
 
     Point-in-time L0 §2 : ``publish_time`` est préservée depuis la colonne
     ``Publish Time`` de gridstatus et convertie en UTC. L'invariant
@@ -171,15 +168,14 @@ def parse_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
     load_col = _COL_SYSTEM_TOTAL if _COL_SYSTEM_TOTAL in df.columns else df.columns[-1]
     out["forecast_load_mw"] = df[load_col].astype(float).values
 
-    # Capacité prévue : utiliser la colonne dédiée si disponible
-    # (provient de get_capacity_forecast ou short_term_system_adequacy),
-    # sinon valeur nominale ERCOT (placeholder conservateur, clairement nommé).
+    # Capacité prévue : UNIQUEMENT depuis une source réelle, jamais fabriquée.
+    # Absente → NaN (visible) plutôt qu'un placeholder qui corromprait le prédicteur L0.
     if "forecast_capacity_mw" in df.columns:
         out["forecast_capacity_mw"] = df["forecast_capacity_mw"].astype(float).values
     elif "Available Capacity" in df.columns:
         out["forecast_capacity_mw"] = df["Available Capacity"].astype(float).values
     else:
-        out["forecast_capacity_mw"] = _ERCOT_INSTALLED_CAPACITY_MW
+        out["forecast_capacity_mw"] = float("nan")
 
     # Marge de réserve = capacité − charge
     out["reserve_margin_mw"] = out["forecast_capacity_mw"] - out["forecast_load_mw"]
