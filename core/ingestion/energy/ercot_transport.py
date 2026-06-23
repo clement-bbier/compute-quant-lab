@@ -160,12 +160,19 @@ def _hosted_rtm_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _hosted_forecast_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
-    """Renomme le schéma hébergé prévision vers le canonique gridstatus."""
+    """Renomme le schéma hébergé prévision vers le canonique gridstatus.
+
+    ``ercot_load_forecast`` est **par modèle** : on filtre le modèle actif (colonne
+    ``in_use_flag`` si présente) pour n'avoir qu'une prévision par intervalle, sinon
+    on garderait des lignes dupliquées (un jeu par modèle). Nom de colonne à confirmer
+    par le test live.
+    """
+    src = df[df["in_use_flag"].astype(bool)] if "in_use_flag" in df.columns else df
     return pd.DataFrame(
         {
-            "Publish Time": pd.to_datetime(df["publish_time_utc"], utc=True),
-            "Interval Start": pd.to_datetime(df["interval_start_utc"], utc=True),
-            "Interval End": pd.to_datetime(df["interval_end_utc"], utc=True),
-            "System Total": df["system_total"].astype(float).to_numpy(),
+            "Publish Time": pd.to_datetime(src["publish_time_utc"], utc=True),
+            "Interval Start": pd.to_datetime(src["interval_start_utc"], utc=True),
+            "Interval End": pd.to_datetime(src["interval_end_utc"], utc=True),
+            "System Total": src["system_total"].astype(float).to_numpy(),
         }
     )
