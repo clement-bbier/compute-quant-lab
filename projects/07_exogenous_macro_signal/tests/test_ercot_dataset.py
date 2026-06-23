@@ -39,15 +39,14 @@ def test_build_dataset_is_point_in_time(tmp_path: Path) -> None:
 
     # Capacité : version pré-cutoff (70000) ET révision post-cutoff (60000) pour 06:00.
     _write(store, "available_capacity", [pre, post], [t06, t06], [70000.0, 60000.0])
-    _write(store, "load_forecast", [pre], [t06], [45000.0])
-    # Net-load pré-cutoff sur 05:00 et 06:00 (pour le gradient).
+    # Net-load pré-cutoff sur 05:00 et 06:00 (jambe « charge » de L0-v2 + gradient).
     _write(store, "net_load_forecast", [pre, pre], [t05, t06], [38000.0, 42000.0])
 
     x, y, index = build_calibration_dataset(store, label="abs", threshold_usd_mwh=1500.0)
 
     pos = list(index).index(t06)
-    # Marge = 70000 - 45000 (pré-cutoff) ; la révision post-cutoff 60000 est ignorée.
-    assert x[pos, 0] == 25000.0
-    # Gradient net-load = 42000 - 38000.
-    assert x[pos, 1] == 4000.0
+    # L0-v2 : marge = capacité − net-load = 70000 (cap pré-cutoff) − 42000 = 28000.
+    # La révision de capacité post-cutoff (60000) est ignorée (anti-look-ahead).
+    assert x[pos, 0] == 28000.0
+    assert x[pos, 1] == 4000.0  # gradient net-load = 42000 - 38000
     assert y[pos] == 1.0  # spike (3000 > 1500)
