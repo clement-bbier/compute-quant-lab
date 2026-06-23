@@ -64,22 +64,31 @@ def build_calibration_dataset(
     else:
         y_all = spike_label_hod_percentile(hourly, pct=pct, min_obs_per_hour=min_obs_per_hour)
 
-    records: list[tuple[pd.Timestamp, float, float, bool]] = []
+    parts: list[pd.DataFrame] = []
     target = pd.Series(y_all.to_numpy(), index=y_all.index)
     for day, grp in target.groupby(target.index.normalize()):
         as_of = pd.Timestamp(day) - pd.Timedelta(days=1) + pd.Timedelta(hours=as_of_utc_hour)
-        cap_k = _latest_per_interval_long(cap, as_of)
-        load_k = _latest_per_interval_long(load, as_of)
-        nl_grad = _latest_per_interval_long(nl, as_of).diff()
-        for t, spike in grp.items():
-            margin = cap_k.get(t, np.nan) - load_k.get(t, np.nan)
-            records.append((t, margin, nl_grad.get(t, np.nan), bool(spike)))
-
-    frame = (
-        pd.DataFrame(
-            records,
-            columns=["interval_start", "reserve_margin_mw", "net_load_gradient_mw", "spike"],
+        day_idx = grp.index  # intervalles cibles (horaires) du jour J
+        # Alignement VECTORISÉ par reindex — robuste sur grilles mixtes (RTM-horaire,
+        # charge 5 min, capacité & net-load horaires) là où un .get élément par élément échoue.
+        cap_k = _latest_per_interval_long(cap, as_of).reindex(day_idx)
+        load_k = _latest_per_interval_long(load, as_of).reindex(day_idx)
+        grad = _latest_per_interval_long(nl, as_of).diff().reindex(day_idx)
+        parts.append(
+            pd.DataFrame(
+                {
+                    "interval_start": day_idx,
+                    "reserve_margin_mw": (cap_k - load_k).to_numpy(),
+                    "net_load_gradient_mw": grad.to_numpy(),
+                    "spike": grp.to_numpy(),
+                }
+            )
         )
+
+    if not parts:
+        return np.empty((0, 2)), np.empty(0), pd.DatetimeIndex([], tz="UTC")
+    frame = (
+        pd.concat(parts, ignore_index=True)
         .dropna(subset=["reserve_margin_mw", "net_load_gradient_mw"])
         .reset_index(drop=True)
     )
