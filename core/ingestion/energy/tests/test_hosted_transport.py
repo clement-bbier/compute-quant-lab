@@ -186,3 +186,54 @@ def test_hosted_live_reserve_margin_real() -> None:
     assert expected <= set(df.columns)
     assert (df["publish_time"] <= as_of).all()  # point-in-time
     assert df["forecast_capacity_mw"].notna().any()  # capacité réelle jointe
+
+
+def test_net_load_gradient_as_of_point_in_time() -> None:
+    """Prédicteur 2 : gradient net-load point-in-time (rien publié après as_of) + ramp = diff."""
+    as_of = pd.Timestamp("2024-01-15T00:00:00Z")
+    nl = pd.DataFrame(
+        {
+            "interval_start_utc": [
+                "2024-01-15T18:00:00Z",
+                "2024-01-15T19:00:00Z",
+                "2024-01-15T20:00:00Z",
+                "2024-01-15T18:00:00Z",  # révision publiée APRÈS as_of -> à ignorer
+            ],
+            "interval_end_utc": [
+                "2024-01-15T19:00:00Z",
+                "2024-01-15T20:00:00Z",
+                "2024-01-15T21:00:00Z",
+                "2024-01-15T19:00:00Z",
+            ],
+            "publish_time_utc": [
+                "2024-01-14T18:00:00Z",
+                "2024-01-14T18:00:00Z",
+                "2024-01-14T18:00:00Z",
+                "2024-01-15T12:00:00Z",  # > as_of
+            ],
+            "net_load_forecast": [40000.0, 45000.0, 52000.0, 99999.0],
+        }
+    )
+    client = _FakeClient({"ercot_net_load_forecast": nl})
+    market = ErcotMarket(transport=GridstatusIoTransport(client=client))
+    df = market.net_load_gradient_as_of(as_of)
+    assert len(df) == 3  # la révision publiée après as_of est écartée
+    assert list(df["net_load_mw"]) == [40000.0, 45000.0, 52000.0]
+    assert pd.isna(df["net_load_gradient_mw"].iloc[0])  # 1er intervalle : pas de ramp
+    assert df["net_load_gradient_mw"].iloc[1] == 5000.0
+    assert df["net_load_gradient_mw"].iloc[2] == 7000.0  # ramp qui s'accélère
+
+
+@pytest.mark.live
+def test_hosted_live_net_load_gradient_real() -> None:
+    """Prédicteur 2 sur vraie donnée : confirme le dataset/schéma ercot_net_load_forecast."""
+    key = os.environ.get("GRIDSTATUS_API_KEY")
+    if not key:
+        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+    market = ErcotMarket(transport=GridstatusIoTransport(limit=2000))
+    as_of = pd.Timestamp.now(tz="UTC").floor("h")
+    df = market.net_load_gradient_as_of(as_of)
+    assert len(df) > 0
+    assert {"net_load_mw", "net_load_gradient_mw"} <= set(df.columns)
+    assert (df["publish_time"] <= as_of).all()
+    assert df["net_load_gradient_mw"].notna().any()
