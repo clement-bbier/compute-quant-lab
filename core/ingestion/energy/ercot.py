@@ -67,6 +67,7 @@ _COL_INTERVAL_START = "Interval Start"
 _COL_INTERVAL_END = "Interval End"
 _COL_PUBLISH_TIME = "Publish Time"
 _COL_SYSTEM_TOTAL = "System Total"
+_COL_AVAIL_CAP_GEN = "Available Capacity Generation"
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +187,42 @@ def parse_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def parse_system_adequacy(df: pd.DataFrame) -> pd.DataFrame:
+    """Parse un DataFrame STSA canonique → capacité prévue normalisée (UTC, point-in-time).
+
+    STSA (Short-Term System Adequacy) est un rapport de **capacité** : pas de demande.
+    On retient ``Available Capacity Generation`` (capacité de génération disponible
+    prévue) comme capacité de la marge de réserve L0.
+
+    Returns
+    -------
+    pd.DataFrame
+        Colonnes ``publish_time`` / ``interval_start`` / ``interval_end`` /
+        ``forecast_capacity_mw`` (UTC tz-aware), triée (publish_time, interval_start).
+    """
+    time_col = _COL_INTERVAL_START if _COL_INTERVAL_START in df.columns else "Time"
+    out = pd.DataFrame()
+    out["publish_time"] = _to_utc(pd.to_datetime(df[_COL_PUBLISH_TIME]))
+    out["interval_start"] = _to_utc(pd.to_datetime(df[time_col]))
+    out["interval_end"] = _to_utc(pd.to_datetime(df[_COL_INTERVAL_END]))
+    out["forecast_capacity_mw"] = df[_COL_AVAIL_CAP_GEN].astype(float).values
+    return out.sort_values(["publish_time", "interval_start"]).reset_index(drop=True)
+
+
+def _latest_known_per_interval(df: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
+    """Garde, par ``interval_start``, la dernière version publiée **à/avant** ``as_of``.
+
+    Garde-fou look-ahead (L0) : filtre d'abord ``publish_time <= as_of`` (rien de
+    publié après le cutoff de décision), puis prend la publication la plus récente
+    par intervalle.
+    """
+    known = df[df["publish_time"] <= as_of]
+    if known.empty:
+        return known
+    idx = known.groupby("interval_start")["publish_time"].idxmax()
+    return known.loc[idx]
+
+
 # ---------------------------------------------------------------------------
 # Helper de conversion UTC
 # ---------------------------------------------------------------------------
@@ -295,23 +332,34 @@ class ErcotMarket:
         self,
         as_of: pd.Timestamp,
     ) -> pd.DataFrame:
-        """Dernier rapport de prévision connu AVANT as_of (point-in-time strict).
+        """Marge de réserve prévue connue à ``as_of`` (point-in-time strict, prédicteur L0).
 
-        Utile pour la calibration L0 : donne la prévision telle qu'elle était
-        connue au moment du cutoff de décision (~18h CPT J-1).
+        Jointure inter-datasets : **charge** (``ercot_load_forecast``) ⋈ **capacité**
+        (STSA), chacune réduite à sa dernière publication ``<= as_of`` par intervalle.
+        Marge = capacité − charge. Aucune valeur publiée après ``as_of`` n'entre (le
+        garde-fou look-ahead vit dans :func:`_latest_known_per_interval`).
 
         Parameters
         ----------
         as_of
-            Horodatage de décision (UTC tz-aware). Seuls les rapports dont
-            ``publish_time <= as_of`` sont pris en compte.
+            Horodatage de décision (UTC tz-aware), ex. cutoff ~18h CPT J-1.
 
         Returns
         -------
         pd.DataFrame
-            Sous-ensemble du dernier rapport publié avant ``as_of``.
+            ``interval_start`` / ``interval_end`` / ``publish_time`` /
+            ``forecast_load_mw`` / ``forecast_capacity_mw`` / ``reserve_margin_mw``.
+            ``forecast_capacity_mw`` (et donc la marge) est ``NaN`` si aucune capacité
+            STSA n'a d'intervalle correspondant.
         """
-        df_raw = self._transport().fetch_load_forecast(as_of, as_of)
-        df = parse_load_forecast(df_raw)
-        # Filtrer causalement : on ne garde que ce qui était connu à as_of
-        return df[df["publish_time"] <= as_of].reset_index(drop=True)
+        transport = self._transport()
+        load = _latest_known_per_interval(
+            parse_load_forecast(transport.fetch_load_forecast(as_of, as_of)), as_of
+        )[["interval_start", "interval_end", "publish_time", "forecast_load_mw"]]
+        cap = _latest_known_per_interval(
+            parse_system_adequacy(transport.fetch_system_adequacy(as_of, as_of)), as_of
+        )[["interval_start", "forecast_capacity_mw"]]
+
+        out = load.merge(cap, on="interval_start", how="left")
+        out["reserve_margin_mw"] = out["forecast_capacity_mw"] - out["forecast_load_mw"]
+        return out.sort_values("interval_start").reset_index(drop=True)
