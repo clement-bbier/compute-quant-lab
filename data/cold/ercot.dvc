@@ -1,0 +1,6 @@
+outs:
+- md5: 550f84a1234c8b6774999a7e6b58038a.dir
+  size: 5370433
+  nfiles: 38
+  hash: md5
+  path: ercot
