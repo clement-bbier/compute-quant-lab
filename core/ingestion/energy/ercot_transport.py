@@ -30,9 +30,12 @@ import pandas as pd
 RTM_DATASET = "ercot_spp_real_time_15_min"
 FORECAST_DATASET = "ercot_load_forecast"
 ADEQUACY_DATASET = "ercot_short_term_system_adequacy"
+NET_LOAD_DATASET = "ercot_net_load_forecast"
 
 #: Colonne de capacité hébergée retenue pour la marge de réserve L0 (à confirmer live).
 _HOSTED_CAPACITY_COL = "available_capacity_generation"
+#: Colonne net-load hébergée (à confirmer live ; absente de la lib OSS → hébergé seul).
+_HOSTED_NETLOAD_COL = "net_load_forecast"
 
 
 class ErcotTransport(Protocol):
@@ -48,6 +51,10 @@ class ErcotTransport(Protocol):
 
     def fetch_system_adequacy(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
         """Frame STSA brut (capacité prévue, colonne ``Available Capacity Generation``)."""
+        ...
+
+    def fetch_net_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+        """Frame prévision de net-load brut (colonne canonique ``Net Load``)."""
         ...
 
 
@@ -87,6 +94,12 @@ class GridstatusDirectTransport:
     def fetch_system_adequacy(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
         return self._get_iso().get_short_term_system_adequacy(  # type: ignore[attr-defined,no-any-return]
             date=start, end=end
+        )
+
+    def fetch_net_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+        # La lib OSS n'expose pas la prévision de net-load (seul le temps-réel) → hébergé seul.
+        raise NotImplementedError(
+            "Prévision net-load indisponible en direct gridstatus ; utiliser le transport hébergé."
         )
 
 
@@ -158,6 +171,15 @@ class GridstatusIoTransport:
         )
         return _hosted_adequacy_to_canonical(raw)
 
+    def fetch_net_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+        raw = self._get_client().get_dataset(  # type: ignore[attr-defined]
+            NET_LOAD_DATASET,
+            start=_date_str(start),
+            end=_date_str(end),
+            limit=self._limit,
+        )
+        return _hosted_net_load_to_canonical(raw)
+
 
 # ---------------------------------------------------------------------------
 # Mappers schéma hébergé → schéma canonique gridstatus (point de confirmation live)
@@ -211,5 +233,21 @@ def _hosted_adequacy_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
             "Interval Start": pd.to_datetime(df["interval_start_utc"], utc=True),
             "Interval End": pd.to_datetime(df["interval_end_utc"], utc=True),
             "Available Capacity Generation": df[_HOSTED_CAPACITY_COL].astype(float).to_numpy(),
+        }
+    )
+
+
+def _hosted_net_load_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
+    """Renomme le schéma hébergé ``ercot_net_load_forecast`` vers le canonique.
+
+    Net-load = charge − renouvelables (le ramp au coucher du soleil est le driver de
+    rareté). Colonne hébergée présumée ``net_load_forecast`` → à confirmer par le test live.
+    """
+    return pd.DataFrame(
+        {
+            "Publish Time": pd.to_datetime(df["publish_time_utc"], utc=True),
+            "Interval Start": pd.to_datetime(df["interval_start_utc"], utc=True),
+            "Interval End": pd.to_datetime(df["interval_end_utc"], utc=True),
+            "Net Load": df[_HOSTED_NETLOAD_COL].astype(float).to_numpy(),
         }
     )
