@@ -45,26 +45,13 @@ def _hosted_rtm_frame() -> pd.DataFrame:
 
 
 def _hosted_forecast_frame() -> pd.DataFrame:
-    # Schéma hébergé *par modèle* : 2 modèles (1 in-use, 1 non) × 2 intervalles.
-    # Le mapper doit filtrer in_use_flag pour ne garder qu'une prévision par intervalle.
+    # Schéma RÉEL confirmé en live : 4 colonnes, prévision system-wide (pas de modèle).
     return pd.DataFrame(
         {
-            "publish_time_utc": ["2024-01-14T23:48:00Z"] * 4,
-            "interval_start_utc": [
-                "2024-01-15T06:00:00Z",
-                "2024-01-15T07:00:00Z",
-                "2024-01-15T06:00:00Z",
-                "2024-01-15T07:00:00Z",
-            ],
-            "interval_end_utc": [
-                "2024-01-15T07:00:00Z",
-                "2024-01-15T08:00:00Z",
-                "2024-01-15T07:00:00Z",
-                "2024-01-15T08:00:00Z",
-            ],
-            "system_total": [45000.0, 46000.0, 99999.0, 99999.0],
-            "model": ["ACTUAL", "ACTUAL", "HIGHCASE", "HIGHCASE"],
-            "in_use_flag": [True, True, False, False],
+            "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T07:00:00Z"],
+            "interval_end_utc": ["2024-01-15T07:00:00Z", "2024-01-15T08:00:00Z"],
+            "publish_time_utc": ["2024-01-14T23:48:00Z", "2024-01-14T23:48:00Z"],
+            "load_forecast": [45000.0, 46000.0],
         }
     )
 
@@ -90,8 +77,6 @@ def test_hosted_transport_maps_forecast_to_canonical() -> None:
     assert str(df["publish_time"].dt.tz) == "UTC"
     # point-in-time : la prévision est publiée avant l'intervalle cible
     assert (df["publish_time"] < df["interval_start"]).all()
-    # filtrage modèle : une seule prévision par intervalle (le HIGHCASE non-in-use écarté)
-    assert not df.duplicated(["publish_time", "interval_start"]).any()
     assert list(df["forecast_load_mw"]) == [45000.0, 46000.0]
     # capacité non fabriquée → marge de réserve NaN (point 2 : plus de placeholder 70 GW)
     assert df["reserve_margin_mw"].isna().all()
@@ -135,10 +120,10 @@ def test_hosted_live_rtm_real_schema() -> None:
 
 @pytest.mark.live
 def test_hosted_live_forecast_real_schema() -> None:
-    """Valide le chemin prévision réel : schéma hébergé + filtrage modèle (point 1).
+    """Valide le chemin prévision réel contre le schéma hébergé confirmé en live.
 
-    Confirme `_hosted_forecast_to_canonical` (colonnes `*_utc`, `system_total`,
-    `in_use_flag`) contre la vraie donnée. Si une colonne diffère, le fix est localisé.
+    `_hosted_forecast_to_canonical` mappe `*_utc` + `load_forecast` (prévision
+    system-wide, sans dimension modèle) du dataset ercot_load_forecast.
     """
     key = os.environ.get("GRIDSTATUS_API_KEY")
     if not key:
