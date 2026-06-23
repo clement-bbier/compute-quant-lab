@@ -1,7 +1,7 @@
 """Dataset de calibration L0 ERCOT depuis le cold store (point-in-time strict).
 
 Pour chaque jour cible J, reconstruit les deux prédicteurs gelés de L0 — **marge de
-réserve** (capacité STSA − charge) et **gradient net-load** — tels que connus à la
+réserve** (capacité STSA − net-load, cf. L0-v2) et **gradient net-load** — tels que connus à la
 décision ``as_of ≈ 18h CPT J-1`` (≈ 23h UTC en CDT), puis les aligne sur le **label
 spike RTM** réalisé des heures de J.
 
@@ -53,7 +53,6 @@ def build_calibration_dataset(
     Ne garde que les lignes où **les deux prédicteurs** sont disponibles.
     """
     rtm = store.read(series="rtm_spp")
-    load = store.read(series="load_forecast")
     cap = store.read(series="available_capacity")
     nl = store.read(series="net_load_forecast")
 
@@ -69,16 +68,17 @@ def build_calibration_dataset(
     for day, grp in target.groupby(target.index.normalize()):
         as_of = pd.Timestamp(day) - pd.Timedelta(days=1) + pd.Timedelta(hours=as_of_utc_hour)
         day_idx = grp.index  # intervalles cibles (horaires) du jour J
-        # Alignement VECTORISÉ par reindex — robuste sur grilles mixtes (RTM-horaire,
-        # charge 5 min, capacité & net-load horaires) là où un .get élément par élément échoue.
+        # Alignement VECTORISÉ par reindex (robuste sur grilles mixtes). L0-v2 : la marge
+        # est capacité − net-load (la charge brute 7 j est indisponible à l'horizon 18h J-1).
+        nl_known = _latest_per_interval_long(nl, as_of)
         cap_k = _latest_per_interval_long(cap, as_of).reindex(day_idx)
-        load_k = _latest_per_interval_long(load, as_of).reindex(day_idx)
-        grad = _latest_per_interval_long(nl, as_of).diff().reindex(day_idx)
+        net_k = nl_known.reindex(day_idx)
+        grad = nl_known.diff().reindex(day_idx)
         parts.append(
             pd.DataFrame(
                 {
                     "interval_start": day_idx,
-                    "reserve_margin_mw": (cap_k - load_k).to_numpy(),
+                    "reserve_margin_mw": (cap_k - net_k).to_numpy(),
                     "net_load_gradient_mw": grad.to_numpy(),
                     "spike": grp.to_numpy(),
                 }
