@@ -68,6 +68,7 @@ _COL_INTERVAL_END = "Interval End"
 _COL_PUBLISH_TIME = "Publish Time"
 _COL_SYSTEM_TOTAL = "System Total"
 _COL_AVAIL_CAP_GEN = "Available Capacity Generation"
+_COL_NET_LOAD = "Net Load"
 
 # Fenêtre de récupération autour de as_of (reserve_forecast_as_of) : l'API hébergée
 # rejette une plage de largeur nulle. Lookback = capter les dernières publications
@@ -213,6 +214,21 @@ def parse_system_adequacy(df: pd.DataFrame) -> pd.DataFrame:
     out["interval_start"] = _to_utc(pd.to_datetime(df[time_col]))
     out["interval_end"] = _to_utc(pd.to_datetime(df[_COL_INTERVAL_END]))
     out["forecast_capacity_mw"] = df[_COL_AVAIL_CAP_GEN].astype(float).values
+    return out.sort_values(["publish_time", "interval_start"]).reset_index(drop=True)
+
+
+def parse_net_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
+    """Parse un DataFrame net-load canonique → net-load prévu normalisé (UTC, point-in-time).
+
+    Net-load = charge − renouvelables. Colonnes de sortie : ``publish_time`` /
+    ``interval_start`` / ``interval_end`` / ``net_load_mw``.
+    """
+    time_col = _COL_INTERVAL_START if _COL_INTERVAL_START in df.columns else "Time"
+    out = pd.DataFrame()
+    out["publish_time"] = _to_utc(pd.to_datetime(df[_COL_PUBLISH_TIME]))
+    out["interval_start"] = _to_utc(pd.to_datetime(df[time_col]))
+    out["interval_end"] = _to_utc(pd.to_datetime(df[_COL_INTERVAL_END]))
+    out["net_load_mw"] = df[_COL_NET_LOAD].astype(float).values
     return out.sort_values(["publish_time", "interval_start"]).reset_index(drop=True)
 
 
@@ -374,3 +390,26 @@ class ErcotMarket:
         out = load.merge(cap, on="interval_start", how="left")
         out["reserve_margin_mw"] = out["forecast_capacity_mw"] - out["forecast_load_mw"]
         return out.sort_values("interval_start").reset_index(drop=True)
+
+    def net_load_gradient_as_of(self, as_of: pd.Timestamp) -> pd.DataFrame:
+        """Gradient (ramp) du net-load prévu connu à ``as_of`` — **prédicteur 2** de L0.
+
+        Dernière prévision de net-load ``<= as_of`` par intervalle, triée, puis
+        **dérivée première** (ramp inter-intervalles). Le pic de ramp (chute solaire au
+        coucher du soleil + demande résidentielle haute) est un driver de rareté.
+        Point-in-time : rien de publié après ``as_of`` (via ``_latest_known_per_interval``) ;
+        le gradient n'utilise que la courbe de prévision connue à ``as_of``.
+
+        Returns
+        -------
+        pd.DataFrame
+            ``interval_start`` / ``publish_time`` / ``net_load_mw`` /
+            ``net_load_gradient_mw`` (``NaN`` au premier intervalle).
+        """
+        start = as_of - _ASOF_FETCH_LOOKBACK
+        end = as_of + _ASOF_FETCH_HORIZON
+        nl = parse_net_load_forecast(self._transport().fetch_net_load_forecast(start, end))
+        nl = _latest_known_per_interval(nl, as_of).sort_values("interval_start")
+        out = nl[["interval_start", "publish_time", "net_load_mw"]].reset_index(drop=True)
+        out["net_load_gradient_mw"] = out["net_load_mw"].diff()
+        return out
