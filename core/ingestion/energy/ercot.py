@@ -69,6 +69,13 @@ _COL_PUBLISH_TIME = "Publish Time"
 _COL_SYSTEM_TOTAL = "System Total"
 _COL_AVAIL_CAP_GEN = "Available Capacity Generation"
 
+# Fenêtre de récupération autour de as_of (reserve_forecast_as_of) : l'API hébergée
+# rejette une plage de largeur nulle. Lookback = capter les dernières publications
+# connues <= as_of ; horizon = capter les intervalles cibles futurs (prévisions 6-7 j).
+# Le filtrage point-in-time reste assuré par `_latest_known_per_interval`.
+_ASOF_FETCH_LOOKBACK = pd.Timedelta(days=2)
+_ASOF_FETCH_HORIZON = pd.Timedelta(days=2)
+
 
 # ---------------------------------------------------------------------------
 # Parsers purs (I/O isolée, testables sur fixtures figées)
@@ -353,11 +360,15 @@ class ErcotMarket:
             STSA n'a d'intervalle correspondant.
         """
         transport = self._transport()
+        # Fenêtre non nulle (l'API hébergée rejette start == end) ; le point-in-time
+        # est garanti par le filtre publish_time <= as_of de _latest_known_per_interval.
+        start = as_of - _ASOF_FETCH_LOOKBACK
+        end = as_of + _ASOF_FETCH_HORIZON
         load = _latest_known_per_interval(
-            parse_load_forecast(transport.fetch_load_forecast(as_of, as_of)), as_of
+            parse_load_forecast(transport.fetch_load_forecast(start, end)), as_of
         )[["interval_start", "interval_end", "publish_time", "forecast_load_mw"]]
         cap = _latest_known_per_interval(
-            parse_system_adequacy(transport.fetch_system_adequacy(as_of, as_of)), as_of
+            parse_system_adequacy(transport.fetch_system_adequacy(start, end)), as_of
         )[["interval_start", "forecast_capacity_mw"]]
 
         out = load.merge(cap, on="interval_start", how="left")
