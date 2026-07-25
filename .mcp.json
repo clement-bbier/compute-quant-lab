@@ -10,12 +10,6 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-fetch"]
     },
-    "energy-data": {
-      "$comment": "Serveur custom — infra/mcp-servers/energy-server/. Lit ENTSOE_API_TOKEN.",
-      "command": "python",
-      "args": ["${CLAUDE_PROJECT_DIR:-.}/infra/mcp-servers/energy-server/server.py"],
-      "env": { "ENTSOE_API_TOKEN": "${ENTSOE_API_TOKEN}" }
-    },
     "gpu-price": {
       "$comment": "Serveur custom — infra/mcp-servers/gpu-price-server/.",
       "command": "python",
