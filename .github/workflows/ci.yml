@@ -17,5 +17,27 @@ jobs:
       - run: uv run mypy core
       - name: Tests (chaque module en isolation — conftest non partagé entre projets)
         run: |
-          for d in tests core/backtest/tests core/features/tests core/ingestion/providers/tests core/models/tests core/signals/tests core/storage/tests infra/mcp-servers/*/tests projects/*/tests; do
-            echo "== pytest $d ==" ; uv run pytest -q "$d" ; done
+          set -euo pipefail
+          ran=0
+          for d in tests \
+                   core/backtest/tests \
+                   core/features/tests \
+                   core/ingestion/energy/tests \
+                   core/ingestion/providers/tests \
+                   core/models/tests \
+                   core/signals/tests \
+                   core/storage/tests \
+                   infra/collectors/tests \
+                   infra/mcp-servers/*/tests \
+                   projects/*/tests; do
+            # Un glob sans correspondance reste littéral : on le saute au lieu
+            # de le passer à pytest, qui échouerait sur un chemin inexistant.
+            [ -d "$d" ] || continue
+            echo "== pytest $d =="
+            uv run pytest -q "$d"
+            ran=$((ran + 1))
+          done
+          echo "== $ran suites exécutées =="
+          # Garde-fou : si les globs cessent de matcher, la CI doit échouer
+          # bruyamment plutôt que passer au vert sans avoir rien testé.
+          [ "$ran" -ge 18 ] || { echo "Trop peu de suites ($ran < 18)" >&2; exit 1; }
