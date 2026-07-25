@@ -1,5 +1,5 @@
 {
-  "$comment": "Garde-fous DÉTERMINISTES du labo. Ce qui doit arriver à coup sûr va ici, pas dans CLAUDE.md (une instruction promptée peut être ignorée sous pression ; un hook, non).",
+  "$comment": "Garde-fous DÉTERMINISTES du labo. Ce qui doit arriver à coup sûr va ici, pas dans CLAUDE.md (une instruction promptée peut être ignorée sous pression ; un hook, non). Les hooks sont en Python standard (pas de jq) : ce projet tourne sous Windows, où jq est absent par défaut. guard_write.py est fail-closed, format_python.py est fail-open.",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *data/raw/*) echo 'BLOQUÉ: data/raw/ est immuable (intégrité point-in-time). Écris dans data/interim/.' >&2; exit 2;; *.env) echo 'BLOQUÉ: ne jamais écrire/committer un .env. Utilise .env.example.' >&2; exit 2;; esac"
+            "command": "uv run --no-project python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_write.py\""
           }
         ]
       }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.py) ruff format \"$f\" 2>/dev/null; ruff check --fix \"$f\" 2>/dev/null;; esac"
+            "command": "uv run --no-project python \"$CLAUDE_PROJECT_DIR/.claude/hooks/format_python.py\""
           }
         ]
       }
@@ -26,7 +26,10 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "command -v uv >/dev/null 2>&1 && uv sync --extra dev --quiet 2>/dev/null || true" }
+          {
+            "type": "command",
+            "command": "command -v uv >/dev/null 2>&1 && uv sync --extra dev --quiet 2>/dev/null || true"
+          }
         ]
       }
     ]
