@@ -42,7 +42,7 @@ remonte dans `core/`. Le projet N+1 démarre avec l'infra du projet N déjà pr�
   - `ingestion/` connecteurs · `data_quality/` validation · `pricing/` spark spread
   - `features/` feature engineering point-in-time · `models/` XGBoost, LSTM/TFT
   - `backtest/` moteur + métriques · `utils/` config, logging, tracking (MLflow)
-- `data/` — `raw/` (immuable, versionné DVC) → `interim/` → `processed/`
+- `data/` — `snapshots/` (brut collecté, **versionné git/LFS**) → `interim/` → `processed/`
 - `experiments/` — runs MLflow (tracking local, pas de serveur)
 - `projects/NN_nom/` — un projet de recherche autonome (a son propre CLAUDE.md)
 - `infra/mcp-servers/` — **code** des serveurs MCP custom (≠ `.mcp.json` racine)
@@ -95,6 +95,6 @@ n'écrit que dans son module ; la zone protégée (`CLAUDE.md`, `.claude/`, `.mc
 uv sync                 # installe l'environnement depuis le lockfile
 pytest                  # lance les tests
 ruff check . && mypy core   # qualité
-dvc pull                # récupère les données versionnées
+git lfs pull            # récupère les données versionnées (CSV de snapshots)
 mlflow ui               # tableau de bord des expériences (local)
 ```

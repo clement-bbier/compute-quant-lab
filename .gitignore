@@ -6,19 +6,17 @@
 # Worktrees Claude Code (checkouts locaux, jamais committés ; cf. docs/git-workflow.md §8)
 .claude/worktrees/
 
-# Données versionnées par DVC (le contenu, pas les .dvc)
+# Couches dérivées : régénérables depuis data/snapshots/, jamais committées.
 /data/raw/*
 /data/interim/*
 /data/processed/*
+/data/cold/*
 !/data/**/.gitkeep
-/data/snapshots/*
-!/data/snapshots/.gitkeep
-# Pointeurs DVC versionnés (le .dvc est suivi, jamais le contenu)
-!/data/raw/*.dvc
-!/data/interim/*.dvc
-!/data/processed/*.dvc
-!/data/snapshots/*.dvc
-!/data/**/*.dvc
+
+# data/snapshots/ EST versionné : c'est la donnée brute collectée heure par
+# heure, irremplaçable (le prix du compute n'a pas d'historique achetable).
+# Les CSV passent par git-lfs (cf. .gitattributes) ; les Parquet, petits et
+# nombreux, restent en git ordinaire — LFS y serait contre-productif.
 
 # Expériences / artefacts
 /experiments/mlruns/
