@@ -40,6 +40,49 @@ from core.ingestion.protocols import (
 # List prices hyperscalers : reportées ailleurs mais exclues de l'estimateur (standard marché).
 HYPERSCALERS: frozenset[str] = frozenset({"aws", "gcp", "azure"})
 
+#: Separator qualifying an aggregator-relayed venue, as ``"<aggregator>:<venue>"``
+#: (e.g. ``"primeintellect:datacrunch"``). Set by the provider parsers.
+AGGREGATOR_SEPARATOR = ":"
+
+
+def split_source(source: str) -> tuple[str | None, str]:
+    """Split a source id into ``(aggregator, venue)``.
+
+    A direct venue has no aggregator: ``"datacrunch"`` -> ``(None, "datacrunch")``.
+    An aggregator-relayed one names both: ``"primeintellect:datacrunch"`` ->
+    ``("primeintellect", "datacrunch")``.
+    """
+    aggregator, separator, venue = source.partition(AGGREGATOR_SEPARATOR)
+    if not separator:
+        return None, source
+    return aggregator, venue
+
+
+def prefer_direct_venues(rates: Sequence[VenueRate]) -> list[VenueRate]:
+    """Drop aggregator quotes for venues that are also connected directly.
+
+    Prime Intellect relays other providers' inventory, so ``primeintellect:datacrunch``
+    and the direct ``datacrunch`` venue describe the *same* underlying capacity. Letting
+    both into the estimator double-counts that venue and silently overweights it
+    (see ``providers/CONVERGENCE.md`` section W2.4).
+
+    The direct quote wins: it is one hop closer to the source, so it carries neither
+    the aggregator's markup nor its refresh lag. An aggregator quote is kept whenever
+    the venue has no direct feed, since it is then the only observation of that venue.
+
+    Parameters
+    ----------
+    rates
+        Per-venue rates, direct and aggregator-relayed alike.
+
+    Returns
+    -------
+    list of VenueRate
+        Input order preserved, minus the redundant aggregator quotes.
+    """
+    direct = {r.source for r in rates if split_source(r.source)[0] is None}
+    return [r for r in rates if (a := split_source(r.source))[0] is None or a[1] not in direct]
+
 
 class InsufficientDataError(RuntimeError):
     """Levée quand aucune venue fraîche ne permet de calculer un fix (no carry-forward)."""
@@ -59,10 +102,19 @@ class IndexConfig:
     lease_type: str = "on_demand"
     excluded_sources: frozenset[str] = HYPERSCALERS
     min_sources: int = 1
+    #: Apply the direct > aggregator preference (see :func:`prefer_direct_venues`).
+    #: On by default: double-counting a venue is a pricing error, not a preference.
+    prefer_direct: bool = True
 
     @property
     def method(self) -> str:
-        """Identifiant auditable de la config, tracé dans ``SpotIndexPoint.method``."""
+        """Identifiant auditable de la config, tracé dans ``SpotIndexPoint.method``.
+
+        Décrit le couple estimateur + filtre. La préférence direct > agrégateur
+        (:attr:`prefer_direct`) n'y figure pas : elle dédoublonne les venues en amont
+        de l'estimation sans changer de méthode d'agrégation, et ce libellé est un
+        contrat stable dont dépendent les consommateurs (P03/P04/P05/P06).
+        """
         return f"{self.estimator.name}+{self.outlier_filter.name}"
 
 
@@ -138,6 +190,11 @@ def build_spot_index(
             f"Aucune venue fraîche pour {gpu_model}/{config.lease_type} à {as_of.isoformat()} "
             f"(fenêtre {config.staleness}) : pas de fix (no carry-forward)."
         )
+
+    # Before any statistic is computed: a venue relayed by an aggregator AND connected
+    # directly must weigh once, else it skews both the MAD spread and the trimmed mean.
+    if config.prefer_direct:
+        venue_rates = prefer_direct_venues(venue_rates)
 
     kept = config.outlier_filter.filter(venue_rates)
     if len(kept) < config.min_sources:
