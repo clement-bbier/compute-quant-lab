@@ -28,8 +28,9 @@ already in place.
 |---|---|---|---|
 | ENTSO-E Transparency | FR/DE electricity spot price (€/MWh) | API token (`entsoe-py`) | to configure |
 | EPEX Spot | Day-ahead price | Paid API / proxy | to investigate |
-| Vast.ai / RunPod | GPU rental price (€/h) | Public API, self-historized | to build |
-| Gas/weather markets | Exogenous variables | API | backlog |
+| GPU marketplaces (Vast.ai, RunPod, PrimeIntellect, DataCrunch, Cudo, Hyperstack, TensorDock) | GPU rental price (€/h) | Public APIs, self-historized via `core/ingestion/providers/` | implemented, live validation per-venue (see [docs/decisions/004](docs/decisions/004-provider-registry-architecture.md)) |
+| ERCOT (GridStatus.io) | Real-time market price, grid stress | API token | implemented (P07 branch), real data |
+| Gas/weather markets | Exogenous variables | API | backlog (synthetic fallback in place) |
 | S&P Global / Kensho | Reference financial data | MCP (connected) | available |
 | Tavily | Web research (scanning) | MCP (connected) | available |
 
@@ -40,15 +41,22 @@ already in place.
 ## 4. Repo structure
 
 - `core/` — shared installable library (`pip install -e .`)
-  - `ingestion/` connectors · `data_quality/` validation · `pricing/` spark spread
-  - `features/` point-in-time feature engineering · `models/` XGBoost, LSTM/TFT
-  - `backtest/` engine + metrics · `utils/` config, logging, tracking (MLflow)
-- `data/` — `snapshots/` (raw collected, **git-versioned**) → `interim/` → `processed/`
+  - `ingestion/` connectors (`providers/` = the GPU marketplace registry) · `data_quality/` declared but unimplemented (see note below) · `pricing/` spark spread + derivatives
+  - `features/` point-in-time feature engineering · `models/` XGBoost, purged-CV, deflated Sharpe
+  - `backtest/` engine + metrics · `storage/` Parquet cold store + DuckDB query layer · `signals/` reusable signal producers · `utils/` config, logging, tracking (MLflow)
+- `data/` — `snapshots/` (raw collected, **git-versioned**) → `interim/` → `processed/`; `cold/` = typed Parquet lake (ERCOT)
 - `experiments/` — MLflow runs (local tracking, no server)
-- `projects/NN_name/` — a standalone research project (has its own CLAUDE.md)
+- `projects/NN_name/` — a standalone research project (has its own CLAUDE.md); the numeric prefix is deliberate debt, see [docs/decisions/003](docs/decisions/003-projects-numeric-prefix-debt.md)
 - `infra/mcp-servers/` — **code** for custom MCP servers (≠ root `.mcp.json`)
-- `infra/collectors/` — scheduled services (GPU price snapshot)
-- `tests/` — pytest · `references/` — **knowledge layer**: bibliography + distilled methodology
+- `infra/collectors/` — scheduled services (GPU price snapshot, ERCOT backfill)
+- `tests/` — pytest (root/P01 suite; every other module's tests run in isolation, see [docs/decisions/002](docs/decisions/002-per-project-ci-testpaths-gap.md))
+- `references/` — knowledge layer: `bibliography.md` + distilled notes (`energy-markets/`, `ml-finance-pitfalls/`, `stat-arb/`)
+- `docs/decisions/` — ADR log for cross-cutting architectural decisions (see §7)
+
+> ⚠️ `core/data_quality/` is referenced by the `data-quality-auditor` agent and the
+> `/data-quality-check` skill but contains no logic yet (empty package). Undecided:
+> implement the gap/outlier/point-in-time checks the skill already specifies, or retire
+> the agent + skill + references. Flagging here rather than silently picking one.
 
 ## 5. Orchestration mechanisms (`.claude/`)
 
@@ -64,8 +72,9 @@ already in place.
 The main session = research director who delegates. Each agent runs in
 isolation and returns only a synthesis.
 
+- `agent-architect` — meta-agent: builds/revises the lab's other agents, skills, rules, hooks
 - `data-engineer` — ingestion, scraping, connectors
-- `data-quality-auditor` — gaps, outliers, point-in-time integrity
+- `data-quality-auditor` — gaps, outliers, point-in-time integrity (see the `core/data_quality/` note in §4)
 - `quant-researcher` — features, modeling, signals
 - `backtest-runner` — isolated execution → PnL / Sharpe / drawdown
 - `risk-validator` — **adversary**: hunts look-ahead, overfitting, data snooping
@@ -80,7 +89,13 @@ Massively parallel work along 3 tracks: **collection** (subagent swarm via
 **convergence** (1 pilot session that merges and reconciles). Golden rule: a worktree
 only writes to its own module; the protected zone (`CLAUDE.md`, `.claude/`, `.mcp.json`,
 `pyproject.toml`) is touched only by the convergence session.
-→ Details and ownership partition: `docs/parallel-ops.md`. Helper: `scripts/new-worktree.ps1`.
+→ Details and ownership partition: `docs/parallel-ops.md`. Helper: `scripts/new-worktree.ps1`
+(branches off `integration`, see `docs/git-workflow.md`).
+
+Structural decisions that came out of past convergence sessions are recorded as ADRs in
+`docs/decisions/` (worktree/convergence model, the provider registry architecture, the
+Parquet cold store + DVC removal, the real/simulated type invariant, and known open gaps
+like per-project CI wiring) — read there before re-deciding something already settled.
 
 ## 8. Conventions
 
