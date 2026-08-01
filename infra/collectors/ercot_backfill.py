@@ -1,15 +1,15 @@
 """Backfill ERCOT historique : API hébergée GridStatus.io → cold store énergie.
 
 Tire le prix RTM + les prévisions (charge, capacité STSA, net-load) sur une plage, en
-**format long point-in-time**, et les écrit dans :class:`EnergyColdStore` (Parquet, à
-versionner ensuite via ``dvc add``). La calibration P07 lira ce lac immuable (rule
+**format long point-in-time**, et les écrit dans :class:`EnergyColdStore` (Parquet,
+versionné en git ordinaire). La calibration P07 lira ce lac immuable (rule
 training-cold-store), jamais le live.
 
 ⚠️ Opérationnel : nécessite ``GRIDSTATUS_API_KEY``. **Quota** free = 500k lignes/mois →
 borner la plage (étés à spikes) ou agréger ; vérifier la **profondeur d'archive des
 prévisions** (le facteur limitant — cf. plan cold store).
 
-Usage : ``uv run python -m infra.collectors.ercot_backfill`` (plage à régler dans ``main``).
+Usage : ``uv run python -m infra.collectors.ercot_backfill --start 2024-06-01 --end 2024-10-01``.
 """
 
 from __future__ import annotations
@@ -100,12 +100,26 @@ def backfill(
     return total
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--start", required=True, help="Début de la plage (ex. 2024-06-01).")
+    parser.add_argument("--end", required=True, help="Fin de la plage, exclue (ex. 2024-10-01).")
+    parser.add_argument("--chunk-days", type=int, default=7, help="Taille des tranches (jours).")
+    parser.add_argument(
+        "--store-path",
+        default="data/cold/ercot",
+        help="Répertoire du cold store énergie (défaut : data/cold/ercot).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:  # pragma: no cover (opérationnel, nécessite la clé + réseau)
-    """Point d'entrée opérationnel. Régler la plage selon profondeur d'archive + quota."""
+    """Point d'entrée opérationnel. Plage et destination réglables en ligne de commande."""
+    args = _parse_args()
     transport = GridstatusIoTransport(limit=200_000)
-    store = EnergyColdStore(Path("data/cold/ercot"))
-    written = backfill(transport, store, "2024-06-01", "2024-10-01", chunk_days=7)
-    print(f"{written} lignes écrites dans data/cold/ercot. Versionner : dvc add data/cold/ercot")
+    store = EnergyColdStore(Path(args.store_path))
+    written = backfill(transport, store, args.start, args.end, chunk_days=args.chunk_days)
+    print(f"{written} lignes écrites dans {args.store_path} (git ordinaire).")
 
 
 if __name__ == "__main__":  # pragma: no cover
