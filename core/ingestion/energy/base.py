@@ -22,7 +22,7 @@ l'environnement. ERCOT est public (``required_env = ()``), donc toujours listé.
 from __future__ import annotations
 
 import os
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -101,7 +101,7 @@ class EnergyMarket(Protocol):
 _REGISTRY: dict[str, EnergyMarket] = {}
 
 
-def register_market(key: str):
+def register_market(key: str) -> Callable[[type], type]:
     """Décorateur d'enregistrement d'un marché dans le registre global.
 
     Usage
