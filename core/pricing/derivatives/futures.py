@@ -1,10 +1,10 @@
-"""Cotation et orchestrateur du pricing de futures compute (théorique / SIMULÉ).
+"""Quote and orchestrator of compute futures pricing (theoretical / SIMULATED).
 
-:class:`FuturesQuote` porte un champ ``simulated`` **obligatoire** (sans valeur par
-défaut) : la frontière réel/simulé est garantie par le type, pas par une convention.
-:class:`CarryFuturesPricer` injecte une forward (via ``CarryModel``) et infère
-*systématiquement* le convenience yield implicite — ce qui unifie le pricing carry
-exogène et l'usage de la courbe Schwartz simulée de P04 sous une seule logique.
+:class:`FuturesQuote` carries a **mandatory** ``simulated`` field (no default value):
+the real versus simulated boundary is enforced by the type, not by convention.
+:class:`CarryFuturesPricer` injects a forward (through ``CarryModel``) and *always*
+infers the implied convenience yield -- which unifies exogenous carry pricing and the
+use of the simulated Schwartz curve of P04 under a single logic.
 """
 
 from __future__ import annotations
@@ -22,38 +22,38 @@ from core.pricing.derivatives.protocols import CarryModel
 
 @dataclass(frozen=True)
 class FuturesQuote:
-    """Cotation théorique d'un future compute pour une maturité donnée.
+    """Theoretical quote of a compute future for a given maturity.
 
-    ``simulated`` est **obligatoire** (sans défaut) : les futures compute (settlement
-    SDH100RT) ne sont pas listés, aucune cotation ne peut « oublier » qu'elle est
-    théorique. Unités : prix en $/GPU·h, ``maturity_years`` en années, taux annualisés.
+    ``simulated`` is **mandatory** (no default): compute futures (SDH100RT settlement)
+    are not listed, so no quote can "forget" that it is theoretical. Units: prices in
+    $/GPU·h, ``maturity_years`` in years, rates annualised.
     """
 
     spot: float
     forward: float
     maturity_years: float
-    basis: float  # F − S, la base spot/forward
+    basis: float  # F − S, the spot/forward basis
     rate: float
-    convenience_yield: float  # implicite, inféré de la forward
+    convenience_yield: float  # implied, inferred from the forward
     model_name: str
     sensitivities: CarrySensitivities
     simulated: bool
 
 
 class CarryFuturesPricer:
-    """Price un future compute théorique à partir d'une forward injectée.
+    """Price a theoretical compute future from an injected forward.
 
     Parameters
     ----------
     model : CarryModel
-        Source de forward (portage analytique ou adapter de la forward P04).
+        Forward source (analytical carry model or an adapter of the P04 forward).
     rate : float
-        Taux de financement annualisé ``r`` servant à inverser la forward
-        (convenience yield implicite) et à calculer les sensibilités.
+        Annualised funding rate ``r`` used to invert the forward (implied convenience
+        yield) and to compute the sensitivities.
 
-    Le yield étant inféré de la forward fournie, le pricer redonne le ``y`` exogène
-    pour un :class:`CostOfCarryModel` (round-trip) et *extrait* le ``y`` implicite
-    d'une forward Schwartz simulée.
+    Because the yield is inferred from the supplied forward, the pricer returns the
+    exogenous ``y`` back for a :class:`CostOfCarryModel` (round-trip) and *extracts*
+    the implied ``y`` from a simulated Schwartz forward.
     """
 
     def __init__(self, model: CarryModel, rate: float = DEFAULT_RISK_FREE_RATE) -> None:
@@ -61,7 +61,7 @@ class CarryFuturesPricer:
         self._rate = rate
 
     def price(self, spot: float, tau_years: float) -> FuturesQuote:
-        """Cote le future : forward → base → yield implicite → sensibilités."""
+        """Quote the future: forward, then basis, implied yield and sensitivities."""
         forward = self._model.forward(spot, tau_years)
         convenience_yield = implied_convenience_yield(spot, forward, self._rate, tau_years)
         sensitivities = carry_sensitivities(spot, self._rate, convenience_yield, tau_years)

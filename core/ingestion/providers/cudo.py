@@ -1,12 +1,14 @@
-"""Provider CUDO Compute : types de machine VM avec prix par composant (Bearer).
+"""CUDO Compute provider: VM machine types with per-component pricing (Bearer).
 
-La logique pure (``parse_cudo``) est isolée de l'appel réseau (``fetch_cudo``, token-gated).
-CUDO **facture chaque composant séparément** : ``gpuPriceHr`` est donc **déjà** un prix
-$/GPU·h (pas à diviser), exposé sous forme ``{"value": "2.50", "currency": "usd"}`` (valeur
-en chaîne). On retient la disponibilité réseau ``totalGpuFree``. Bail : on-demand.
+The pure logic (``parse_cudo``) is isolated from the network call (``fetch_cudo``,
+token-gated). CUDO **bills each component separately**: ``gpuPriceHr`` is therefore
+**already** a $/GPU·h price (no division needed), exposed as
+``{"value": "2.50", "currency": "usd"}`` (value as a string). We keep the network-wide
+``totalGpuFree`` availability. Lease: on-demand.
 
-⚠️ Endpoint/forme à **confirmer en live à la convergence** (doc SPA non capturable hors
-clé) : ``/v1/vms/machine-types`` (liste réseau-large) — variante per-data-center possible.
+Warning: endpoint/shape **to be confirmed live at convergence** (the SPA documentation
+cannot be captured without a key): ``/v1/vms/machine-types`` (network-wide list) -- a
+per-data-center variant is possible.
 """
 
 from __future__ import annotations
@@ -24,10 +26,10 @@ _CUDO_MACHINE_TYPES_URL = "https://rest.compute.cudo.org/v1/vms/machine-types"
 
 
 def _price_value(price_hr: Any) -> float | None:
-    """Extrait la valeur numérique d'un ``{"value": "2.50", "currency": ...}`` CUDO.
+    """Extract the numeric value from a CUDO ``{"value": "2.50", "currency": ...}``.
 
-    Tolère une valeur en chaîne ou numérique ; renvoie ``None`` si absente ou non
-    convertible (l'entrée est alors écartée par l'appelant).
+    Tolerates a string or numeric value; returns ``None`` if absent or not convertible (the
+    entry is then discarded by the caller).
     """
     if not isinstance(price_hr, dict):
         return None
@@ -43,15 +45,15 @@ def _price_value(price_hr: Any) -> float | None:
 def parse_cudo(
     machine_types: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
 ) -> list[Snapshot]:
-    """Transforme les types de machine CUDO en snapshots $/GPU·h (logique pure).
+    """Transform CUDO machine types into $/GPU·h snapshots (pure logic).
 
-    On retient les machines équipées d'un GPU (``gpuModel`` non vide) avec un
-    ``gpuPriceHr.value`` strictement positif. Ce prix est **directement** le $/GPU·h ;
-    la disponibilité est ``totalGpuFree``.
+    We keep the machines equipped with a GPU (non-empty ``gpuModel``) whose
+    ``gpuPriceHr.value`` is strictly positive. That price is **directly** the $/GPU·h; the
+    availability is ``totalGpuFree``.
 
-    Champs descriptifs propagés :
-    - ``region`` : ``dataCenterId`` (ex. ``"no-luster-1"``).
-    - ``gpu_memory_gb`` : ``gpuMemoryGib`` (GiB → Go, ratio 1:1 en pratique).
+    Descriptive fields propagated:
+    - ``region`` : ``dataCenterId`` (e.g. ``"no-luster-1"``).
+    - ``gpu_memory_gb`` : ``gpuMemoryGib`` (GiB -> GB, 1:1 ratio in practice).
     """
     out: list[Snapshot] = []
     for mt in machine_types:
@@ -84,7 +86,7 @@ def parse_cudo(
 def fetch_cudo(
     api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
 ) -> list[Snapshot]:
-    """Appel réel à l'API CUDO → snapshots horodatés (I/O, non testé en unitaire)."""
+    """Real call to the CUDO API -> timestamped snapshots (I/O, not unit-tested)."""
     response = requests.get(
         _CUDO_MACHINE_TYPES_URL,
         headers={"Authorization": f"Bearer {api_key}"},
@@ -96,11 +98,11 @@ def fetch_cudo(
 
 
 class CudoProvider:
-    """Provider CUDO Compute (token ``CUDO_API_KEY``)."""
+    """CUDO Compute provider (``CUDO_API_KEY`` token)."""
 
     name = "cudo"
     required_env: tuple[str, ...] = ("CUDO_API_KEY",)
 
     def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Relève les types de machine CUDO (clé garantie par le registre key-gated)."""
+        """Read the CUDO machine types (key guaranteed by the key-gated registry)."""
         return fetch_cudo(os.environ["CUDO_API_KEY"], now)

@@ -1,4 +1,4 @@
-"""Run consommateur : statistiques du cold store via DuckDB (logique pure, sans MLflow)."""
+"""Consumer run: cold store statistics via DuckDB (pure logic, without MLflow)."""
 
 from __future__ import annotations
 

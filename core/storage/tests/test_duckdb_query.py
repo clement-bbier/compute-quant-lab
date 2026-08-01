@@ -1,4 +1,4 @@
-"""(d) DuckDB : SQL embarqué (zéro serveur) sur le lac Parquet → résultats attendus."""
+"""(d) DuckDB: embedded SQL (zero server) over the Parquet lake -> expected results."""
 
 from __future__ import annotations
 
@@ -53,11 +53,11 @@ def test_query_on_empty_store_returns_empty(store: ParquetPriceStore) -> None:
 def test_query_mixes_legacy_and_enriched_parquet(
     store: ParquetPriceStore, make_frame: Frame
 ) -> None:
-    """Un parquet d'AVANT l'enrichissement (sans colonnes descriptives) cohabite avec un
-    parquet enrichi : sélectionner une nouvelle colonne ne doit pas lever « schema mismatch »
-    (union_by_name), la valeur manquante des vieux relevés étant NULL."""
-    # Parquet legacy : seulement les colonnes métier historiques, écrit à la main dans la
-    # partition Hive (source/month dérivés du chemin, comme les fichiers déjà dans le cloud).
+    """A Parquet file from BEFORE the enrichment (without descriptive columns) coexists with
+    an enriched one: selecting a new column must not raise "schema mismatch"
+    (union_by_name), the missing value of the old readings being NULL."""
+    # Legacy Parquet: only the historical business columns, written by hand into the Hive
+    # partition (source/month derived from the path, like the files already in the cloud).
     legacy_part = store.root / "source=vastai" / "month=202501"
     legacy_part.mkdir(parents=True)
     legacy = pd.DataFrame(
@@ -72,12 +72,10 @@ def test_query_mixes_legacy_and_enriched_parquet(
     pq.write_table(
         pa.Table.from_pandas(legacy, preserve_index=False), legacy_part / "legacy.parquet"
     )
-    # Relevé enrichi via le store (normalize_frame ajoute les colonnes descriptives).
+    # Enriched reading via the store (normalize_frame adds the descriptive columns).
     store.write(make_frame([(1, "runpod", "H100", 2.20, 1)]))
 
     out = query("SELECT source, region FROM prices ORDER BY source", store)
 
     assert len(out) == 2
-    assert (
-        out["region"].isna().all()
-    )  # aucune des deux sources n'a de région ici → NULL, pas d'erreur
+    assert out["region"].isna().all()  # neither source has a region here -> NULL, no error

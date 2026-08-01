@@ -1,8 +1,8 @@
-"""``fetch_live_gpu_prices`` (cible du collecteur prod) : comportement INCHANGÉ.
+"""``fetch_live_gpu_prices`` (the prod collector's target): UNCHANGED behaviour.
 
-Garde-fou de non-régression de l'entrée publique appelée par
-``infra/collectors/gpu_price_snapshot.py`` : agrégation des venues actives, défaut ``now``
-en UTC tz-aware partagé, et ``RuntimeError`` si aucune source n'est configurée.
+Non-regression guardrail for the public entry point called by
+``infra/collectors/gpu_price_snapshot.py``: aggregation of the active venues, a shared UTC
+tz-aware ``now`` default, and ``RuntimeError`` when no source is configured.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def test_fetch_live_aggregates_active_providers_and_defaults_now(
 
     assert {s.source for s in snaps} == {"vastai", "runpod"}
     instants = {s.snapshotted_at for s in snaps}
-    assert len(instants) == 1  # un seul `now` partagé par toutes les venues
+    assert len(instants) == 1  # a single `now` shared by every venue
     ts = next(iter(instants))
     assert ts.tzinfo is not None and ts.utcoffset() == dt.timedelta(0)  # UTC tz-aware
 

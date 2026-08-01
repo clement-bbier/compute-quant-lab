@@ -1,8 +1,8 @@
-"""Anti-look-ahead bout-en-bout via la brique P07 (features exogènes vintage).
+"""End-to-end anti-look-ahead via the P07 block (vintage exogenous features).
 
-La pipeline P09 réutilise le garde-fou point-in-time de ``core.features`` (P07) pour les
-variables exogènes : à ``t``, seules les observations dont le ``knowledge_ts <= t`` entrent
-dans la matrice. On le prouve par invariance à la falsification d'un millésime non encore publié.
+The P09 pipeline reuses the point-in-time guardrail of ``core.features`` (P07) for the
+exogenous variables: at ``t``, only the observations whose ``knowledge_ts <= t`` enter the
+matrix. This is proven by invariance to tampering with a not-yet-published vintage.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from core.models.pipeline import FeaturePipeline, SpreadFeatureSpec
 
 
 class _InMemorySource:
-    """Source exogène minimale (implémente ``ExogenousSource``) servant un frame vintage."""
+    """Minimal exogenous source (implements ``ExogenousSource``) serving a vintage frame."""
 
     def __init__(self, vintages: dict[str, pd.DataFrame]) -> None:
         self._vintages = vintages
@@ -43,7 +43,7 @@ def _source_conforms_to_p07_contract() -> None:
 
 
 def test_exogenous_features_respect_publication_lag() -> None:
-    """Falsifier un millésime publié *après* ``t`` ne change pas la feature à ``t``."""
+    """Tampering with a vintage published *after* ``t`` does not change the feature at ``t``."""
     n = 120
     idx = _utc_index(n)
     gas = pd.Series(range(n), index=idx, dtype=float)
@@ -56,8 +56,8 @@ def test_exogenous_features_respect_publication_lag() -> None:
     pipeline = FeaturePipeline(spread_spec=SpreadFeatureSpec(lags=(1,)), exog_builder=builder)
     full = pipeline.build_matrix(spread)
 
-    # À t, la dernière valeur gaz connue date de value_ts <= t - lag. Saccager le futur
-    # (millésimes dont knowledge_ts > t) ne doit pas bouger la ligne.
+    # At t, the last known gas value dates from value_ts <= t - lag. Wrecking the future
+    # (vintages whose knowledge_ts > t) must not move the row.
     t = 50
     tampered_gas = gas.copy()
     tampered_gas.iloc[t:] += 1000.0

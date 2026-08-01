@@ -1,7 +1,7 @@
-"""Pricing du digital spark spread.
+"""Digital spark spread pricing.
 
-Expose la brique scalaire historique (réutilisée par l'oracle comme référence
-chiffrée) et le pricer vectoriel point-in-time DI/SOLID.
+Exposes the historical scalar building block (reused by the oracle as a numeric
+reference) and the point-in-time DI/SOLID vectorised pricer.
 """
 
 from core.pricing.fx import ConstantFx, SeriesFx
@@ -22,16 +22,16 @@ from core.pricing.spark_spread import (
     spark_spread_per_gpu_hour,
 )
 
-# Sous-paquet dérivés (P06) — futures compute théoriques/simulés.
+# Derivatives subpackage (P06) -- theoretical/simulated compute futures.
 from core.pricing import derivatives
 from core.pricing.derivatives import CarryFuturesPricer, FuturesQuote
 
 __all__ = [
-    # Brique scalaire de référence (API inchangée).
+    # Reference scalar building block (API unchanged).
     "ServerSpec",
     "energy_cost_per_gpu_hour",
     "spark_spread_per_gpu_hour",
-    # Pricer vectoriel.
+    # Vectorised pricer.
     "SparkSpreadPricer",
     "SpreadResult",
     "ServerPowerModel",
@@ -39,13 +39,13 @@ __all__ = [
     "SeriesFx",
     "DataFramePriceSource",
     "PythonOracle",
-    # Contrats (abstractions).
+    # Contracts (abstractions).
     "PriceSource",
     "PowerModel",
     "FxConverter",
     "SpreadKernel",
     "FloatArray",
-    # Dérivés (P06).
+    # Derivatives (P06).
     "derivatives",
     "CarryFuturesPricer",
     "FuturesQuote",

@@ -1,20 +1,27 @@
-"""Moteur de backtest deux phases (point-in-time, reproductible).
+"""Two-phase backtest engine (point-in-time, reproducible).
 
-Phase 1 (Python, *guardée*) : à chaque t, une `GuardedView` ≤ t est passée à la
-stratégie → tableau de positions. Le garde-fou look-ahead vit ici : une stratégie
-qui lit le futur fait échouer le run.
+Phase 1 (Python, *guarded*): at each t the strategy receives a ``GuardedView`` of
+data up to t and returns a position. The look-ahead guard lives here: a strategy
+that reads the future fails the run.
 
-Phase 2 (Rust, *obligatoire*) : `backtest_loop.accumulate` parcourt l'historique
-long et accumule le PnL. L'import est **dur** : sans le crate compilé, le moteur
-ne s'importe pas (cf. `core/backtest/_loop/README.md`). L'oracle Python équivalent
-(`reference_loop`) ne sert qu'aux tests de parité.
+Phase 2 (accumulation): Rust is the **fast path**, the Python oracle is the
+**fallback**. ``backtest_loop.accumulate`` walks the long history and accumulates
+PnL; when the crate is not compiled, the engine falls back to
+:func:`core.backtest.reference_loop.accumulate`, which is the reference
+specification the kernel is tested against for bit-for-bit parity
+(``test_parity``). Results are therefore identical either way -- only speed
+differs -- so ``import core.backtest`` never requires ``maturin develop``.
+
+This mirrors the optional-kernel policy of P01 (:class:`core.pricing.pricer`),
+where the Rust spread kernel is likewise additive rather than mandatory.
+See ``core/backtest/_loop/README.md`` for the build instructions.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import logging
+from typing import Any, Protocol
 
-import backtest_loop  # noyau Rust OBLIGATOIRE — aucun fallback runtime
 import numpy as np
 
 from core.backtest.costs import LinearCostModel
@@ -28,15 +35,47 @@ from core.backtest.protocols import (
     Strategy,
 )
 
-#: Capital de référence du PoC (PnL exprimé en unités de capital initial).
+logger = logging.getLogger(__name__)
+
+
+class _Accumulator(Protocol):
+    """Phase-2 kernel signature, shared by the Rust fast path and the Python oracle."""
+
+    def __call__(
+        self,
+        positions: FloatArray,
+        prices: FloatArray,
+        fees_bps: float,
+        slippage_bps: float,
+    ) -> tuple[FloatArray, int]: ...
+
+
+try:  # Rust fast path -- additive, never required.
+    from backtest_loop import accumulate as _accumulate
+
+    USING_RUST_KERNEL = True
+except ImportError:  # pragma: no cover - depends on whether the crate is built
+    from core.backtest.reference_loop import accumulate as _accumulate
+
+    USING_RUST_KERNEL = False
+    logger.warning(
+        "Rust kernel 'backtest_loop' unavailable: falling back to the Python oracle "
+        "(slow path, bit-for-bit identical results). Run 'maturin develop -m "
+        "core/backtest/_loop/Cargo.toml' for the fast path."
+    )
+
+#: Phase-2 accumulation kernel actually in use (Rust fast path, or Python oracle).
+accumulate: _Accumulator = _accumulate
+
+#: Reference capital of the PoC (PnL expressed in units of initial capital).
 DEFAULT_CAPITAL: float = 1.0
 
 
 class BacktestEngine:
-    """Orchestre les deux phases via des abstractions injectées (SOLID / DI).
+    """Orchestrate both phases through injected abstractions (SOLID / DI).
 
-    Le `LinearCostModel` injecté alimente la boucle Rust (coûts linéaires en bps) ;
-    des modèles de coût non linéaires relèvent du palier institutionnel (phase 2 Python).
+    The injected ``LinearCostModel`` feeds the accumulation loop (linear costs in
+    bps); non-linear cost models belong to the institutional tier (Python phase 2).
     """
 
     def __init__(
@@ -60,9 +99,9 @@ class BacktestEngine:
         strategy: Strategy,
         params: dict[str, Any] | None = None,
     ) -> BacktestResult:
-        """Exécute le backtest et renvoie un `BacktestResult` pur (sans I/O)."""
-        positions = self._generate_positions(prices, strategy)  # phase 1 (guardée)
-        returns, n_trades = backtest_loop.accumulate(  # phase 2 (Rust)
+        """Run the backtest and return a pure ``BacktestResult`` (no I/O)."""
+        positions = self._generate_positions(prices, strategy)  # phase 1 (guarded)
+        returns, n_trades = accumulate(  # phase 2 (Rust fast path, or Python oracle)
             positions, prices, self.cost_model.fees_bps, self.cost_model.slippage_bps
         )
         pnl = returns * self.capital
@@ -82,7 +121,7 @@ class BacktestEngine:
 
     @staticmethod
     def _generate_positions(prices: FloatArray, strategy: Strategy) -> FloatArray:
-        """Phase 1 : génération séquentielle des positions sous garde-fou anti look-ahead."""
+        """Phase 1: sequential position generation under the look-ahead guard."""
         n = prices.shape[0]
         positions = np.empty(n, dtype=np.float64)
         for t in range(n):

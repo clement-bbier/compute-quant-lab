@@ -1,16 +1,16 @@
-"""Couche modèle ML du labo (couche Stratégie, P09).
+"""The lab's ML model layer (Strategy layer, P09).
 
-Ensemble directionnel sur le spark spread, **backtestable via l'interface `Strategy` de P08**
-sans glue : un vecteur de probabilités hors-échantillon (purged-CV) devient un signal de
-position. Discipline centrale : la rigueur de validation temporelle (anti-overfitting) prime
-sur la complexité du modèle.
+Directional ensemble on the spark spread, **backtestable through the P08 `Strategy`
+interface** without glue: an out-of-sample probability vector (purged CV) becomes a position
+signal. Central discipline: the rigor of temporal validation (anti-overfitting) outweighs
+model complexity.
 
-Briques réutilisables :
-  - `protocols`   : contrats `Model` / `Splitter` (DI).
+Reusable building blocks:
+  - `protocols`   : `Model` / `Splitter` contracts (DI).
   - `validation`  : `PurgedKFold` (+embargo), `oos_predict`, `deflated_sharpe_ratio`.
-  - `pipeline`    : `FeaturePipeline` (consomme `core.features` P07), `build_labels`.
+  - `pipeline`    : `FeaturePipeline` (consumes `core.features` P07), `build_labels`.
   - `xgboost_model` : `XGBoostDirectionModel`, `SeedBaggingEnsemble`.
-  - `strategy`    : `PrecomputedSignalStrategy` (adaptateur vers `core.backtest`).
+  - `strategy`    : `PrecomputedSignalStrategy` (adapter towards `core.backtest`).
 """
 
 from typing import TYPE_CHECKING, Any
@@ -30,11 +30,11 @@ if TYPE_CHECKING:
 
 
 def __getattr__(name: str) -> Any:
-    """Import paresseux de l'adaptateur backtest.
+    """Lazy import of the backtest adapter.
 
-    `strategy` tire `core.backtest` (kernel Rust). On le charge à la demande pour que
-    `import core.models` (ou ses utilitaires purs `validation`/`pipeline`) ne dépende
-    pas du build Rust — découplage des bricks pures de l'adaptateur de backtest.
+    `strategy` pulls in `core.backtest` (Rust kernel). It is loaded on demand so that
+    `import core.models` (or its pure `validation`/`pipeline` utilities) does not depend on
+    the Rust build — decoupling the pure blocks from the backtest adapter.
     """
     if name == "PrecomputedSignalStrategy":
         from core.models.strategy import PrecomputedSignalStrategy
@@ -44,23 +44,23 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = [
-    # Contrats.
+    # Contracts.
     "Model",
     "Splitter",
     "FloatArray",
     "IntArray",
-    # Validation temporelle anti-overfitting.
+    # Temporal anti-overfitting validation.
     "PurgedKFold",
     "oos_predict",
     "expected_max_sharpe",
     "deflated_sharpe_ratio",
-    # Features & cible.
+    # Features & target.
     "FeaturePipeline",
     "SpreadFeatureSpec",
     "build_labels",
-    # Modèles.
+    # Models.
     "XGBoostDirectionModel",
     "SeedBaggingEnsemble",
-    # Adaptateur backtest.
+    # Backtest adapter.
     "PrecomputedSignalStrategy",
 ]

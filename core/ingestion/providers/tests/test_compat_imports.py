@@ -1,8 +1,8 @@
-"""Compat : les imports legacy restent valides après le refactor (anti-casse).
+"""Compatibility: the legacy imports remain valid after the refactor (anti-breakage).
 
-Le shim ``core.ingestion.gpu_market`` et la façade ``core.ingestion`` (NON modifiée, hors
-module possédé) doivent continuer d'exposer les mêmes symboles publics — sans quoi des
-importateurs existants (collecteur, façade, tests P04) casseraient.
+The ``core.ingestion.gpu_market`` shim and the ``core.ingestion`` facade (NOT modified, outside
+the owned module) must keep exposing the same public symbols -- otherwise existing importers
+(the collector, the facade, the P04 tests) would break.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ def test_legacy_imports_from_gpu_market_still_work() -> None:
 
 
 def test_package_facade_reexports_still_work() -> None:
-    # core.ingestion.__init__ ré-exporte depuis gpu_market : doit rester importable.
+    # core.ingestion.__init__ re-exports from gpu_market: must stay importable.
     from core.ingestion import (
         fetch_live_gpu_prices,
         normalize_gpu_model,

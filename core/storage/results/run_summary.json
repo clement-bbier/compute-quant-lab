@@ -1,7 +1,7 @@
 {
-  "n_rows": 0,
-  "n_sources": 0,
-  "n_models": 0,
-  "min_price": 0.0,
-  "max_price": 0.0
+  "n_rows": 85935,
+  "n_sources": 15,
+  "n_models": 80,
+  "min_price": 0.009765,
+  "max_price": 8.62
 }

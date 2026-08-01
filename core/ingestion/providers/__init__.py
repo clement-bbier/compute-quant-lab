@@ -1,21 +1,21 @@
-"""Registre pluggable des marketplaces GPU — **1 fichier = 1 venue** (OCP).
+"""Pluggable registry of GPU marketplaces -- **1 file = 1 venue** (OCP).
 
-Chaque venue (Vast.ai, RunPod, …) vit dans son propre module et expose une classe
-satisfaisant le protocole :class:`~core.ingestion.providers.base.GpuPriceProvider`. Le
-registre :data:`PROVIDERS` les liste ; :func:`fetch_all` n'appelle que ceux dont **toutes**
-les ``required_env`` sont présentes (key-gated), sinon loggue un avertissement et saute.
+Each venue (Vast.ai, RunPod, etc.) lives in its own module and exposes a class satisfying the
+:class:`~core.ingestion.providers.base.GpuPriceProvider` protocol. The :data:`PROVIDERS`
+registry lists them; :func:`fetch_all` only calls those whose ``required_env`` are **all**
+present (key-gated), otherwise it logs a warning and skips.
 
-Ajouter une venue (pour la vague W2) — **3 étapes, sans toucher au cœur** :
+Adding a venue (for the W2 wave) -- **3 steps, without touching the core**:
 
-1. Créer ``core/ingestion/providers/<venue>.py`` : ``parse_<venue>`` (pur) + ``fetch_<venue>``
-   (I/O réseau, token-gated) + une classe ``<Venue>Provider`` avec ``name``, ``required_env``
-   et ``fetch(now) -> list[Snapshot]`` (réutiliser ``base.normalize_gpu_model``).
-2. Ajouter ``<Venue>Provider()`` au tuple :data:`PROVIDERS` ci-dessous.
-3. Écrire un test de parité sous ``tests/`` (parse → ``Snapshot`` attendus) ; en convergence,
-   ajouter la clé aux Secrets GitHub pour le collecteur always-on.
+1. Create ``core/ingestion/providers/<venue>.py``: ``parse_<venue>`` (pure) + ``fetch_<venue>``
+   (network I/O, token-gated) + a ``<Venue>Provider`` class with ``name``, ``required_env``
+   and ``fetch(now) -> list[Snapshot]`` (reuse ``base.normalize_gpu_model``).
+2. Add ``<Venue>Provider()`` to the :data:`PROVIDERS` tuple below.
+3. Write a parity test under ``tests/`` (parse -> expected ``Snapshot``); at convergence, add
+   the key to the GitHub Secrets for the always-on collector.
 
-Aucune autre couche ne change : ``fetch_live_gpu_prices`` (shim ``gpu_market``) et le
-collecteur agrègent automatiquement la nouvelle venue dès qu'une clé est configurée.
+No other layer changes: ``fetch_live_gpu_prices`` (the ``gpu_market`` shim) and the collector
+automatically aggregate the new venue as soon as a key is configured.
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ from core.ingestion.providers.vastai import VastaiProvider
 
 logger = logging.getLogger(__name__)
 
-#: Venues enregistrées (7 actives). L'ordre fixe l'ordre d'agrégation des relevés :
-#: la fondation W1 (Vast.ai, RunPod) puis les venues W2. Chacune est key-gated dans
-#: :func:`fetch_all` ; une venue sans clé est simplement sautée (avertissement loggué).
+#: Registered venues (7 active). The order fixes the aggregation order of the observations:
+#: the W1 foundation (Vast.ai, RunPod) then the W2 venues. Each one is key-gated in
+#: :func:`fetch_all`; a venue without its key is simply skipped (a warning is logged).
 PROVIDERS: tuple[GpuPriceProvider, ...] = (
     VastaiProvider(),
     RunpodProvider(),
@@ -51,27 +51,27 @@ PROVIDERS: tuple[GpuPriceProvider, ...] = (
 
 
 def fetch_all(now: dt.datetime) -> list[Snapshot]:
-    """Agrège les relevés des venues **dont la clé est configurée**, à l'instant ``now``.
+    """Aggregate the observations of the venues **whose key is configured**, at ``now``.
 
-    Key-gated : un provider sans toutes ses ``required_env`` est sauté (avertissement loggué),
-    reproduisant le comportement historique. ``now`` est fourni explicitement (le registre ne
-    possède pas l'horloge → pas d'ambiguïté point-in-time).
+    Key-gated: a provider missing any of its ``required_env`` is skipped (a warning is
+    logged), reproducing the historical behaviour. ``now`` is supplied explicitly (the
+    registry does not own the clock -> no point-in-time ambiguity).
 
     Parameters
     ----------
     now
-        Horodatage de relevé partagé par toutes les venues (UTC tz-aware).
+        Observation timestamp shared by every venue (UTC tz-aware).
 
     Returns
     -------
     list[core.ingestion.protocols.Snapshot]
-        Les snapshots concaténés des venues actives (vide si aucune clé n'est présente).
+        The concatenated snapshots of the active venues (empty if no key is present).
     """
     out: list[Snapshot] = []
     for provider in PROVIDERS:
         missing = [key for key in provider.required_env if not os.environ.get(key)]
         if missing:
-            logger.warning("%s absent : provider '%s' ignoré.", missing[0], provider.name)
+            logger.warning("%s is missing: provider '%s' skipped.", missing[0], provider.name)
             continue
         out.extend(provider.fetch(now))
     return out

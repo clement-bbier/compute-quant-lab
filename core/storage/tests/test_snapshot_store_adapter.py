@@ -1,4 +1,4 @@
-"""L'indice P04 lit depuis le cold store Parquet via l'adaptateur ``SnapshotStore``."""
+"""The P04 index reads from the Parquet cold store through the ``SnapshotStore`` adapter."""
 
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ def _seed(store: ParquetSnapshotStore) -> None:
 def test_append_load_preserves_distribution_and_idempotent(tmp_path) -> None:
     store = ParquetSnapshotStore(tmp_path / "lake")
     _seed(store)
-    store.append([Snapshot(_TS, "vastai", "H100", 2.0, "on_demand", 1)])  # ré-append = no-op
+    store.append([Snapshot(_TS, "vastai", "H100", 2.0, "on_demand", 1)])  # re-append = no-op
     snaps = store.load()
-    assert len(snaps) == 3  # les 3 offres distinctes conservées (distribution préservée)
+    assert len(snaps) == 3  # the 3 distinct offers kept (distribution preserved)
     assert {s.source for s in snaps} == {"vastai", "runpod"}
 
 
@@ -38,6 +38,6 @@ def test_index_reads_from_parquet_cold_store(tmp_path) -> None:
     src = MarketplaceProxySource(store=store)
     fetched = src.fetch(_TS - dt.timedelta(hours=1), _TS + dt.timedelta(hours=1))
     pt = build_spot_index(fetched, _TS, "H100")
-    # vastai -> median(2.0, 2.2) = 2.1 ; runpod -> 2.4 ; trimmed(k=0) = 2.25
+    # vastai -> median(2.0, 2.2) = 2.1; runpod -> 2.4; trimmed(k=0) = 2.25
     assert pt.n_sources == 2
     assert pt.price_usd_per_hour == pytest.approx(2.25)

@@ -1,7 +1,7 @@
-"""Tests du transport injectable ERCOT (P17 — egress hébergé GridStatus.io).
+"""Tests of the injectable ERCOT transport (P17 -- hosted GridStatus.io egress).
 
-Offline : client hébergé MOCKÉ + fixtures du schéma hébergé *présumé*. Le test live
-(``test_fetch_live.py``) valide le schéma réel avec une vraie clé.
+Offline: MOCKED hosted client + fixtures of the *presumed* hosted schema. The live test
+(``test_fetch_live.py``) validates the real schema with a real key.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from core.ingestion.energy.ercot_transport import (
 
 
 class _FakeClient:
-    """Client GridStatus.io factice : renvoie des frames figés, enregistre les appels."""
+    """Fake GridStatus.io client: returns frozen frames, records the calls."""
 
     def __init__(self, frames: dict[str, pd.DataFrame]) -> None:
         self._frames = frames
@@ -31,7 +31,7 @@ class _FakeClient:
 
 
 def _hosted_rtm_frame() -> pd.DataFrame:
-    # Schéma hébergé présumé (snake_case + *_utc). À confirmer par le test live.
+    # Presumed hosted schema (snake_case + *_utc). To be confirmed by the live test.
     return pd.DataFrame(
         {
             "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T06:15:00Z"],
@@ -45,7 +45,7 @@ def _hosted_rtm_frame() -> pd.DataFrame:
 
 
 def _hosted_forecast_frame() -> pd.DataFrame:
-    # Schéma RÉEL confirmé en live : 4 colonnes, prévision system-wide (pas de modèle).
+    # REAL schema confirmed live: 4 columns, system-wide forecast (no model dimension).
     return pd.DataFrame(
         {
             "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T07:00:00Z"],
@@ -63,7 +63,7 @@ def test_hosted_transport_maps_rtm_to_canonical_and_parses() -> None:
     assert s.name == "rtm_price_usd_mwh"
     assert list(s.to_numpy()) == [25.0, 28.0]
     assert str(s.index.tz) == "UTC"
-    assert client.calls[0][0] == "ercot_spp_real_time_15_min"  # bon dataset
+    assert client.calls[0][0] == "ercot_spp_real_time_15_min"  # correct dataset
 
 
 def test_hosted_transport_maps_forecast_to_canonical() -> None:
@@ -75,10 +75,10 @@ def test_hosted_transport_maps_forecast_to_canonical() -> None:
     for col in ("publish_time", "interval_start", "forecast_load_mw", "reserve_margin_mw"):
         assert col in df.columns
     assert str(df["publish_time"].dt.tz) == "UTC"
-    # point-in-time : la prévision est publiée avant l'intervalle cible
+    # point-in-time: the forecast is published before the target interval
     assert (df["publish_time"] < df["interval_start"]).all()
     assert list(df["forecast_load_mw"]) == [45000.0, 46000.0]
-    # capacité non fabriquée → marge de réserve NaN (point 2 : plus de placeholder 70 GW)
+    # capacity not fabricated -> reserve margin NaN (point 2: no more 70 GW placeholder)
     assert df["reserve_margin_mw"].isna().all()
 
 
@@ -98,17 +98,17 @@ def test_injected_transport_takes_precedence(monkeypatch: pytest.MonkeyPatch) ->
     assert ErcotMarket(transport=direct)._transport() is direct
 
 
-# --- Test LIVE (réseau + vraie clé) : valide le schéma hébergé réel ------------
-# À lancer par l'utilisateur : `GRIDSTATUS_API_KEY=... uv run pytest -m live`.
-# C'est CE test qui confirme que les mappers (_hosted_*_to_canonical) collent au
-# vrai schéma GridStatus.io. S'il échoue sur une colonne, l'ajustement est localisé.
+# --- LIVE test (network + real key): validates the real hosted schema ----------
+# To be run by the user: `GRIDSTATUS_API_KEY=... uv run pytest -m live`.
+# THIS is the test confirming that the mappers (_hosted_*_to_canonical) match the real
+# GridStatus.io schema. If it fails on a column, the adjustment is localised.
 
 
 @pytest.mark.live
 def test_hosted_live_rtm_real_schema() -> None:
     key = os.environ.get("GRIDSTATUS_API_KEY")
     if not key:
-        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+        pytest.skip("GRIDSTATUS_API_KEY is missing -- export the key for the live test")
     market = ErcotMarket(transport=GridstatusIoTransport(limit=50))
     end = pd.Timestamp.now(tz="UTC").normalize()
     start = end - pd.Timedelta(days=2)
@@ -120,14 +120,14 @@ def test_hosted_live_rtm_real_schema() -> None:
 
 @pytest.mark.live
 def test_hosted_live_forecast_real_schema() -> None:
-    """Valide le chemin prévision réel contre le schéma hébergé confirmé en live.
+    """Validate the real forecast path against the hosted schema confirmed live.
 
-    `_hosted_forecast_to_canonical` mappe `*_utc` + `load_forecast` (prévision
-    system-wide, sans dimension modèle) du dataset ercot_load_forecast.
+    `_hosted_forecast_to_canonical` maps `*_utc` + `load_forecast` (system-wide forecast, no
+    model dimension) from the ercot_load_forecast dataset.
     """
     key = os.environ.get("GRIDSTATUS_API_KEY")
     if not key:
-        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+        pytest.skip("GRIDSTATUS_API_KEY is missing -- export the key for the live test")
     market = ErcotMarket(transport=GridstatusIoTransport(limit=500))
     end = pd.Timestamp.now(tz="UTC").normalize()
     start = end - pd.Timedelta(days=1)
@@ -140,10 +140,10 @@ def test_hosted_live_forecast_real_schema() -> None:
 
 
 def test_reserve_forecast_as_of_joins_capacity_no_lookahead() -> None:
-    """Jointure charge⋈capacité STSA point-in-time : rien publié APRÈS as_of n'entre.
+    """Point-in-time load-STSA capacity join: nothing published AFTER as_of enters.
 
-    Test anti-look-ahead central (P20) : load et capacité ont chacun une version
-    publiée AVANT as_of et une APRÈS ; seules les versions d'avant doivent compter.
+    Central anti-look-ahead test (P20): load and capacity each have one version published
+    BEFORE as_of and one AFTER; only the earlier versions must count.
     """
     as_of = pd.Timestamp("2024-01-15T00:00:00Z")
     load = pd.DataFrame(
@@ -167,17 +167,17 @@ def test_reserve_forecast_as_of_joins_capacity_no_lookahead() -> None:
     df = market.reserve_forecast_as_of(as_of)
     assert len(df) == 1
     r = df.iloc[0]
-    assert r["forecast_load_mw"] == 45000.0  # publié avant as_of (pas le 50000 d'après)
-    assert r["forecast_capacity_mw"] == 70000.0  # publié avant as_of (pas le 60000 d'après)
+    assert r["forecast_load_mw"] == 45000.0  # published before as_of (not the later 50000)
+    assert r["forecast_capacity_mw"] == 70000.0  # published before as_of (not the later 60000)
     assert r["reserve_margin_mw"] == 25000.0  # 70000 - 45000
 
 
 @pytest.mark.live
 def test_hosted_live_reserve_margin_real() -> None:
-    """Marge de réserve réelle (charge ⋈ capacité STSA), point-in-time, sur vraie donnée."""
+    """Real reserve margin (load joined with STSA capacity), point-in-time, on real data."""
     key = os.environ.get("GRIDSTATUS_API_KEY")
     if not key:
-        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+        pytest.skip("GRIDSTATUS_API_KEY is missing -- export the key for the live test")
     market = ErcotMarket(transport=GridstatusIoTransport(limit=2000))
     as_of = pd.Timestamp.now(tz="UTC").floor("h")
     df = market.reserve_forecast_as_of(as_of)
@@ -185,11 +185,11 @@ def test_hosted_live_reserve_margin_real() -> None:
     expected = {"forecast_load_mw", "forecast_capacity_mw", "reserve_margin_mw"}
     assert expected <= set(df.columns)
     assert (df["publish_time"] <= as_of).all()  # point-in-time
-    assert df["forecast_capacity_mw"].notna().any()  # capacité réelle jointe
+    assert df["forecast_capacity_mw"].notna().any()  # real capacity joined
 
 
 def test_net_load_gradient_as_of_point_in_time() -> None:
-    """Prédicteur 2 : gradient net-load point-in-time (rien publié après as_of) + ramp = diff."""
+    """Predictor 2: point-in-time net-load gradient (nothing after as_of) + ramp = diff."""
     as_of = pd.Timestamp("2024-01-15T00:00:00Z")
     nl = pd.DataFrame(
         {
@@ -197,7 +197,7 @@ def test_net_load_gradient_as_of_point_in_time() -> None:
                 "2024-01-15T18:00:00Z",
                 "2024-01-15T19:00:00Z",
                 "2024-01-15T20:00:00Z",
-                "2024-01-15T18:00:00Z",  # révision publiée APRÈS as_of -> à ignorer
+                "2024-01-15T18:00:00Z",  # revision published AFTER as_of -> to be ignored
             ],
             "interval_end_utc": [
                 "2024-01-15T19:00:00Z",
@@ -217,19 +217,19 @@ def test_net_load_gradient_as_of_point_in_time() -> None:
     client = _FakeClient({"ercot_net_load_forecast": nl})
     market = ErcotMarket(transport=GridstatusIoTransport(client=client))
     df = market.net_load_gradient_as_of(as_of)
-    assert len(df) == 3  # la révision publiée après as_of est écartée
+    assert len(df) == 3  # the revision published after as_of is discarded
     assert list(df["net_load_mw"]) == [40000.0, 45000.0, 52000.0]
-    assert pd.isna(df["net_load_gradient_mw"].iloc[0])  # 1er intervalle : pas de ramp
+    assert pd.isna(df["net_load_gradient_mw"].iloc[0])  # 1st interval: no ramp
     assert df["net_load_gradient_mw"].iloc[1] == 5000.0
-    assert df["net_load_gradient_mw"].iloc[2] == 7000.0  # ramp qui s'accélère
+    assert df["net_load_gradient_mw"].iloc[2] == 7000.0  # accelerating ramp
 
 
 @pytest.mark.live
 def test_hosted_live_net_load_gradient_real() -> None:
-    """Prédicteur 2 sur vraie donnée : confirme le dataset/schéma ercot_net_load_forecast."""
+    """Predictor 2 on real data: confirms the ercot_net_load_forecast dataset/schema."""
     key = os.environ.get("GRIDSTATUS_API_KEY")
     if not key:
-        pytest.skip("GRIDSTATUS_API_KEY absente — exporter la clé pour le test live")
+        pytest.skip("GRIDSTATUS_API_KEY is missing -- export the key for the live test")
     market = ErcotMarket(transport=GridstatusIoTransport(limit=2000))
     as_of = pd.Timestamp.now(tz="UTC").floor("h")
     df = market.net_load_gradient_as_of(as_of)

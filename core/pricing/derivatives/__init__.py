@@ -1,12 +1,13 @@
-"""Dérivés théoriques sur le compute (futures non listés) — couche Stratégie P06.
+"""Theoretical compute derivatives (unlisted futures) -- P06 Strategy layer.
 
-⚠️ Frontière réel/simulé : les futures compute CME (settlement sur l'indice Silicon
-Data SDH100RT) sont **annoncés mais non listés** (revue réglementaire). Tout prix
-produit ici est donc **théorique/simulé** — la :class:`FuturesQuote` porte un champ
-``simulated`` obligatoire (sans valeur par défaut), garanti par le type et testé.
+Warning, real versus simulated boundary: the CME compute futures (settling on the
+Silicon Data SDH100RT index) are **announced but not listed** (regulatory review).
+Every price produced here is therefore **theoretical/simulated** -- :class:`FuturesQuote`
+carries a mandatory ``simulated`` field (no default value), enforced by the type and
+covered by tests.
 
-Sous-paquet autonome de :mod:`core.pricing` : n'altère pas l'API P01 (spark spread).
-La convergence ajoutera le re-export depuis ``core/pricing/__init__.py`` (cf.
+Standalone subpackage of :mod:`core.pricing`: it does not alter the P01 API (spark
+spread). Convergence will add the re-export from ``core/pricing/__init__.py`` (see
 ``projects/06_compute_futures_pricing/CONVERGENCE.md``).
 """
 
@@ -25,10 +26,10 @@ from core.pricing.derivatives.futures import CarryFuturesPricer, FuturesQuote
 from core.pricing.derivatives.protocols import CarryModel, FuturesPricer
 
 __all__ = [
-    # Contrats (DI / SOLID).
+    # Contracts (DI / SOLID).
     "CarryModel",
     "FuturesPricer",
-    # Cœur cost-of-carry (fonctions pures).
+    # Cost-of-carry core (pure functions).
     "carry_forward",
     "implied_convenience_yield",
     "carry_sensitivities",
@@ -36,7 +37,7 @@ __all__ = [
     "CostOfCarryModel",
     "DEFAULT_RISK_FREE_RATE",
     "DEFAULT_CONVENIENCE_YIELD",
-    # Orchestrateur + résultat.
+    # Orchestrator plus result.
     "CarryFuturesPricer",
     "FuturesQuote",
 ]

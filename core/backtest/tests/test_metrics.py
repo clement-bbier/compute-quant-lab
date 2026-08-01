@@ -1,4 +1,4 @@
-"""Métriques de risque sur séries *connues* (réponses analytiques)."""
+"""Risk metrics on *known* series (analytic answers)."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from core.backtest.protocols import Ledger
 
 
 def test_sharpe_is_mean_over_std_annualised():
-    # returns = [0.01, 0.03] : moyenne 0.02, écart-type (ddof=1) = sqrt(2e-4).
-    # mean/std = 0.02 / (0.02/sqrt(2)) = sqrt(2) ; annualisé par sqrt(4) = 2.
+    # returns = [0.01, 0.03]: mean 0.02, standard deviation (ddof=1) = sqrt(2e-4).
+    # mean/std = 0.02 / (0.02/sqrt(2)) = sqrt(2); annualised by sqrt(4) = 2.
     # => Sharpe = sqrt(2) * 2 = 2*sqrt(2).
     returns = np.array([0.01, 0.03], dtype=np.float64)
     s = sharpe_ratio(returns, periods_per_year=4.0)
@@ -32,13 +32,13 @@ def test_sharpe_lowered_by_risk_free():
 
 
 def test_sharpe_zero_volatility_returns_zero():
-    # Volatilité nulle -> pas de division par zéro, Sharpe défini à 0.
+    # Zero volatility -> no division by zero, Sharpe defined as 0.
     returns = np.array([0.01, 0.01, 0.01], dtype=np.float64)
     assert sharpe_ratio(returns, periods_per_year=252.0) == 0.0
 
 
 def test_max_drawdown_analytic(known_drawdown_equity):
-    # Pic 2.0 -> creux 1.5 => -25 %.
+    # Peak 2.0 -> trough 1.5 => -25 %.
     assert max_drawdown(known_drawdown_equity) == -0.25
 
 
@@ -48,7 +48,7 @@ def test_max_drawdown_monotonic_increasing_is_zero():
 
 
 def test_turnover_counts_entry_and_exit():
-    # Part à plat (0), entre (+1) puis sort (-1) => 2 unités brutes échangées.
+    # Starts flat (0), enters (+1) then exits (-1) => 2 gross units traded.
     positions = np.array([0.0, 1.0, 1.0, 0.0], dtype=np.float64)
     assert turnover(positions) == 2.0
 

@@ -1,10 +1,10 @@
-"""Provider DataCrunch (alias Verda) : catalogue d'instances GPU (auth OAuth2).
+"""DataCrunch provider (alias Verda): GPU instance catalogue (OAuth2 auth).
 
-La logique pure (``parse_datacrunch``) est isolée de l'appel réseau (``fetch_datacrunch``,
-token-gated). DataCrunch cote au niveau **instance** (machine) : on divise
-``price_per_hour`` par ``gpu.number_of_gpus`` pour obtenir le prix $/GPU·h. La venue
-expose un prix **spot** (``spot_price_per_hour``) en plus de l'on-demand → on émet **deux**
-``Snapshot`` (bails ``on_demand`` et ``spot``) quand le spot est disponible (> 0).
+The pure logic (``parse_datacrunch``) is isolated from the network call
+(``fetch_datacrunch``, token-gated). DataCrunch quotes at the **instance** (machine) level:
+we divide ``price_per_hour`` by ``gpu.number_of_gpus`` to obtain the $/GPU·h price. The venue
+exposes a **spot** price (``spot_price_per_hour``) in addition to on-demand -> we emit **two**
+``Snapshot`` rows (``on_demand`` and ``spot`` leases) when spot is available (> 0).
 """
 
 from __future__ import annotations
@@ -25,13 +25,14 @@ _DATACRUNCH_INSTANCE_TYPES_URL = "https://api.datacrunch.io/v1/instance-types"
 def parse_datacrunch(
     instance_types: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
 ) -> list[Snapshot]:
-    """Transforme le catalogue ``/instance-types`` en snapshots $/GPU·h (logique pure).
+    """Transform the ``/instance-types`` catalogue into $/GPU·h snapshots (pure logic).
 
-    Pour chaque type d'instance avec au moins un GPU, on émet l'on-demand
-    (``price_per_hour / number_of_gpus``) et, si ``spot_price_per_hour`` est positif, un
-    second snapshot de bail ``spot``. Le modèle GPU est extrait de ``gpu.description``.
+    For each instance type with at least one GPU, we emit the on-demand price
+    (``price_per_hour / number_of_gpus``) and, if ``spot_price_per_hour`` is positive, a
+    second snapshot with the ``spot`` lease. The GPU model is extracted from
+    ``gpu.description``.
 
-    Champs descriptifs propagés depuis les specs imbriquées :
+    Descriptive fields propagated from the nested specs:
     - ``gpu_memory_gb`` : ``gpu_memory.size_in_gigabytes``.
     - ``vcpu`` : ``cpu.number_of_cores``.
     - ``ram_gb`` : ``memory.size_in_gigabytes``.
@@ -45,7 +46,7 @@ def parse_datacrunch(
             continue
         model = normalize_gpu_model(str(gpu.get("description", "")))
 
-        # Champs descriptifs (sous-structures optionnelles).
+        # Descriptive fields (optional sub-structures).
         gpu_mem_raw = (it.get("gpu_memory") or {}).get("size_in_gigabytes")
         gpu_memory_gb: float | None = float(gpu_mem_raw) if gpu_mem_raw is not None else None
 
@@ -58,7 +59,7 @@ def parse_datacrunch(
         disk_raw = (it.get("storage") or {}).get("size_in_gigabytes")
         disk_gb: float | None = float(disk_raw) if disk_raw is not None else None
 
-        # DataCrunch cote en chaînes ("2.19") et nomme le spot 'spot_price'.
+        # DataCrunch quotes as strings ("2.19") and names the spot field 'spot_price'.
         for lease_type, key in (("on_demand", "price_per_hour"), ("spot", "spot_price")):
             try:
                 price = float(it.get(key))  # type: ignore[arg-type]
@@ -90,7 +91,7 @@ def fetch_datacrunch(
     *,
     timeout: float = 30.0,
 ) -> list[Snapshot]:
-    """OAuth2 (client_credentials) puis catalogue → snapshots horodatés (I/O, non testé)."""
+    """OAuth2 (client_credentials) then catalogue -> timestamped snapshots (I/O, untested)."""
     token_response = requests.post(
         _DATACRUNCH_TOKEN_URL,
         json={
@@ -113,13 +114,13 @@ def fetch_datacrunch(
 
 
 class DatacrunchProvider:
-    """Provider DataCrunch (paire ``DATACRUNCH_CLIENT_ID`` / ``DATACRUNCH_CLIENT_SECRET``)."""
+    """DataCrunch provider (``DATACRUNCH_CLIENT_ID`` / ``DATACRUNCH_CLIENT_SECRET`` pair)."""
 
     name = "datacrunch"
     required_env: tuple[str, ...] = ("DATACRUNCH_CLIENT_ID", "DATACRUNCH_CLIENT_SECRET")
 
     def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Relève le catalogue DataCrunch (clés garanties par le registre key-gated)."""
+        """Read the DataCrunch catalogue (keys guaranteed by the key-gated registry)."""
         return fetch_datacrunch(
             os.environ["DATACRUNCH_CLIENT_ID"], os.environ["DATACRUNCH_CLIENT_SECRET"], now
         )

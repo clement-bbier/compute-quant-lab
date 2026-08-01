@@ -1,7 +1,7 @@
-"""Garde-fou anti look-ahead — le cœur de la discipline du moteur.
+"""Anti look-ahead guard — the heart of the engine's discipline.
 
-Le test mandaté (§6b) : une stratégie qui *triche* en lisant une donnée > t doit
-faire **échouer** le run (lever `LookAheadError`). C'est le « rouge attendu ».
+The mandated test (§6b): a strategy that *cheats* by reading data > t must make the
+run **fail** (raise `LookAheadError`). This is the "expected red".
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def test_guard_raises_on_future_access():
 
 
 def test_guard_rejects_negative_index_to_block_wraparound_lookahead():
-    # at(-1) en numpy = dernier élément = futur si t < T-1. On l'interdit explicitement.
+    # at(-1) in numpy = last element = the future when t < T-1. Explicitly forbidden.
     data = np.array([10.0, 11.0, 12.0, 13.0], dtype=np.float64)
     view = GuardedView(data, t=1)
     with pytest.raises(IndexError):
@@ -41,10 +41,10 @@ def test_cheating_strategy_is_caught_by_the_guard():
     data = np.array([10.0, 11.0, 12.0, 13.0], dtype=np.float64)
 
     class CheatingStrategy:
-        """Adversaire : lit le prix de demain (t+1) pour générer son signal."""
+        """Adversary: reads tomorrow's price (t+1) to generate its signal."""
 
         def signal(self, view: PointInTimeView) -> float:
-            return view.at(view.t + 1)  # look-ahead flagrant
+            return view.at(view.t + 1)  # blatant look-ahead
 
     with pytest.raises(LookAheadError):
         CheatingStrategy().signal(GuardedView(data, t=1))
@@ -54,7 +54,7 @@ def test_honest_strategy_passes_through_the_guard():
     data = np.array([10.0, 11.0, 12.0, 13.0], dtype=np.float64)
 
     class HonestStrategy:
-        """N'utilise que l'historique ≤ t : ne déclenche jamais le garde-fou."""
+        """Uses only the history ≤ t: never trips the guard."""
 
         def signal(self, view: PointInTimeView) -> float:
             return float(view.history().mean())

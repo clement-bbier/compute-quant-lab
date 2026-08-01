@@ -1,97 +1,96 @@
-"""Schéma canonique du cold store compute et normalisation de frame.
+"""Canonical schema of the compute cold store and frame normalization.
 
-Un seul endroit définit les colonnes du lac de prix et garantit leurs types
-(horodatage UTC tz-aware, prix flottant, dispo entière). Les writers (collecteur,
-migration) et les readers (Parquet, DuckDB) s'y réfèrent : le schéma ne vit pas en
-dur dans la logique (rule qualité Python).
+A single place defines the columns of the price lake and guarantees their types
+(UTC tz-aware timestamp, float price, integer availability). Writers (collector,
+migration) and readers (Parquet, DuckDB) refer to it: the schema is not hardcoded
+in the logic (Python quality rule).
 
-Garantie d'intégrité : un horodatage naïf est **rejeté** (rule data-integrity — pas
-de point-in-time ambigu), jamais silencieusement localisé.
+Integrity guarantee: a naive timestamp is **rejected** (data-integrity rule — no
+ambiguous point-in-time), never silently localized.
 
-Rétrocompatibilité : les colonnes descriptives optionnelles (``region``,
-``gpu_memory_gb``, ``vcpu``, ``ram_gb``, ``disk_gb``, ``provider_detail``) sont
-tolérées-absentes. Un Parquet écrit avant leur ajout est rechargeable sans erreur :
-``normalize_frame`` les backfille avec ``None``/``NaN``.
+Backward compatibility: the optional descriptive columns (``region``,
+``gpu_memory_gb``, ``vcpu``, ``ram_gb``, ``disk_gb``, ``provider_detail``) are
+tolerated-absent. A Parquet file written before they were added can be reloaded
+without error: ``normalize_frame`` backfills them with ``None``/``NaN``.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
-#: Instant du relevé (UTC tz-aware).
+#: Instant of the reading (UTC tz-aware).
 SNAPSHOTTED_AT = "snapshotted_at"
-#: Marketplace d'origine (``vastai``, ``runpod``, …) — colonne de partition.
+#: Originating marketplace (``vastai``, ``runpod``, ...) — partition column.
 SOURCE = "source"
-#: Famille GPU canonique (``H100``, …).
+#: Canonical GPU family (``H100``, ...).
 GPU_MODEL = "gpu_model"
-#: Type de bail (``on_demand`` / ``spot`` / ``reserved``) — jamais agrégés ensemble.
+#: Lease type (``on_demand`` / ``spot`` / ``reserved``) — never aggregated together.
 LEASE_TYPE = "lease_type"
-#: Prix en USD par GPU·heure.
+#: Price in USD per GPU·hour.
 PRICE = "price_usd_per_hour"
-#: Nombre de GPU offerts (proxy de profondeur du relevé).
+#: Number of GPUs offered (proxy for the depth of the reading).
 AVAILABILITY = "availability"
 
-# ── Colonnes descriptives optionnelles (ajoutées post-fondation) ──────────────
-#: Région / datacenter d'hébergement (ex. ``"EU-FIN-01"``, ``"us-east"``).
+# -- Optional descriptive columns (added post-foundation) ----------------------
+#: Hosting region / datacenter (e.g. ``"EU-FIN-01"``, ``"us-east"``).
 REGION = "region"
-#: Mémoire GPU en Go (ex. ``80.0`` pour un H100 SXM).
+#: GPU memory in GB (e.g. ``80.0`` for an H100 SXM).
 GPU_MEMORY_GB = "gpu_memory_gb"
-#: Nombre de vCPU de l'instance.
+#: Number of vCPUs of the instance.
 VCPU = "vcpu"
-#: RAM de l'instance en Go.
+#: RAM of the instance in GB.
 RAM_GB = "ram_gb"
-#: Stockage de l'instance en Go.
+#: Storage of the instance in GB.
 DISK_GB = "disk_gb"
-#: Sous-fournisseur réel (utile pour les agrégateurs, ex. Prime Intellect).
+#: Actual sub-provider (useful for aggregators, e.g. Prime Intellect).
 PROVIDER_DETAIL = "provider_detail"
 
-#: Colonnes métier obligatoires — doivent toutes être présentes dans le frame.
+#: Mandatory business columns — all must be present in the frame.
 COLUMNS: list[str] = [SNAPSHOTTED_AT, SOURCE, GPU_MODEL, LEASE_TYPE, PRICE, AVAILABILITY]
 
-#: Colonnes descriptives optionnelles — backfillées si absentes (rétrocompat).
+#: Optional descriptive columns — backfilled when absent (backward compatibility).
 OPTIONAL_COLUMNS: list[str] = [REGION, GPU_MEMORY_GB, VCPU, RAM_GB, DISK_GB, PROVIDER_DETAIL]
 
-#: Ensemble complet des colonnes du schéma enrichi (obligatoires + optionnelles).
+#: Complete set of columns of the enriched schema (mandatory + optional).
 ALL_COLUMNS: list[str] = COLUMNS + OPTIONAL_COLUMNS
 
 
 def normalize_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    """Projette ``frame`` sur le schéma canonique et force ses dtypes.
+    """Project ``frame`` onto the canonical schema and enforce its dtypes.
 
-    Les colonnes obligatoires (:data:`COLUMNS`) doivent être présentes ; les
-    colonnes optionnelles (:data:`OPTIONAL_COLUMNS`) sont backfillées avec
-    ``None``/``NaN`` si absentes — ce qui rend la fonction **rétrocompatible**
-    avec les Parquet écrits avant l'enrichissement du schéma.
+    The mandatory columns (:data:`COLUMNS`) must be present; the optional columns
+    (:data:`OPTIONAL_COLUMNS`) are backfilled with ``None``/``NaN`` when absent —
+    which makes the function **backward compatible** with Parquet files written
+    before the schema was enriched.
 
     Parameters
     ----------
     frame
-        Frame contenant au moins :data:`COLUMNS` (colonnes surnuméraires ignorées,
-        ex. la partition ``month`` relue depuis Parquet).
+        Frame containing at least :data:`COLUMNS` (supernumerary columns are ignored,
+        e.g. the ``month`` partition read back from Parquet).
 
     Returns
     -------
     pandas.DataFrame
-        Copie typée : ``snapshotted_at`` en ``datetime64[ns, UTC]``, ``price`` en
-        ``float64``, ``availability`` en ``int64``, identifiants en ``str``.
-        Les colonnes optionnelles absentes sont ajoutées avec ``object`` dtype
-        (valeur ``None``).
+        Typed copy: ``snapshotted_at`` as ``datetime64[ns, UTC]``, ``price`` as
+        ``float64``, ``availability`` as ``int64``, identifiers as ``str``.
+        Absent optional columns are added with ``object`` dtype (value ``None``).
 
     Raises
     ------
     ValueError
-        Si une colonne obligatoire manque, ou si ``snapshotted_at`` contient des
-        instants naïfs (sans fuseau) — interdits (intégrité point-in-time).
+        If a mandatory column is missing, or if ``snapshotted_at`` contains naive
+        instants (without a timezone) — forbidden (point-in-time integrity).
     """
     missing = [c for c in COLUMNS if c not in frame.columns]
     if missing:
-        raise ValueError(f"Colonnes manquantes pour le schéma cold store : {missing}.")
+        raise ValueError(f"frame columns ({missing}) must be present for the cold store schema.")
 
-    # Sélectionne les colonnes obligatoires présentes + les optionnelles présentes.
+    # Select the mandatory columns present + the optional ones present.
     present_optional = [c for c in OPTIONAL_COLUMNS if c in frame.columns]
     out = frame.loc[:, COLUMNS + present_optional].copy()
 
-    # Backfille les colonnes optionnelles absentes (rétrocompat Parquet legacy).
+    # Backfill the absent optional columns (legacy Parquet backward compatibility).
     for col in OPTIONAL_COLUMNS:
         if col not in out.columns:
             out[col] = None
@@ -99,7 +98,7 @@ def normalize_frame(frame: pd.DataFrame) -> pd.DataFrame:
     ts = pd.to_datetime(out[SNAPSHOTTED_AT])
     if getattr(ts.dtype, "tz", None) is None:
         if len(ts) > 0:
-            raise ValueError("snapshotted_at naïf interdit : fournir un datetime tz-aware (UTC).")
+            raise ValueError("snapshotted_at must be a tz-aware datetime (UTC), not naive.")
         ts = ts.dt.tz_localize("UTC")
     else:
         ts = ts.dt.tz_convert("UTC")
@@ -111,5 +110,5 @@ def normalize_frame(frame: pd.DataFrame) -> pd.DataFrame:
     out[PRICE] = out[PRICE].astype("float64")
     out[AVAILABILITY] = out[AVAILABILITY].astype("int64")
 
-    # Réordonne selon ALL_COLUMNS pour un schéma stable.
+    # Reorder according to ALL_COLUMNS for a stable schema.
     return out[ALL_COLUMNS].reset_index(drop=True)

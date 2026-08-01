@@ -1,111 +1,113 @@
-"""Socle du sous-paquet ``energy`` : protocole de marché + registre key-gated.
+"""Foundation of the ``energy`` subpackage: market protocol + key-gated registry.
 
-Définit l'abstraction d'injection :class:`EnergyMarket` (un connecteur = un marché
-énergétique) et le registre key-gated, **calqué sur** ``core.ingestion.providers.base``
-(pattern W1/W2 du labo). Principe OCP : *ajouter un marché = ajouter un fichier*,
-sans toucher au cœur.
+Defines the :class:`EnergyMarket` injection abstraction (one connector = one energy market)
+and the key-gated registry, **modelled on** ``core.ingestion.providers.base`` (the lab's
+W1/W2 pattern). OCP principle: *adding a market means adding a file*, without touching the
+core.
 
-Point-in-time L0
+L0 point-in-time
 ----------------
-La prévision de réserve (:meth:`EnergyMarket.reserve_forecast`) doit être horodatée
-à son **heure de publication** (colonne ``publish_time``), jamais à l'heure cible.
-Cela garantit que la couche calibration (P07) ne consomme que de la donnée connue
-à l'instant de décision (~18h00 CPT J-1 pour ERCOT), sans look-ahead.
+The reserve forecast (:meth:`EnergyMarket.reserve_forecast`) must be timestamped at its
+**publication time** (``publish_time`` column), never at the target time. This guarantees
+that the calibration layer (P07) only consumes data known at the decision instant
+(~18:00 CPT D-1 for ERCOT), with no look-ahead.
 
-Registre key-gated
+Key-gated registry
 ------------------
-Un marché dont ``required_env`` est non vide n'est listé dans
-:func:`available_markets` que si **toutes** ses clés sont présentes dans
-l'environnement. ERCOT est public (``required_env = ()``), donc toujours listé.
+A market whose ``required_env`` is non-empty is listed in :func:`available_markets` only if
+**all** of its keys are present in the environment. ERCOT is public
+(``required_env = ()``), hence always listed.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# Protocole injectable
+# Injectable protocol
 # ---------------------------------------------------------------------------
 
 
 @runtime_checkable
 class EnergyMarket(Protocol):
-    """Source de prix d'un marché énergétique (injectable, key-gated).
+    """Price source of an energy market (injectable, key-gated).
 
-    Un connecteur = un marché. Le registre (:mod:`core.ingestion.energy`) n'expose
-    un marché dans :func:`available_markets` que si **toutes** les ``required_env``
-    sont présentes ; sinon il est silencieusement masqué.
+    One connector = one market. The registry (:mod:`core.ingestion.energy`) exposes a market
+    in :func:`available_markets` only if **all** of its ``required_env`` are present;
+    otherwise it is silently hidden.
 
-    Contrat point-in-time (L0 §2)
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    :meth:`reserve_forecast` doit inclure une colonne ``publish_time`` (UTC tz-aware)
-    horodatée à l'heure de **publication** du rapport ERCOT, pas à l'heure cible.
-    La calibration L0 utilise ``publish_time`` pour filtrer causalement (cutoff 18h CPT J-1).
+    Point-in-time contract (L0 section 2)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    :meth:`reserve_forecast` must include a ``publish_time`` column (UTC tz-aware)
+    timestamped at the **publication** time of the ERCOT report, not at the target time.
+    L0 calibration uses ``publish_time`` to filter causally (18:00 CPT D-1 cutoff).
     """
 
-    #: Identifiant court du marché (ex. ``"ercot"``).
+    #: Short market identifier (e.g. ``"ercot"``).
     name: str
-    #: Clés d'environnement nécessaires (gate du registre). Vide = public.
+    #: Required environment keys (registry gate). Empty = public.
     required_env: tuple[str, ...]
 
     def rtm_price(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
-        """Prix de règlement temps-réel (RTM) sur [start, end].
+        """Real-time settlement price (RTM) over [start, end].
 
         Parameters
         ----------
         start, end
-            Bornes de la plage temporelle (UTC tz-aware recommandé ; le connecteur
-            fait la conversion depuis le fuseau local du marché).
+            Bounds of the time range (UTC tz-aware recommended; the connector handles the
+            conversion from the market's local timezone).
 
         Returns
         -------
         pd.Series
-            Série indexée par ``Interval Start`` (UTC tz-aware), valeurs en $/MWh,
-            triée chronologiquement, sans NaN injectés. Nom de la série :
-            ``"rtm_price_usd_mwh"``.
+            Series indexed by ``Interval Start`` (UTC tz-aware), values in $/MWh, sorted
+            chronologically, with no injected NaN. Series name: ``"rtm_price_usd_mwh"``.
         """
         ...
 
     def reserve_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        """Prévision de marge de réserve publiée dans la plage [start, end].
+        """Reserve margin forecast published within the [start, end] range.
 
-        Point-in-time : retourne **tous les rapports publiés** entre ``start`` et
-        ``end`` (publication range, pas cible range). L'appelant filtre ensuite
-        sur ``publish_time <= cutoff``.
+        Point-in-time: returns **every report published** between ``start`` and ``end``
+        (publication range, not target range). The caller then filters on
+        ``publish_time <= cutoff``.
 
         Returns
         -------
         pd.DataFrame
-            Colonnes minimales :
+            Minimum columns:
 
-            - ``publish_time``       : pd.Timestamp UTC — heure de publication du rapport.
-            - ``interval_start``     : pd.Timestamp UTC — heure cible de l'intervalle.
-            - ``interval_end``       : pd.Timestamp UTC — fin de l'intervalle cible.
-            - ``forecast_load_mw``   : float — charge prévue (MW).
-            - ``forecast_capacity_mw`` : float — capacité disponible prévue (MW).
-            - ``reserve_margin_mw``  : float — marge = capacité − charge (MW).
+            - ``publish_time``       : pd.Timestamp UTC -- report publication time.
+            - ``interval_start``     : pd.Timestamp UTC -- target time of the interval.
+            - ``interval_end``       : pd.Timestamp UTC -- end of the target interval.
+            - ``forecast_load_mw``   : float -- forecast load (MW).
+            - ``forecast_capacity_mw`` : float -- forecast available capacity (MW).
+            - ``reserve_margin_mw``  : float -- margin = capacity - load (MW).
 
-            Triée par (``publish_time``, ``interval_start``).
+            Sorted by (``publish_time``, ``interval_start``).
         """
         ...
 
 
 # ---------------------------------------------------------------------------
-# Registre key-gated
+# Key-gated registry
 # ---------------------------------------------------------------------------
 
-#: Registre interne : key → instance EnergyMarket.
+#: Internal registry: key -> EnergyMarket instance.
 _REGISTRY: dict[str, EnergyMarket] = {}
 
 
-def register_market(key: str):
-    """Décorateur d'enregistrement d'un marché dans le registre global.
+def register_market(key: str) -> Callable[[type], type]:
+    """Decorator registering a market in the global registry.
 
-    Usage
-    -----
+    The registered market is reachable through :func:`get_market` and listed in
+    :func:`available_markets` if its environment keys are present.
+
+    Examples
+    --------
     ::
 
         @register_market("ercot")
@@ -113,9 +115,6 @@ def register_market(key: str):
             name = "ercot"
             required_env = ()
             ...
-
-    Le marché enregistré est accessible via :func:`get_market` et listé dans
-    :func:`available_markets` si ses clés d'environnement sont présentes.
     """
 
     def _decorator(cls: type) -> type:
@@ -126,23 +125,23 @@ def register_market(key: str):
 
 
 def get_market(key: str) -> EnergyMarket:
-    """Récupère une instance de marché par sa clé.
+    """Retrieve a market instance by its key.
 
     Raises
     ------
     KeyError
-        Si le marché n'est pas enregistré.
+        If the market is not registered.
     """
     if key not in _REGISTRY:
-        raise KeyError(f"Marché '{key}' non enregistré. Marchés connus : {list(_REGISTRY)}")
+        raise KeyError(f"Market '{key}' is not registered. Known markets: {list(_REGISTRY)}")
     return _REGISTRY[key]
 
 
 def available_markets() -> list[str]:
-    """Liste les marchés dont toutes les clés d'environnement sont présentes.
+    """List the markets whose environment keys are all present.
 
-    Un marché avec ``required_env = ()`` est toujours listé (public).
-    Un marché key-gated est masqué si l'une de ses clés est absente du shell.
+    A market with ``required_env = ()`` is always listed (public).
+    A key-gated market is hidden if any of its keys is missing from the shell.
     """
     result = []
     for key, market in _REGISTRY.items():

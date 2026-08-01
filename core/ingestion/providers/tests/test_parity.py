@@ -1,11 +1,11 @@
-"""Parité (obligatoire) : la logique extraite produit EXACTEMENT les mêmes ``Snapshot``.
+"""Parity (mandatory): the extracted logic produces EXACTLY the same ``Snapshot`` rows.
 
-Deux garanties complémentaires :
+Two complementary guarantees:
 
-1. **Identité des objets** : le shim ``core.ingestion.gpu_market`` ré-exporte les *mêmes*
-   fonctions que le paquet ``providers`` — aucune divergence d'implémentation possible.
-2. **Cas-or de valeur** : les parsers déplacés reproduisent au bit près les attendus du
-   test historique ``projects/04_compute_index_curve/tests/test_gpu_market.py``.
+1. **Object identity**: the ``core.ingestion.gpu_market`` shim re-exports the *same* functions
+   as the ``providers`` package -- no implementation divergence is possible.
+2. **Golden value cases**: the moved parsers reproduce bit for bit the expectations of the
+   historical test ``projects/04_compute_index_curve/tests/test_gpu_market.py``.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def test_parse_vastai_offers_computes_per_gpu_price(vastai_offers: list[dict[str
     by_model = {s.gpu_model: s.price_usd_per_hour for s in snaps}
     assert by_model["H100"] == 2.0  # 16 / 8 GPUs
     assert by_model["A100"] == 1.0  # 4 / 4 GPUs
-    assert len(snaps) == 2  # l'offre non rentable est écartée
+    assert len(snaps) == 2  # the non-rentable offer is discarded
     assert all(s.source == "vastai" for s in snaps)
     assert all(s.lease_type == "on_demand" for s in snaps)
     assert all(s.snapshotted_at == _TS for s in snaps)
@@ -57,8 +57,8 @@ def test_parse_runpod_keeps_lowest_available_on_demand(
 
     by_model = {s.gpu_model: s.price_usd_per_hour for s in snaps}
     assert by_model["A100"] == 1.19  # min(secure, community)
-    assert by_model["A40"] == 0.35  # securePrice=0 ignoré -> community retenu
-    assert "MI300X" not in by_model  # aucun prix valide -> écarté
+    assert by_model["A40"] == 0.35  # securePrice=0 ignored -> community kept
+    assert "MI300X" not in by_model  # no valid price -> discarded
     assert all(s.source == "runpod" for s in snaps)
     assert all(s.lease_type == "on_demand" for s in snaps)
     assert len(snaps) == 2

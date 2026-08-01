@@ -1,9 +1,9 @@
-"""Conversion ``Snapshot`` (jambe ingestion P04) → frame canonique du cold store.
+"""``Snapshot`` (P04 ingestion leg) to cold store canonical frame conversion.
 
-Isole l'unique point de couplage *lecture* entre ``core.storage`` et ``core.ingestion`` :
-le store ne dépend pas du backend d'ingestion, il consomme ses :class:`Snapshot` immuables
-et les projette sur :data:`~core.storage.schema.COLUMNS`. Utilisé par la migration CSV→
-Parquet et par le collecteur (écriture du lac).
+Isolates the single *read* coupling point between ``core.storage`` and ``core.ingestion``:
+the store does not depend on the ingestion backend, it consumes its immutable
+:class:`Snapshot` objects and projects them onto :data:`~core.storage.schema.COLUMNS`.
+Used by the CSV to Parquet migration and by the collector (lake writing).
 """
 
 from __future__ import annotations
@@ -29,23 +29,24 @@ from core.storage.schema import (
     VCPU,
     normalize_frame,
 )
+from core.utils.coerce import lenient_float, lenient_int, lenient_str
 
 
 def snapshots_to_frame(snapshots: Sequence[Snapshot]) -> pd.DataFrame:
-    """Transforme des :class:`Snapshot` en frame canonique typé (UTC, prix float, dispo int).
+    """Turn :class:`Snapshot` objects into a typed canonical frame (UTC, float price, int avail).
 
     Parameters
     ----------
     snapshots
-        Relevés immuables issus de l'ingestion (Vast.ai / RunPod). ``snapshotted_at``
-        est déjà UTC tz-aware (garanti par ``Snapshot``). Les champs descriptifs
-        optionnels sont propagés quand ils sont renseignés (sinon ``None``).
+        Immutable readings coming from ingestion (Vast.ai / RunPod). ``snapshotted_at``
+        is already UTC tz-aware (guaranteed by ``Snapshot``). The optional descriptive
+        fields are propagated when they are populated (otherwise ``None``).
 
     Returns
     -------
     pandas.DataFrame
-        Frame aux colonnes :data:`ALL_COLUMNS`, prêt pour ``PriceStore.write`` (vide
-        si ``snapshots`` est vide).
+        Frame with the :data:`ALL_COLUMNS` columns, ready for ``PriceStore.write`` (empty
+        if ``snapshots`` is empty).
     """
     records = [
         {
@@ -68,35 +69,14 @@ def snapshots_to_frame(snapshots: Sequence[Snapshot]) -> pd.DataFrame:
 
 
 def frame_to_snapshots(frame: pd.DataFrame) -> list[Snapshot]:
-    """Reconstruit des :class:`Snapshot` depuis un frame canonique (lecture du lac).
+    """Rebuild :class:`Snapshot` objects from a canonical frame (reading the lake).
 
-    Réciproque de :func:`snapshots_to_frame` : permet à la jambe ingestion (P04) de
-    consommer le cold store Parquet via le protocole ``SnapshotStore`` (cf.
-    :class:`core.storage.snapshot_store.ParquetSnapshotStore`). Les colonnes
-    optionnelles absentes (Parquet legacy) sont backfillées par ``normalize_frame``.
+    Inverse of :func:`snapshots_to_frame`: lets the ingestion leg (P04) consume the
+    Parquet cold store through the ``SnapshotStore`` protocol (see
+    :class:`core.storage.snapshot_store.ParquetSnapshotStore`). Absent optional
+    columns (legacy Parquet) are backfilled by ``normalize_frame``.
     """
     frame = normalize_frame(frame)
-
-    def _opt_str(val: object) -> str | None:
-        if val is None or (isinstance(val, float) and __import__("math").isnan(val)):
-            return None
-        return str(val)
-
-    def _opt_float(val: object) -> float | None:
-        if val is None:
-            return None
-        try:
-            f = float(val)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            return None
-        import math
-
-        return None if math.isnan(f) else f
-
-    def _opt_int(val: object) -> int | None:
-        f = _opt_float(val)
-        return None if f is None else int(f)
-
     return [
         Snapshot(
             snapshotted_at=row[SNAPSHOTTED_AT].to_pydatetime(),
@@ -105,12 +85,12 @@ def frame_to_snapshots(frame: pd.DataFrame) -> list[Snapshot]:
             price_usd_per_hour=float(row[PRICE]),
             lease_type=str(row[LEASE_TYPE]),
             availability=int(row[AVAILABILITY]),
-            region=_opt_str(row.get(REGION)),
-            gpu_memory_gb=_opt_float(row.get(GPU_MEMORY_GB)),
-            vcpu=_opt_int(row.get(VCPU)),
-            ram_gb=_opt_float(row.get(RAM_GB)),
-            disk_gb=_opt_float(row.get(DISK_GB)),
-            provider_detail=_opt_str(row.get(PROVIDER_DETAIL)),
+            region=lenient_str(row.get(REGION)),
+            gpu_memory_gb=lenient_float(row.get(GPU_MEMORY_GB)),
+            vcpu=lenient_int(row.get(VCPU)),
+            ram_gb=lenient_float(row.get(RAM_GB)),
+            disk_gb=lenient_float(row.get(DISK_GB)),
+            provider_detail=lenient_str(row.get(PROVIDER_DETAIL)),
         )
         for _, row in frame.iterrows()
     ]

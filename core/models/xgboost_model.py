@@ -1,13 +1,13 @@
-"""Modèle directionnel XGBoost (baseline PoC) + ensemble de graines.
+"""XGBoost directional model (PoC baseline) + seed ensemble.
 
-`XGBoostDirectionModel` enveloppe ``XGBClassifier`` dans une configuration **déterministe**
-(graine fixée, mono-thread, ``tree_method="hist"``, pas de sous-échantillonnage aléatoire) :
-même entrée ⇒ mêmes probabilités, exigence de reproductibilité du labo.
+`XGBoostDirectionModel` wraps ``XGBClassifier`` in a **deterministic** configuration (fixed
+seed, single-threaded, ``tree_method="hist"``, no random subsampling): same input implies
+same probabilities, the lab's reproducibility requirement.
 
-`SeedBaggingEnsemble` moyenne les probabilités de plusieurs `XGBoostDirectionModel`
-identiques à la graine près. C'est l'« ensemble » du PoC : il réduit la variance liée à la
-graine (un seul modèle peut sur-ajuster une réalisation), pour un coût marginal. Le palier
-institutionnel (LSTM/TFT, stacking) viendra plus tard, mais l'interface `Model` le permet déjà.
+`SeedBaggingEnsemble` averages the probabilities of several `XGBoostDirectionModel` instances
+that are identical up to the seed. This is the PoC's "ensemble": it reduces the seed-related
+variance (a single model can overfit one realization) at a marginal cost. The institutional
+tier (LSTM/TFT, stacking) will come later, but the `Model` interface already allows it.
 """
 
 from __future__ import annotations
@@ -21,15 +21,15 @@ from core.models.protocols import FloatArray, Model
 
 
 class XGBoostDirectionModel:
-    """Classifieur directionnel XGBoost déterministe (implémente `Model`).
+    """Deterministic XGBoost directional classifier (implements `Model`).
 
     Parameters
     ----------
     random_state
-        Graine — fixe tout l'aléatoire interne (reproductibilité).
+        Seed — fixes all internal randomness (reproducibility).
     n_estimators, max_depth, learning_rate, subsample, colsample_bytree
-        Hyperparamètres de l'arbre boosté (fixés *a priori* au PoC : pas de recherche,
-        donc pas de coût de multiple-testing — cf. ``deflated_sharpe``).
+        Hyperparameters of the boosted tree (fixed *a priori* in the PoC: no search, hence
+        no multiple-testing cost — see ``deflated_sharpe``).
     """
 
     def __init__(
@@ -58,7 +58,7 @@ class XGBoostDirectionModel:
             subsample=self.subsample,
             colsample_bytree=self.colsample_bytree,
             random_state=self.random_state,
-            n_jobs=1,  # mono-thread : indispensable au déterminisme bit-à-bit
+            n_jobs=1,  # single-threaded: essential for bit-for-bit determinism
             tree_method="hist",
             objective="binary:logistic",
             eval_metric="logloss",
@@ -69,29 +69,29 @@ class XGBoostDirectionModel:
 
     def predict_proba(self, x: FloatArray) -> FloatArray:
         if self._clf is None:
-            raise RuntimeError("fit() doit être appelé avant predict_proba().")
+            raise RuntimeError("fit() must be called before predict_proba().")
         return self._clf.predict_proba(x)[:, 1].astype(np.float64)
 
 
 class SeedBaggingEnsemble:
-    """Moyenne des probabilités de modèles identiques à la graine près (implémente `Model`).
+    """Average the probabilities of models identical up to the seed (implements `Model`).
 
     Parameters
     ----------
     make_model
-        Fabrique un `Model` neuf à partir d'une graine.
+        Builds a fresh `Model` from a seed.
     seeds
-        Graines des membres (au moins une). Fixées → ensemble reproductible.
+        Seeds of the members (at least one). Fixed -> reproducible ensemble.
 
     Raises
     ------
     ValueError
-        Si ``seeds`` est vide.
+        If ``seeds`` is empty.
     """
 
     def __init__(self, *, make_model: Callable[[int], Model], seeds: tuple[int, ...]) -> None:
         if not seeds:
-            raise ValueError("seeds ne peut pas être vide.")
+            raise ValueError("seeds must not be empty.")
         self._make_model = make_model
         self._seeds = seeds
         self._members: list[Model] = []
@@ -102,7 +102,7 @@ class SeedBaggingEnsemble:
 
     def predict_proba(self, x: FloatArray) -> FloatArray:
         if not self._members:
-            raise RuntimeError("fit() doit être appelé avant predict_proba().")
+            raise RuntimeError("fit() must be called before predict_proba().")
         stacked = np.stack([member.predict_proba(x) for member in self._members])
         return stacked.mean(axis=0).astype(np.float64)
 

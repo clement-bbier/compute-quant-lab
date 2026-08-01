@@ -1,13 +1,13 @@
-"""Signal directionnel ML hors-échantillon (enveloppe l'adaptateur P09).
+"""Out-of-sample ML directional signal (wraps the P09 adapter).
 
-Le producteur **délègue** à ``PrecomputedSignalStrategy`` de ``core.models`` (P09) : un vecteur de
-probabilités ``P(montée)`` hors-échantillon (purged-CV, cf. ``core.models.validation.oos_predict``)
-est calculé **en amont** et aligné 1:1 sur la série backtestée ; au runtime, l'adaptateur lit la
-proba à ``view.t`` et la mappe en position (bande neutre autour de 0.5). Le modèle ne « voit »
-jamais les prix au runtime — toute fuite éventuelle a été neutralisée à l'entraînement.
+The producer **delegates** to ``PrecomputedSignalStrategy`` from ``core.models`` (P09): a vector
+of out-of-sample ``P(up)`` probabilities (purged-CV, see ``core.models.validation.oos_predict``)
+is computed **upstream** and aligned 1:1 with the backtested series; at runtime the adapter reads
+the probability at ``view.t`` and maps it to a position (neutral band around 0.5). The model
+never sees prices at runtime — any potential leakage was neutralised at training time.
 
-On n'ajoute donc **aucune** logique de signal ici : parité exacte avec P09 garantie par délégation
-(§6b). Ce module n'apporte que l'habillage ``SignalProducer`` (nom + provenance réel/simulé).
+So **no** signal logic is added here: exact parity with P09 is guaranteed by delegation (section
+6b). This module only provides the ``SignalProducer`` wrapping (name + real/simulated provenance).
 """
 
 from __future__ import annotations
@@ -19,18 +19,18 @@ from core.signals.protocols import SignalProvenance
 
 
 class MLEnsembleSignal:
-    """Enveloppe ``SignalProducer`` autour de l'adaptateur ML pré-calculé de P09.
+    """``SignalProducer`` wrapper around the precomputed ML adapter of P09.
 
     Parameters
     ----------
     proba : FloatArray
-        Vecteur ``P(montée)`` OOS aligné sur la série backtestée (``NaN`` ⇒ position plate).
+        OOS ``P(up)`` vector aligned with the backtested series (``NaN`` gives a flat position).
     neutral_band : float
-        Demi-largeur de la bande morte autour de 0.5 (``[0, 0.5)``), transmise telle quelle à P09.
+        Half-width of the dead band around 0.5 (``[0, 0.5)``), passed through as-is to P09.
     name : str
-        Identifiant du signal (tracé MLflow / attribution desk).
+        Signal identifier (MLflow tracking / desk attribution).
     simulated : bool
-        Drapeau réel/simulé **obligatoire** (rule ``forward-real-simulated``).
+        **Mandatory** real/simulated flag (rule ``forward-real-simulated``).
     """
 
     def __init__(
@@ -41,13 +41,13 @@ class MLEnsembleSignal:
         name: str = "ml_ensemble",
         simulated: bool,
     ) -> None:
-        # Validation (bande neutre) et logique proba→position héritées telles quelles de P09.
+        # Validation (neutral band) and probability-to-position logic inherited as-is from P09.
         self._strategy = PrecomputedSignalStrategy(proba, neutral_band=neutral_band)
         self.name = name
         self.provenance = SignalProvenance(name=name, simulated=simulated)
 
     def signal(self, view: PointInTimeView) -> float:
-        """Position cible à ``view.t`` : délègue à l'adaptateur P09 (parité exacte)."""
+        """Target position at ``view.t``: delegates to the P09 adapter (exact parity)."""
         return self._strategy.signal(view)
 
 

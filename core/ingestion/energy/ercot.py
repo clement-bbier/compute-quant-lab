@@ -1,49 +1,49 @@
-"""Connecteur ERCOT (Texas) via ``gridstatus`` — marché public, sans token.
+"""ERCOT (Texas) connector via ``gridstatus`` -- public market, no token.
 
-Surface API confirmée (B0 — 2026-06-23)
+Confirmed API surface (B0 -- 2026-06-23)
 -----------------------------------------
-- ``gridstatus.Ercot()`` — classe principale, ``default_timezone = "US/Central"``.
+- ``gridstatus.Ercot()`` -- main class, ``default_timezone = "US/Central"``.
 - ``iso.get_spp(date, end, market=Markets.REAL_TIME_15_MIN, locations=[...])``
-    Colonnes de sortie : ``["Time", "Interval Start", "Interval End",
+    Output columns: ``["Time", "Interval Start", "Interval End",
     "Location", "Location Type", "Market", "SPP"]``
-    Fuseau : US/Central (CPT/CDT selon saison).
-    Granularité : intervalles de 15 minutes.
-    Source ERCOT : rapport ``SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES``
-    (RTID 12301). Données disponibles J+0 à J-2 environ.
+    Timezone: US/Central (CPT/CDT depending on season).
+    Granularity: 15 minute intervals.
+    ERCOT source: ``SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES`` report
+    (RTID 12301). Data available from roughly D+0 to D-2.
 - ``iso.get_rtm_spp(year)``
-    Colonnes identiques à ``get_spp``. Profondeur historique : depuis 2011 (annuel).
-    Source : ``HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES`` (RTID 13061).
+    Same columns as ``get_spp``. Historical depth: since 2011 (yearly).
+    Source: ``HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES`` (RTID 13061).
 - ``iso.get_load_forecast(date, end, forecast_type=ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE)``
-    Colonnes de sortie : ``["Time", "Interval Start", "Interval End", "Publish Time",
+    Output columns: ``["Time", "Interval Start", "Interval End", "Publish Time",
     "Coast", "East", "Far West", "North", "North Central", "South Central",
     "Southern", "West", "System Total"]``
-    Fuseau : US/Central.
-    Granularité : horaire. Profondeur historique : limitée (quelques semaines).
-    Source : ``ERCOT_SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE`` (RTID 12311).
+    Timezone: US/Central.
+    Granularity: hourly. Historical depth: limited (a few weeks).
+    Source: ``ERCOT_SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE`` (RTID 12311).
 
-Heure de publication des rapports de prévision (critique pour le point-in-time L0 §2)
---------------------------------------------------------------------------------------
-ERCOT publie le rapport Seven-Day Load Forecast toutes les heures environ. La colonne
-``Publish Time`` retournée par ``get_load_forecast`` est horodatée à la publication
-réelle (ex. 17h48, 18h02 CPT), pas à l'heure cible. Le cutoff de décision L0 est
-~18h00 CPT J-1 : le rapport de 17h48 ou 18h02 CPT J-1 doit être le dernier utilisable.
-Notre parser préserve ``Publish Time`` et le convertit en UTC pour la couche calibration.
+Publication time of the forecast reports (critical for L0 section 2 point-in-time)
+----------------------------------------------------------------------------------
+ERCOT publishes the Seven-Day Load Forecast report roughly every hour. The ``Publish Time``
+column returned by ``get_load_forecast`` is timestamped at the actual publication (e.g.
+17:48, 18:02 CPT), not at the target time. The L0 decision cutoff is ~18:00 CPT D-1: the
+17:48 or 18:02 CPT D-1 report must be the last usable one. Our parser preserves
+``Publish Time`` and converts it to UTC for the calibration layer.
 
-NOTE réseau : l'API ercot.com est bloquée par WAF Imperva (Incapsula) depuis certains
-réseaux hors US (code 403). Le smoke live (test_fetch_live.py) est marqué ``@live``
-et doit être exécuté depuis un réseau US ou un proxy approprié.
+NETWORK NOTE: the ercot.com API is blocked by the Imperva (Incapsula) WAF from some non-US
+networks (code 403). The live smoke test (test_fetch_live.py) is marked ``@live`` and must be
+run from a US network or through a suitable proxy.
 
-Localisations hub standard pour le prix système ERCOT
-------------------------------------------------------
-- ``"HB_BUSAVG"`` : hub system-wide (moyenne pondérée des bus) → prix représentatif.
-- ``"HB_WEST"``   : hub Ouest (concentration datacenter/mining, label secondaire L0 §4).
-- ``"LZ_HOUSTON"`` / ``"LZ_NORTH"`` / ``"LZ_SOUTH"`` / ``"LZ_WEST"`` : zones de charge.
+Standard hub locations for the ERCOT system price
+--------------------------------------------------
+- ``"HB_BUSAVG"`` : system-wide hub (bus weighted average) -> representative price.
+- ``"HB_WEST"``   : West hub (datacenter/mining concentration, L0 section 4 secondary label).
+- ``"LZ_HOUSTON"`` / ``"LZ_NORTH"`` / ``"LZ_SOUTH"`` / ``"LZ_WEST"`` : load zones.
 
-Unités
-------
-- Prix RTM : $/MWh (colonne ``SPP`` de gridstatus → ``rtm_price_usd_mwh``).
-- Charge / capacité : MW.
-- Tous les horodatages internes : UTC tz-aware.
+Units
+-----
+- RTM price: $/MWh (gridstatus ``SPP`` column -> ``rtm_price_usd_mwh``).
+- Load / capacity: MW.
+- All internal timestamps: UTC tz-aware.
 """
 
 from __future__ import annotations
@@ -59,10 +59,10 @@ from core.ingestion.energy.ercot_transport import (
     GridstatusIoTransport,
 )
 
-# Localisation par défaut pour le prix RTM système ERCOT
+# Default location for the ERCOT system RTM price
 _DEFAULT_RTM_LOCATION = "HB_BUSAVG"
 
-# Noms de colonnes gridstatus (constantes pour éviter les littéraux dupliqués)
+# gridstatus column names (constants to avoid duplicated literals)
 _COL_INTERVAL_START = "Interval Start"
 _COL_INTERVAL_END = "Interval End"
 _COL_PUBLISH_TIME = "Publish Time"
@@ -70,16 +70,16 @@ _COL_SYSTEM_TOTAL = "System Total"
 _COL_AVAIL_CAP_GEN = "Available Capacity Generation"
 _COL_NET_LOAD = "Net Load"
 
-# Fenêtre de récupération autour de as_of (reserve_forecast_as_of) : l'API hébergée
-# rejette une plage de largeur nulle. Lookback = capter les dernières publications
-# connues <= as_of ; horizon = capter les intervalles cibles futurs (prévisions 6-7 j).
-# Le filtrage point-in-time reste assuré par `_latest_known_per_interval`.
+# Fetch window around as_of (reserve_forecast_as_of): the hosted API rejects a zero-width
+# range. Lookback = catch the latest publications known <= as_of; horizon = catch the future
+# target intervals (6-7 day forecasts).
+# Point-in-time filtering remains guaranteed by `_latest_known_per_interval`.
 _ASOF_FETCH_LOOKBACK = pd.Timedelta(days=2)
 _ASOF_FETCH_HORIZON = pd.Timedelta(days=2)
 
 
 # ---------------------------------------------------------------------------
-# Parsers purs (I/O isolée, testables sur fixtures figées)
+# Pure parsers (I/O isolated, testable on frozen fixtures)
 # ---------------------------------------------------------------------------
 
 
@@ -87,38 +87,38 @@ def parse_rtm_spp(
     df: pd.DataFrame,
     location: str = _DEFAULT_RTM_LOCATION,
 ) -> pd.Series:
-    """Parse un DataFrame gridstatus get_spp / get_rtm_spp → pd.Series $/MWh UTC.
+    """Parse a gridstatus get_spp / get_rtm_spp DataFrame -> pd.Series $/MWh UTC.
 
     Parameters
     ----------
     df
-        DataFrame brut retourné par ``iso.get_spp()`` ou ``iso.get_rtm_spp()``
-        avec les colonnes ``["Interval Start", "Location", "SPP"]`` (minimum).
+        Raw DataFrame returned by ``iso.get_spp()`` or ``iso.get_rtm_spp()`` with the
+        ``["Interval Start", "Location", "SPP"]`` columns (at minimum).
     location
-        Identifiant de hub/zone ERCOT à filtrer (ex. ``"HB_BUSAVG"``).
+        ERCOT hub/zone identifier to filter on (e.g. ``"HB_BUSAVG"``).
 
     Returns
     -------
     pd.Series
-        Indexée par ``Interval Start`` (UTC tz-aware), valeurs en $/MWh,
-        triée chronologiquement, sans NaN injectés, nom ``"rtm_price_usd_mwh"``.
+        Indexed by ``Interval Start`` (UTC tz-aware), values in $/MWh, sorted
+        chronologically, with no injected NaN, named ``"rtm_price_usd_mwh"``.
 
     Raises
     ------
     ValueError
-        Si ``location`` n'existe pas dans le DataFrame.
+        If ``location`` does not exist in the DataFrame.
     """
-    # Filtrer la localisation demandée
+    # Filter on the requested location
     available = df["Location"].unique().tolist() if "Location" in df.columns else []
     if location not in available:
-        raise ValueError(f"Localisation '{location}' introuvable. Disponibles : {available}")
+        raise ValueError(f"location ('{location}') must be one of the available: {available}")
 
     sub = df[df["Location"] == location].copy()
 
-    # Récupérer la colonne d'index temporel
+    # Retrieve the time index column
     time_col = _COL_INTERVAL_START if _COL_INTERVAL_START in sub.columns else "Time"
 
-    # Convertir en UTC tz-aware
+    # Convert to UTC tz-aware
     idx = _to_utc(pd.to_datetime(sub[time_col]))
 
     series = pd.Series(
@@ -128,57 +128,57 @@ def parse_rtm_spp(
         dtype=float,
     )
 
-    # Trier chronologiquement et éliminer les doublons éventuels (prend le dernier)
+    # Sort chronologically and drop any duplicates (keeps the last one)
     series = series.sort_index()
 
     return series
 
 
 def parse_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
-    """Parse un DataFrame gridstatus get_load_forecast → DataFrame normalisé UTC.
+    """Parse a gridstatus get_load_forecast DataFrame -> UTC-normalised DataFrame.
 
-    Normalise les colonnes vers le contrat ``EnergyMarket.reserve_forecast`` :
-    - ``publish_time``        : heure de publication du rapport (UTC tz-aware).
-    - ``interval_start``      : heure cible début (UTC tz-aware).
-    - ``interval_end``        : heure cible fin (UTC tz-aware).
-    - ``forecast_load_mw``    : charge prévue (System Total, MW).
-    - ``forecast_capacity_mw``: capacité disponible prévue (MW), **uniquement depuis
-      une source réelle**. Absente du rapport de charge → ``NaN`` (jamais fabriquée :
-      un placeholder corromprait silencieusement le prédicteur de marge de réserve
-      de L0). Câblage d'une vraie capacité (Short-Term System Adequacy) = tâche dédiée.
-    - ``reserve_margin_mw``   : marge = capacité − charge (MW), ``NaN`` tant que la
-      capacité réelle n'est pas câblée.
+    Normalises the columns to the ``EnergyMarket.reserve_forecast`` contract:
+    - ``publish_time``        : report publication time (UTC tz-aware).
+    - ``interval_start``      : target start time (UTC tz-aware).
+    - ``interval_end``        : target end time (UTC tz-aware).
+    - ``forecast_load_mw``    : forecast load (System Total, MW).
+    - ``forecast_capacity_mw``: forecast available capacity (MW), **only from a real
+      source**. Absent from the load report -> ``NaN`` (never fabricated: a placeholder
+      would silently corrupt the L0 reserve margin predictor). Wiring a real capacity
+      (Short-Term System Adequacy) is a dedicated task.
+    - ``reserve_margin_mw``   : margin = capacity - load (MW), ``NaN`` for as long as the
+      real capacity is not wired in.
 
-    Point-in-time L0 §2 : ``publish_time`` est préservée depuis la colonne
-    ``Publish Time`` de gridstatus et convertie en UTC. L'invariant
-    ``publish_time < interval_start`` est garanti par la nature du rapport
-    (prévision publiée avant l'heure cible).
+    L0 section 2 point-in-time: ``publish_time`` is preserved from the gridstatus
+    ``Publish Time`` column and converted to UTC. The ``publish_time < interval_start``
+    invariant is guaranteed by the nature of the report (a forecast published before the
+    target time).
 
     Parameters
     ----------
     df
-        DataFrame brut retourné par ``iso.get_load_forecast()``.
+        Raw DataFrame returned by ``iso.get_load_forecast()``.
 
     Returns
     -------
     pd.DataFrame
-        Colonnes normalisées, triée par (``publish_time``, ``interval_start``).
+        Normalised columns, sorted by (``publish_time``, ``interval_start``).
     """
     out = pd.DataFrame()
 
-    # Colonnes temporelles
+    # Time columns
     time_col = _COL_INTERVAL_START if _COL_INTERVAL_START in df.columns else "Time"
 
     out["publish_time"] = _to_utc(pd.to_datetime(df[_COL_PUBLISH_TIME]))
     out["interval_start"] = _to_utc(pd.to_datetime(df[time_col]))
     out["interval_end"] = _to_utc(pd.to_datetime(df[_COL_INTERVAL_END]))
 
-    # Charge prévue : colonne "System Total" (somme de toutes les zones)
+    # Forecast load: "System Total" column (sum over all zones)
     load_col = _COL_SYSTEM_TOTAL if _COL_SYSTEM_TOTAL in df.columns else df.columns[-1]
     out["forecast_load_mw"] = df[load_col].astype(float).values
 
-    # Capacité prévue : UNIQUEMENT depuis une source réelle, jamais fabriquée.
-    # Absente → NaN (visible) plutôt qu'un placeholder qui corromprait le prédicteur L0.
+    # Forecast capacity: ONLY from a real source, never fabricated.
+    # Absent -> NaN (visible) rather than a placeholder that would corrupt the L0 predictor.
     if "forecast_capacity_mw" in df.columns:
         out["forecast_capacity_mw"] = df["forecast_capacity_mw"].astype(float).values
     elif "Available Capacity" in df.columns:
@@ -186,27 +186,27 @@ def parse_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
     else:
         out["forecast_capacity_mw"] = float("nan")
 
-    # Marge de réserve = capacité − charge
+    # Reserve margin = capacity - load
     out["reserve_margin_mw"] = out["forecast_capacity_mw"] - out["forecast_load_mw"]
 
-    # Tri point-in-time
+    # Point-in-time sort
     out = out.sort_values(["publish_time", "interval_start"]).reset_index(drop=True)
 
     return out
 
 
 def parse_system_adequacy(df: pd.DataFrame) -> pd.DataFrame:
-    """Parse un DataFrame STSA canonique → capacité prévue normalisée (UTC, point-in-time).
+    """Parse a canonical STSA DataFrame -> normalised forecast capacity (UTC, point-in-time).
 
-    STSA (Short-Term System Adequacy) est un rapport de **capacité** : pas de demande.
-    On retient ``Available Capacity Generation`` (capacité de génération disponible
-    prévue) comme capacité de la marge de réserve L0.
+    STSA (Short-Term System Adequacy) is a **capacity** report: no demand. We keep
+    ``Available Capacity Generation`` (forecast available generation capacity) as the
+    capacity of the L0 reserve margin.
 
     Returns
     -------
     pd.DataFrame
-        Colonnes ``publish_time`` / ``interval_start`` / ``interval_end`` /
-        ``forecast_capacity_mw`` (UTC tz-aware), triée (publish_time, interval_start).
+        Columns ``publish_time`` / ``interval_start`` / ``interval_end`` /
+        ``forecast_capacity_mw`` (UTC tz-aware), sorted by (publish_time, interval_start).
     """
     time_col = _COL_INTERVAL_START if _COL_INTERVAL_START in df.columns else "Time"
     out = pd.DataFrame()
@@ -218,10 +218,10 @@ def parse_system_adequacy(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def parse_net_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
-    """Parse un DataFrame net-load canonique → net-load prévu normalisé (UTC, point-in-time).
+    """Parse a canonical net-load DataFrame -> normalised net-load forecast (UTC, point-in-time).
 
-    Net-load = charge − renouvelables. Colonnes de sortie : ``publish_time`` /
-    ``interval_start`` / ``interval_end`` / ``net_load_mw``.
+    Net-load = load - renewables. Output columns: ``publish_time`` / ``interval_start`` /
+    ``interval_end`` / ``net_load_mw``.
     """
     time_col = _COL_INTERVAL_START if _COL_INTERVAL_START in df.columns else "Time"
     out = pd.DataFrame()
@@ -233,11 +233,10 @@ def parse_net_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _latest_known_per_interval(df: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
-    """Garde, par ``interval_start``, la dernière version publiée **à/avant** ``as_of``.
+    """Keep, per ``interval_start``, the last version published **at/before** ``as_of``.
 
-    Garde-fou look-ahead (L0) : filtre d'abord ``publish_time <= as_of`` (rien de
-    publié après le cutoff de décision), puis prend la publication la plus récente
-    par intervalle.
+    Look-ahead guardrail (L0): first filters ``publish_time <= as_of`` (nothing published
+    after the decision cutoff), then takes the most recent publication per interval.
     """
     known = df[df["publish_time"] <= as_of]
     if known.empty:
@@ -247,50 +246,50 @@ def _latest_known_per_interval(df: pd.DataFrame, as_of: pd.Timestamp) -> pd.Data
 
 
 # ---------------------------------------------------------------------------
-# Helper de conversion UTC
+# UTC conversion helper
 # ---------------------------------------------------------------------------
 
 
 def _to_utc(series: pd.Series) -> pd.Series:
-    """Convertit une pd.Series de timestamps en UTC tz-aware.
+    """Convert a pd.Series of timestamps to UTC tz-aware.
 
-    Gère les cas : naïf (assume US/Central), US/Central, UTC.
+    Handles the cases: naive (assumes US/Central), US/Central, UTC.
     """
     if series.dt.tz is None:
-        # Timestamps naïfs issus d'un CSV lu sans tz → on suppose US/Central
+        # Naive timestamps from a CSV read without tz -> assume US/Central
         series = series.dt.tz_localize("US/Central", ambiguous="infer", nonexistent="shift_forward")
     return series.dt.tz_convert("UTC")
 
 
 # ---------------------------------------------------------------------------
-# Connecteur ErcotMarket (wraps gridstatus, implémente EnergyMarket)
+# ErcotMarket connector (wraps gridstatus, implements EnergyMarket)
 # ---------------------------------------------------------------------------
 
 
 @register_market("ercot")
 class ErcotMarket:
-    """Connecteur ERCOT Texas via ``gridstatus.Ercot()``.
+    """ERCOT Texas connector via ``gridstatus.Ercot()``.
 
-    Marché public (``required_env = ()``), toujours listé dans le registre.
-    Données réelles ERCOT — aucun flag ``simulated`` requis (L0 §2).
+    Public market (``required_env = ()``), always listed in the registry.
+    Real ERCOT data -- no ``simulated`` flag required (L0 section 2).
 
-    Notes réseau
-    ------------
-    L'API ercot.com est bloquée par WAF Imperva depuis certains réseaux hors US.
-    Utilisez le smoke live (``pytest -m live``) depuis un réseau US pour valider
-    le tir réel. Les tests unitaires (B2) tournent sur fixtures figées.
+    Network notes
+    -------------
+    The ercot.com API is blocked by the Imperva WAF from some non-US networks. Use the live
+    smoke test (``pytest -m live``) from a US network to validate a real call. The unit tests
+    (B2) run on frozen fixtures.
     """
 
     name = "ercot"
     required_env: tuple[str, ...] = ()
 
     def __init__(self, transport: ErcotTransport | None = None) -> None:
-        """``transport`` injecté (tests/override) ; sinon résolu paresseusement."""
+        """``transport`` is injected (tests/override); otherwise resolved lazily."""
         self._injected = transport
         self._resolved: ErcotTransport | None = None
 
     def _transport(self) -> ErcotTransport:
-        """Résout le transport : injecté > hébergé (clé présente) > direct (géobloqué)."""
+        """Resolve the transport: injected > hosted (key present) > direct (geoblocked)."""
         if self._injected is not None:
             return self._injected
         resolved = self._resolved
@@ -309,20 +308,20 @@ class ErcotMarket:
         end: pd.Timestamp,
         location: str = _DEFAULT_RTM_LOCATION,
     ) -> pd.Series:
-        """Prix RTM ERCOT sur [start, end], localisation hub/zone.
+        """ERCOT RTM price over [start, end], for a hub/zone location.
 
         Parameters
         ----------
         start, end
-            Bornes de la plage (UTC tz-aware recommandé ; converti en US/Central
-            pour l'appel gridstatus, retourné en UTC).
+            Range bounds (UTC tz-aware recommended; converted to US/Central for the
+            gridstatus call, returned in UTC).
         location
-            Hub ou zone de charge ERCOT (défaut : ``"HB_BUSAVG"``).
+            ERCOT hub or load zone (default: ``"HB_BUSAVG"``).
 
         Returns
         -------
         pd.Series
-            Indexée par Interval Start (UTC), valeurs $/MWh, trié, sans NaN.
+            Indexed by Interval Start (UTC), values in $/MWh, sorted, without NaN.
         """
         df = self._transport().fetch_rtm_spp(start, end, location)
         return parse_rtm_spp(df, location=location)
@@ -332,21 +331,20 @@ class ErcotMarket:
         start: pd.Timestamp,
         end: pd.Timestamp,
     ) -> pd.DataFrame:
-        """Prévisions de charge publiées entre start et end (publication range).
+        """Load forecasts published between start and end (publication range).
 
-        Point-in-time L0 §2 : retourne tous les rapports dont la date de
-        publication est dans [start, end]. L'appelant filtre ensuite sur
-        ``publish_time <= cutoff_18h_j1``.
+        L0 section 2 point-in-time: returns every report whose publication date falls in
+        [start, end]. The caller then filters on ``publish_time <= cutoff_18h_j1``.
 
         Parameters
         ----------
         start, end
-            Bornes de la fenêtre de publication (UTC tz-aware).
+            Bounds of the publication window (UTC tz-aware).
 
         Returns
         -------
         pd.DataFrame
-            Colonnes normalisées (voir ``parse_load_forecast``), UTC tz-aware.
+            Normalised columns (see ``parse_load_forecast``), UTC tz-aware.
         """
         df = self._transport().fetch_load_forecast(start, end)
         return parse_load_forecast(df)
@@ -355,29 +353,29 @@ class ErcotMarket:
         self,
         as_of: pd.Timestamp,
     ) -> pd.DataFrame:
-        """Marge de réserve prévue connue à ``as_of`` (point-in-time strict, prédicteur L0).
+        """Forecast reserve margin known at ``as_of`` (strict point-in-time, L0 predictor).
 
-        Jointure inter-datasets : **charge** (``ercot_load_forecast``) ⋈ **capacité**
-        (STSA), chacune réduite à sa dernière publication ``<= as_of`` par intervalle.
-        Marge = capacité − charge. Aucune valeur publiée après ``as_of`` n'entre (le
-        garde-fou look-ahead vit dans :func:`_latest_known_per_interval`).
+        Cross-dataset join: **load** (``ercot_load_forecast``) joined with **capacity**
+        (STSA), each reduced to its last publication ``<= as_of`` per interval.
+        Margin = capacity - load. No value published after ``as_of`` enters (the look-ahead
+        guardrail lives in :func:`_latest_known_per_interval`).
 
         Parameters
         ----------
         as_of
-            Horodatage de décision (UTC tz-aware), ex. cutoff ~18h CPT J-1.
+            Decision timestamp (UTC tz-aware), e.g. the ~18:00 CPT D-1 cutoff.
 
         Returns
         -------
         pd.DataFrame
             ``interval_start`` / ``interval_end`` / ``publish_time`` /
             ``forecast_load_mw`` / ``forecast_capacity_mw`` / ``reserve_margin_mw``.
-            ``forecast_capacity_mw`` (et donc la marge) est ``NaN`` si aucune capacité
-            STSA n'a d'intervalle correspondant.
+            ``forecast_capacity_mw`` (and hence the margin) is ``NaN`` if no STSA capacity
+            has a matching interval.
         """
         transport = self._transport()
-        # Fenêtre non nulle (l'API hébergée rejette start == end) ; le point-in-time
-        # est garanti par le filtre publish_time <= as_of de _latest_known_per_interval.
+        # Non-zero window (the hosted API rejects start == end); point-in-time is guaranteed
+        # by the publish_time <= as_of filter in _latest_known_per_interval.
         start = as_of - _ASOF_FETCH_LOOKBACK
         end = as_of + _ASOF_FETCH_HORIZON
         load = _latest_known_per_interval(
@@ -392,19 +390,19 @@ class ErcotMarket:
         return out.sort_values("interval_start").reset_index(drop=True)
 
     def net_load_gradient_as_of(self, as_of: pd.Timestamp) -> pd.DataFrame:
-        """Gradient (ramp) du net-load prévu connu à ``as_of`` — **prédicteur 2** de L0.
+        """Gradient (ramp) of the net-load forecast known at ``as_of`` -- L0 **predictor 2**.
 
-        Dernière prévision de net-load ``<= as_of`` par intervalle, triée, puis
-        **dérivée première** (ramp inter-intervalles). Le pic de ramp (chute solaire au
-        coucher du soleil + demande résidentielle haute) est un driver de rareté.
-        Point-in-time : rien de publié après ``as_of`` (via ``_latest_known_per_interval``) ;
-        le gradient n'utilise que la courbe de prévision connue à ``as_of``.
+        Latest net-load forecast ``<= as_of`` per interval, sorted, then the **first
+        derivative** (inter-interval ramp). The ramp peak (solar drop-off at sunset + high
+        residential demand) is a scarcity driver.
+        Point-in-time: nothing published after ``as_of`` (via ``_latest_known_per_interval``);
+        the gradient only uses the forecast curve known at ``as_of``.
 
         Returns
         -------
         pd.DataFrame
             ``interval_start`` / ``publish_time`` / ``net_load_mw`` /
-            ``net_load_gradient_mw`` (``NaN`` au premier intervalle).
+            ``net_load_gradient_mw`` (``NaN`` on the first interval).
         """
         start = as_of - _ASOF_FETCH_LOOKBACK
         end = as_of + _ASOF_FETCH_HORIZON

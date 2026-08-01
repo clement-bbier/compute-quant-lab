@@ -1,11 +1,11 @@
-"""Tests TDD : champs descriptifs optionnels sur ``Snapshot`` et parsers enrichis.
+"""TDD tests: optional descriptive fields on ``Snapshot`` and enriched parsers.
 
-Couvre :
-- (a) ``Snapshot`` accepte les nouveaux champs et ``dedup_key`` est inchangé.
-- (b) Les parsers des 5 venues peuplent effectivement les champs quand le payload
-  les expose ; ils laissent ``None`` quand absent.
-- (c) Compat ascendante : un ``Snapshot`` construit sans les nouveaux champs
-  (syntaxe pre-enrichissement) continue de fonctionner.
+Covers:
+- (a) ``Snapshot`` accepts the new fields and ``dedup_key`` is unchanged.
+- (b) The parsers of the 5 venues do populate the fields when the payload exposes them; they
+  leave ``None`` when absent.
+- (c) Backward compatibility: a ``Snapshot`` built without the new fields (pre-enrichment
+  syntax) keeps working.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from core.ingestion.providers import cudo, datacrunch, primeintellect, runpod, v
 _TS = dt.datetime(2026, 6, 21, tzinfo=dt.timezone.utc)
 
 
-# ── (a) Snapshot : nouveaux champs + dedup_key inchangé ───────────────────────
+# -- (a) Snapshot: new fields + unchanged dedup_key ---------------------------
 
 
 def test_snapshot_accepts_optional_descriptive_fields() -> None:
@@ -63,7 +63,7 @@ def test_snapshot_optional_fields_default_to_none() -> None:
 
 
 def test_snapshot_dedup_key_excludes_descriptive_fields() -> None:
-    """Les champs descriptifs n'entrent PAS dans dedup_key (idempotence point-in-time)."""
+    """The descriptive fields do NOT enter dedup_key (point-in-time idempotence)."""
     base = Snapshot(
         snapshotted_at=_TS,
         source="vastai",
@@ -90,7 +90,7 @@ def test_snapshot_dedup_key_excludes_descriptive_fields() -> None:
 
 
 def test_snapshot_backward_compat_positional_construction() -> None:
-    """Code pre-enrichissement (sans kwargs nouveaux) compile et renvoie None sur les optionnels."""
+    """Pre-enrichment code (without the new kwargs) compiles and returns None on the optionals."""
     s = Snapshot(
         snapshotted_at=_TS,
         source="cudo",
@@ -103,7 +103,7 @@ def test_snapshot_backward_compat_positional_construction() -> None:
     assert s.gpu_memory_gb is None
 
 
-# ── (b) Parsers : champs descriptifs peuplés depuis le payload ─────────────────
+# -- (b) Parsers: descriptive fields populated from the payload ----------------
 
 
 def test_vastai_populates_region_and_memory_from_payload() -> None:
@@ -128,13 +128,13 @@ def test_vastai_populates_region_and_memory_from_payload() -> None:
     assert s.vcpu == 64
     assert s.ram_gb == pytest.approx(256.0)
     assert s.disk_gb == pytest.approx(2048.0)
-    assert s.provider_detail is None  # vastai n'est pas un agrégateur
+    assert s.provider_detail is None  # vastai is not an aggregator
 
 
 def test_vastai_none_when_payload_lacks_descriptive_fields(
     vastai_offers: list[dict[str, Any]],
 ) -> None:
-    """Payload minimal (fixture W1) → champs descriptifs None."""
+    """Minimal payload (W1 fixture) -> descriptive fields None."""
     snaps = vastai.parse_vastai_offers(vastai_offers, _TS)
     for s in snaps:
         assert s.region is None
@@ -147,7 +147,7 @@ def test_vastai_none_when_payload_lacks_descriptive_fields(
 def test_runpod_populates_gpu_memory_gb() -> None:
     gpu_types: list[dict[str, Any]] = [
         {"displayName": "H100 PCIe", "securePrice": 3.50, "communityPrice": 3.20, "memoryInGb": 80},
-        {"displayName": "A40", "securePrice": 0.45, "communityPrice": 0},  # pas de memoryInGb
+        {"displayName": "A40", "securePrice": 0.45, "communityPrice": 0},  # no memoryInGb
     ]
     snaps = runpod.parse_runpod_gpu_types(gpu_types, _TS)
     by_model = {s.gpu_model: s for s in snaps}
@@ -156,7 +156,7 @@ def test_runpod_populates_gpu_memory_gb() -> None:
 
 
 def test_runpod_none_for_missing_memory(runpod_gpu_types: list[dict[str, Any]]) -> None:
-    """Fixture W1 (sans memoryInGb) → gpu_memory_gb == None."""
+    """W1 fixture (without memoryInGb) -> gpu_memory_gb == None."""
     snaps = runpod.parse_runpod_gpu_types(runpod_gpu_types, _TS)
     assert all(s.gpu_memory_gb is None for s in snaps)
 
@@ -168,33 +168,33 @@ def test_primeintellect_populates_region_memory_and_provider_detail(
     by_source = {s.source: s for s in snaps}
 
     h100 = by_source["primeintellect:datacrunch"]
-    # region doit venir de dataCenter (FIN-01) si présent
+    # region must come from dataCenter (FIN-01) when present
     assert h100.region == "FIN-01"
     assert h100.gpu_memory_gb == 80.0
     assert h100.provider_detail == "datacrunch"
 
     a100 = by_source["primeintellect:runpod"]
-    assert a100.region == "US"  # dataCenter absent → region
+    assert a100.region == "US"  # dataCenter missing -> region
     assert a100.provider_detail == "runpod"
 
     rtx = by_source["primeintellect"]
-    assert rtx.provider_detail is None  # pas de provider sous-jacent
+    assert rtx.provider_detail is None  # no underlying provider
 
 
 def test_datacrunch_populates_hardware_specs(
     datacrunch_instance_types: list[dict[str, Any]],
 ) -> None:
     snaps = datacrunch.parse_datacrunch(datacrunch_instance_types, _TS)
-    # it-1 émet on_demand+spot avec gpu_memory 640/8 = 80 Go par GPU (fixtur: 640 Go pour 8 GPU)
+    # it-1 emits on_demand+spot with gpu_memory 640/8 = 80 GB per GPU (fixture: 640 GB for 8)
     h100_snaps = [s for s in snaps if s.gpu_model == "H100"]
     assert len(h100_snaps) == 2  # on_demand + spot
     for s in h100_snaps:
-        assert s.gpu_memory_gb == pytest.approx(640.0)  # 640 Go de GPU memory totale
+        assert s.gpu_memory_gb == pytest.approx(640.0)  # 640 GB of total GPU memory
         assert s.vcpu == 176
         assert s.ram_gb == pytest.approx(1480.0)
         assert s.disk_gb == pytest.approx(2048.0)
 
-    # it-2 (A100) : sous-structures absentes → None
+    # it-2 (A100): sub-structures absent -> None
     a100_snaps = [s for s in snaps if s.gpu_model == "A100"]
     assert len(a100_snaps) == 1
     assert a100_snaps[0].gpu_memory_gb is None
@@ -213,4 +213,4 @@ def test_cudo_populates_region_and_gpu_memory(
 
     a40 = by_model["A40"]
     assert a40.region == "se-smedjebacken-1"
-    assert a40.gpu_memory_gb is None  # gpuMemoryGib absent de la fixture A40
+    assert a40.gpu_memory_gb is None  # gpuMemoryGib absent from the A40 fixture

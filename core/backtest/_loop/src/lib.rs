@@ -1,18 +1,19 @@
-//! Noyau Rust de la phase 2 du moteur de backtest (accumulation du PnL).
+//! Rust kernel for phase 2 of the backtest engine (PnL accumulation).
 //!
-//! Réplique **exactement** l'oracle Python `core/backtest/reference_loop.py`
-//! (même suite d'opérations float64, même ordre) pour garantir la parité
-//! bit-à-bit testée par `test_parity`. C'est le chemin runtime de la phase 2,
-//! la version Python ne servant que d'oracle de test.
+//! Replicates **exactly** the Python oracle `core/backtest/reference_loop.py`
+//! (same sequence of float64 operations, same order) to guarantee the
+//! bit-for-bit parity tested by `test_parity`. This is the phase 2 **fast path**:
+//! when this crate is not built, the engine falls back to that Python oracle, so
+//! results are identical either way and only throughput differs.
 
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 
 const BPS: f64 = 10_000.0;
 
-/// Accumule la série de rendements point-in-time et compte les trades.
+/// Accumulates the point-in-time return series and counts the trades.
 ///
-/// `rendement[t] = position[t-1] * (prix[t]/prix[t-1] - 1) - |Δpos| * cost_rate`.
+/// `return[t] = position[t-1] * (price[t]/price[t-1] - 1) - |Δpos| * cost_rate`.
 #[pyfunction]
 fn accumulate<'py>(
     py: Python<'py>,

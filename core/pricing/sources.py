@@ -1,12 +1,12 @@
-"""Source de prix adossée à des DataFrames pandas (pure, point-in-time).
+"""Price source backed by pandas DataFrames (pure, point-in-time).
 
-Enveloppe deux frames alignés en UTC — énergie (€/MWh, colonnes = régions) et
-compute ($/GPU·h, colonnes = GPU) — et les expose via le protocole `PriceSource`.
+Wraps two UTC-aligned frames -- energy (€/MWh, columns = regions) and compute
+($/GPU·h, columns = GPUs) -- and exposes them through the `PriceSource` protocol.
 
-Le mécanisme *as-of* (`publication_lag`) est codé mais **inactif par défaut**
-(lag = 0) : à lag nul, l'instant de connaissance d'une valeur est son propre
-timestamp. Le décalage réel s'activera au palier institutionnel (compute publié
-avec retard), sans changer l'interface.
+The *as-of* mechanism (`publication_lag`) is implemented but **inactive by default**
+(lag = 0): at zero lag, the instant a value becomes known is its own timestamp. The
+real lag will be switched on at the institutional stage (compute published with a
+delay), without changing the interface.
 """
 
 from __future__ import annotations
@@ -23,17 +23,17 @@ def _normalise(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 class DataFramePriceSource:
-    """Source de prix en mémoire (implémente `PriceSource`).
+    """In-memory price source (implements `PriceSource`).
 
     Parameters
     ----------
     energy
-        Prix spot élec en €/MWh ; index UTC tz-aware, colonnes = régions.
+        Spot electricity price in €/MWh; tz-aware UTC index, columns = regions.
     compute
-        Prix de location compute en $/GPU·h ; index UTC tz-aware, colonnes = GPU.
+        Compute rental price in $/GPU·h; tz-aware UTC index, columns = GPUs.
     energy_lag, compute_lag
-        Décalage de publication par jambe (instant de connaissance = timestamp
-        de la valeur + lag). Par défaut nul. Accepte tout objet `Timedelta`.
+        Publication lag per leg (the instant a value becomes known = the timestamp of
+        the value + lag). Zero by default. Accepts any `Timedelta`-like object.
     """
 
     def __init__(
@@ -51,7 +51,7 @@ class DataFramePriceSource:
 
     @staticmethod
     def _apply_lag(series: pd.Series, lag: pd.Timedelta) -> pd.Series:
-        """Décale l'index vers l'instant de *connaissance* (value_ts + lag)."""
+        """Shift the index to the instant of *knowledge* (value_ts + lag)."""
         if lag == pd.Timedelta(0):
             return series
         shifted = series.copy()
@@ -59,9 +59,9 @@ class DataFramePriceSource:
         return shifted
 
     def energy_price(self, region: str) -> pd.Series:
-        """Prix spot de l'électricité en €/MWh pour ``region`` (index UTC)."""
+        """Spot electricity price in €/MWh for ``region`` (UTC index)."""
         return self._apply_lag(self._energy[region], self._energy_lag)
 
     def compute_price(self, gpu: str) -> pd.Series:
-        """Prix de location du compute en $/GPU·h pour ``gpu`` (index UTC)."""
+        """Compute rental price in $/GPU·h for ``gpu`` (UTC index)."""
         return self._apply_lag(self._compute[gpu], self._compute_lag)

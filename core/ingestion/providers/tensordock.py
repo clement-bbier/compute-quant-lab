@@ -1,17 +1,18 @@
-"""Provider TensorDock : nœuds hôtes du marketplace (API v2, Bearer).
+"""TensorDock provider: marketplace host nodes (API v2, Bearer).
 
-La logique pure (``parse_tensordock``) est isolée de l'appel réseau (``fetch_tensordock``,
-token-gated). L'authentification utilise un Bearer sur ``TENSORDOCK_API_KEY``.
+The pure logic (``parse_tensordock``) is isolated from the network call (``fetch_tensordock``,
+token-gated). Authentication uses a Bearer token on ``TENSORDOCK_API_KEY``.
 
-Endpoint retenu : ``GET https://dashboard.tensordock.com/api/v2/hostnodes``
-- retourne 403 sans auth, **200 avec Bearer** (vérifié en live 2026-06-23)
-- enveloppe réelle : ``{"data": {"hostnodes": [...]}}`` — tout est sous ``data`` ; le helper
-  ``_hostnodes_records`` lit ``data.hostnodes`` et tolère l'ancienne forme plate
-  ``{"hostnodes": ...}`` ainsi qu'un mapping indexé par id.
-- ⚠️ au test live l'inventaire était **vide** (``{"data": {"hostnodes": []}}``) : le détail
-  par nœud (ci-dessous) est conçu sur la forme documentée et reste à confirmer en charge.
+Chosen endpoint: ``GET https://dashboard.tensordock.com/api/v2/hostnodes``
+- returns 403 without auth, **200 with a Bearer** (verified live 2026-06-23)
+- real envelope: ``{"data": {"hostnodes": [...]}}`` -- everything sits under ``data``; the
+  ``_hostnodes_records`` helper reads ``data.hostnodes`` and tolerates the older flat form
+  ``{"hostnodes": ...}`` as well as a mapping indexed by id.
+- Warning: during the live test the inventory was **empty**
+  (``{"data": {"hostnodes": []}}``): the per-node detail (below) is designed against the
+  documented shape and still needs confirmation under load.
 
-Schéma attendu par nœud (à confirmer en live) :
+Expected per-node schema (to be confirmed live):
 
 .. code-block:: json
 
@@ -27,17 +28,17 @@ Schéma attendu par nœud (à confirmer en live) :
         }
     }
 
-Champs **à confirmer en live** :
+Fields **to be confirmed live**:
 
-- ``specs.gpu.price`` : est-ce bien le $/GPU·h (hypothèse retenue) ou le prix du nœud
-  entier (auquel cas il faudrait diviser par ``specs.gpu.amount``) ?
-- ``specs.gpu.amount`` : GPU disponibles à la location ou total de la machine ?
-- ``specs.gpu.type`` : format exact du nom du modèle GPU (ex. ``"h100-sxm5-80gb"`` vs
+- ``specs.gpu.price`` : is it really the $/GPU·h (the assumption taken here) or the price of
+  the whole node (in which case it would need dividing by ``specs.gpu.amount``)?
+- ``specs.gpu.amount`` : GPUs available for rent, or the machine total?
+- ``specs.gpu.type`` : exact format of the GPU model name (e.g. ``"h100-sxm5-80gb"`` vs
   ``"H100 SXM5"``).
-- L'enveloppe racine est-elle ``{"hostnodes": [...]}`` ou ``{"hostnodes": {"id": {...}}}`` ?
-- L'endpoint v2 est-il bien ``/api/v2/hostnodes`` (403 sans auth = existe) ?
+- Is the root envelope ``{"hostnodes": [...]}`` or ``{"hostnodes": {"id": {...}}}``?
+- Is the v2 endpoint really ``/api/v2/hostnodes`` (403 without auth = it exists)?
 
-En cas de réponse inattendue / champ absent, le connecteur renvoie ``[]`` proprement.
+On an unexpected response / missing field, the connector cleanly returns ``[]``.
 """
 
 from __future__ import annotations
@@ -50,15 +51,16 @@ import requests
 
 from core.ingestion.protocols import Snapshot
 from core.ingestion.providers.base import normalize_gpu_model
+from core.utils.coerce import opt_float
 
 _TENSORDOCK_HOSTNODES_URL = "https://dashboard.tensordock.com/api/v2/hostnodes"
 
 
 def _hostnodes_records(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Extrait la liste des nœuds depuis l'enveloppe ``{"data": {"hostnodes": ...}}``.
+    """Extract the node list from the ``{"data": {"hostnodes": ...}}`` envelope.
 
-    Tolère aussi l'ancienne forme plate ``{"hostnodes": ...}`` (repli sur ``payload``) et que
-    ``hostnodes`` soit une liste ou un mapping indexé par id.
+    Also tolerates the older flat form ``{"hostnodes": ...}`` (falling back to ``payload``)
+    and ``hostnodes`` being either a list or a mapping indexed by id.
     """
     container = payload.get("data")
     if not isinstance(container, dict):
@@ -71,17 +73,12 @@ def _hostnodes_records(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-def _opt_float(value: Any) -> float | None:
-    """Cast optionnel en flottant (``None`` si absent/non numérique ; un booléen n'est pas un nombre)."""
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
-
-
 def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None:
-    """Convertit un nœud TensorDock en ``Snapshot``, ou ``None`` si non conforme/indisponible.
+    """Convert a TensorDock node into a ``Snapshot``, or ``None`` if malformed/unavailable.
 
-    Retient les nœuds dont ``specs.gpu`` expose une quantité dispo (``amount``) et un prix
-    strictement positifs. ``specs.gpu.price`` est supposé être le $/GPU·h ; le stock est
-    ``specs.gpu.amount``. Région et mémoire viennent de ``location`` / ``specs.gpu.vram``.
+    Keeps the nodes whose ``specs.gpu`` exposes a strictly positive available quantity
+    (``amount``) and price. ``specs.gpu.price`` is assumed to be the $/GPU·h; the stock is
+    ``specs.gpu.amount``. Region and memory come from ``location`` / ``specs.gpu.vram``.
     """
     if not isinstance(node, dict):
         return None
@@ -93,7 +90,7 @@ def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None
         amount = int(gpu.get("amount") or 0)
     except (TypeError, ValueError):
         return None
-    price = _opt_float(gpu.get("price"))
+    price = opt_float(gpu.get("price"))
     if amount <= 0 or price is None or price <= 0:
         return None
     location = node.get("location")
@@ -107,21 +104,21 @@ def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None
         lease_type="on_demand",
         availability=amount,
         region=location.get("region") or location.get("country"),
-        gpu_memory_gb=_opt_float(gpu.get("vram")),
+        gpu_memory_gb=opt_float(gpu.get("vram")),
     )
 
 
 def parse_tensordock(
     hostnodes: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
 ) -> list[Snapshot]:
-    """Transforme les hostnodes TensorDock en snapshots $/GPU·h enrichis (logique pure).
+    """Transform the TensorDock hostnodes into enriched $/GPU·h snapshots (pure logic).
 
     Parameters
     ----------
     hostnodes:
-        Liste de nœuds extraite de la réponse API (après ``_hostnodes_records``).
+        List of nodes extracted from the API response (after ``_hostnodes_records``).
     snapshotted_at:
-        Horodatage UTC tz-aware du relevé.
+        UTC tz-aware timestamp of the observation.
     """
     snaps = (_node_to_snapshot(node, snapshotted_at) for node in hostnodes)
     return [s for s in snaps if s is not None]
@@ -130,9 +127,9 @@ def parse_tensordock(
 def fetch_tensordock(
     api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
 ) -> list[Snapshot]:
-    """Appel réel à l'API TensorDock v2 → snapshots horodatés (I/O, non testé en unitaire).
+    """Real call to the TensorDock v2 API -> timestamped snapshots (I/O, not unit-tested).
 
-    En cas d'erreur réseau / schéma inattendu, renvoie ``[]`` proprement.
+    On a network error / unexpected schema, cleanly returns ``[]``.
     """
     try:
         response = requests.get(
@@ -151,11 +148,11 @@ def fetch_tensordock(
 
 
 class TensordockProvider:
-    """Provider TensorDock (token ``TENSORDOCK_API_KEY``)."""
+    """TensorDock provider (``TENSORDOCK_API_KEY`` token)."""
 
     name = "tensordock"
     required_env: tuple[str, ...] = ("TENSORDOCK_API_KEY",)
 
     def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Relève les hostnodes TensorDock (clé garantie par le registre key-gated)."""
+        """Read the TensorDock hostnodes (key guaranteed by the key-gated registry)."""
         return fetch_tensordock(os.environ["TENSORDOCK_API_KEY"], now)

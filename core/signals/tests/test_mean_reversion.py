@@ -1,8 +1,8 @@
-"""``MeanReversionSignal`` : retour à la moyenne du spread (z-score à hystérésis, promu de P02).
+"""``MeanReversionSignal``: spread mean reversion (hysteresis z-score, promoted from P02).
 
-On vérifie la **parité de décision** avec la table d'hystérésis P02 (entrée contre la déviation,
-sortie par bande morte), le caractère point-in-time (reset à ``t == 0``), et les cas dégénérés
-(historique court, fenêtre plate).
+The tests check **decision parity** with the P02 hysteresis table (entry against the deviation,
+exit through the dead band), the point-in-time behaviour (reset at ``t == 0``), and the
+degenerate cases (short history, flat window).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ def _signal() -> MeanReversionSignal:
 
 
 def test_invalid_band_is_rejected() -> None:
-    """``z_exit >= z_entry`` (bande morte vide) ou ``lookback < 2`` lèvent à la construction."""
+    """``z_exit >= z_entry`` (empty dead band) or ``lookback < 2`` raise at construction."""
     with pytest.raises(ValueError):
         MeanReversionSignal(z_entry=1.0, z_exit=1.0, lookback=20, simulated=True)
     with pytest.raises(ValueError):
@@ -27,26 +27,27 @@ def test_invalid_band_is_rejected() -> None:
 
 
 def test_enters_against_deviation_when_flat() -> None:
-    """À plat : ``z >= z_entry`` → short (-1) ; ``z <= -z_entry`` → long (+1) (entrée contre la déviation)."""
+    """When flat: ``z >= z_entry`` gives short (-1); ``z <= -z_entry`` gives long (+1), i.e. entry
+    against the deviation."""
     sig = _signal()
     assert sig.decide(z=2.5, current_position=0.0) == -1.0
     assert sig.decide(z=-2.5, current_position=0.0) == 1.0
-    assert sig.decide(z=1.0, current_position=0.0) == 0.0  # dans la bande → reste plat
+    assert sig.decide(z=1.0, current_position=0.0) == 0.0  # inside the band, stays flat
 
 
 def test_holds_in_dead_band_and_exits_below_z_exit() -> None:
-    """En position : tient tant que ``|z| > z_exit`` ; repasse à plat quand ``|z| <= z_exit``."""
+    """When in a position: holds while ``|z| > z_exit``; goes back to flat when ``|z| <= z_exit``."""
     sig = _signal()
-    assert sig.decide(z=1.0, current_position=-1.0) == -1.0  # 0.5 < 1.0 → tient
-    assert sig.decide(z=0.3, current_position=-1.0) == 0.0  # 0.3 <= 0.5 → sort
+    assert sig.decide(z=1.0, current_position=-1.0) == -1.0  # 0.5 < 1.0, holds
+    assert sig.decide(z=0.3, current_position=-1.0) == 0.0  # 0.3 <= 0.5, exits
     assert sig.decide(z=-0.3, current_position=1.0) == 0.0
 
 
 def test_fades_a_jump_above_recent_mean() -> None:
-    """Saut au-dessus de la moyenne récente (z élevé) → le signal vend (position < 0)."""
+    """A jump above the recent mean (high z) makes the signal sell (position < 0)."""
     prices = np.concatenate([np.full(20, 100.0), np.array([100.0, 130.0])]).astype(np.float64)
     sig = MeanReversionSignal(z_entry=1.5, z_exit=0.5, lookback=20, simulated=True)
-    # parcours séquentiel (état d'hystérésis) jusqu'au dernier instant
+    # sequential pass (hysteresis state) up to the last step
     out = 0.0
     for t in range(prices.shape[0]):
         out = sig.signal(GuardedView(prices, t))
@@ -54,7 +55,7 @@ def test_fades_a_jump_above_recent_mean() -> None:
 
 
 def test_resets_state_at_t_zero() -> None:
-    """Deux parcours sur la même série coïncident : l'état est réinitialisé à ``t == 0``."""
+    """Two passes over the same series coincide: the state is reset at ``t == 0``."""
     prices = np.clip(100.0 + np.cumsum(np.random.default_rng(1).standard_normal(120)), 1.0, None)
     sig = _signal()
     first = [sig.signal(GuardedView(prices, t)) for t in range(prices.shape[0])]
@@ -63,7 +64,8 @@ def test_resets_state_at_t_zero() -> None:
 
 
 def test_insufficient_history_or_flat_window_holds() -> None:
-    """Historique plus court que ``lookback`` ou écart-type nul → on garde la position (0 au départ)."""
+    """History shorter than ``lookback`` or a zero standard deviation keeps the position
+    (0 at the start)."""
     short = np.array([100.0, 101.0], dtype=np.float64)
     assert _signal().signal(GuardedView(short, 1)) == 0.0
     flat = np.full(30, 100.0, dtype=np.float64)
@@ -75,7 +77,7 @@ def test_insufficient_history_or_flat_window_holds() -> None:
 
 
 def test_provenance_is_labelled() -> None:
-    """La provenance porte le nom et le drapeau simulé fournis."""
+    """The provenance carries the supplied name and simulated flag."""
     sig = MeanReversionSignal(z_entry=2.0, z_exit=0.5, lookback=20, name="p02", simulated=True)
     assert sig.name == "p02"
     assert sig.provenance.simulated is True

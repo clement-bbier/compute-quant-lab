@@ -1,9 +1,10 @@
-"""Anti look-ahead, par producteur : le signal à ``t`` ne dépend que des données ``<= t``.
+"""Anti look-ahead, per producer: the signal at ``t`` depends only on data ``<= t``.
 
-Test fort (invariance à la falsification du futur, §6a) : on évalue chaque producteur en parcours
-séquentiel jusqu'à ``T``, puis on **saccage les prix après ``T``** et on ré-évalue jusqu'à ``T`` —
-le signal à ``T`` doit être **identique**. C'est la preuve qu'aucune information future n'entre.
-On vérifie aussi qu'un producteur *tricheur* (qui lit le futur) lève via la ``GuardedView`` de P08.
+Strong test (invariance to tampering with the future, section 6a): each producer is evaluated in
+a sequential pass up to ``T``, then the **prices after ``T`` are wrecked** and the pass is redone
+up to ``T`` — the signal at ``T`` must be **identical**. That proves no future information enters.
+The tests also check that a *cheating* producer (one that reads the future) raises through the
+P08 ``GuardedView``.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from core.signals import (
 
 
 def _run_to(producer: SignalProducer, prices: np.ndarray, upto: int) -> float:
-    """Parcours séquentiel ``0..upto`` (respecte l'état d'hystérésis) → signal à ``upto``."""
+    """Sequential pass ``0..upto`` (honours the hysteresis state), returning the signal at ``upto``."""
     out = 0.0
     for t in range(upto + 1):
         out = producer.signal(GuardedView(prices, t))
@@ -33,7 +34,8 @@ def _run_to(producer: SignalProducer, prices: np.ndarray, upto: int) -> float:
 
 
 def _factories(n: int) -> list[Callable[[], SignalProducer]]:
-    """Une fabrique par producteur (instance neuve = état réinitialisé), proba ML alignée sur ``n``."""
+    """One factory per producer (a fresh instance means a reset state), ML probabilities aligned
+    on ``n``."""
     proba = np.random.default_rng(0).random(n).astype(np.float64)
     return [
         lambda: MeanReversionSignal(z_entry=1.5, z_exit=0.5, lookback=20, simulated=True),
@@ -43,13 +45,13 @@ def _factories(n: int) -> list[Callable[[], SignalProducer]]:
 
 
 def test_signal_is_invariant_to_tampering_the_future() -> None:
-    """Falsifier les prix après ``T`` ne change pas le signal à ``T`` (aucun look-ahead)."""
+    """Tampering with the prices after ``T`` does not change the signal at ``T`` (no look-ahead)."""
     n, t_star = 120, 80
     prices = np.clip(
         100.0 + np.cumsum(np.random.default_rng(3).standard_normal(n)), 1.0, None
     ).astype(np.float64)
     tampered = prices.copy()
-    tampered[t_star + 1 :] += 75.0  # gros choc strictement dans le futur de T
+    tampered[t_star + 1 :] += 75.0  # large shock strictly in the future of T
 
     for make in _factories(n):
         original = _run_to(make(), prices, t_star)
@@ -58,14 +60,14 @@ def test_signal_is_invariant_to_tampering_the_future() -> None:
 
 
 def test_cheating_producer_is_caught_by_the_guard() -> None:
-    """Un producteur qui lit ``t + 1`` lève ``LookAheadError`` (garde-fou P08 non contournable)."""
+    """A producer reading ``t + 1`` raises ``LookAheadError`` (the P08 guard cannot be bypassed)."""
 
     class _Cheater:
         name = "cheater"
         provenance = SignalProvenance(name="cheater", simulated=True)
 
         def signal(self, view: PointInTimeView) -> float:
-            return view.at(view.t + 1)  # accès futur interdit
+            return view.at(view.t + 1)  # forbidden access to the future
 
     prices = np.arange(10, dtype=np.float64)
     with pytest.raises(LookAheadError):

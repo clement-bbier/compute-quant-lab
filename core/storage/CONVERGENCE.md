@@ -1,74 +1,79 @@
-# P11 — storage_layer · handoffs convergence
+# P11 — storage_layer · convergence handoffs
 
-> Ce lot écrit **uniquement** dans `core/storage/` + `infra/collectors/` (+ l'artefact
-> `data/snapshots/`). Tout ce qui touche la **zone protégée** (`pyproject.toml`, `.claude/`)
-> ou le module **P04 `core/ingestion/`** est listé ici pour la session de convergence — il
-> n'est **pas** appliqué dans ce worktree.
+> This batch writes **only** into `core/storage/` + `infra/collectors/` (+ the
+> `data/snapshots/` artifact). Everything touching the **protected zone**
+> (`pyproject.toml`, `.claude/`) or the **P04 `core/ingestion/`** module is listed here for
+> the convergence session — it is **not** applied in this worktree.
 
-## 1. Dépendances & config (`pyproject.toml`)
-- Ajouter aux `dependencies` : **`duckdb>=1.0`**, **`pyarrow>=15`** (le cold store et la
-  couche requête en dépendent). `pyarrow` était déjà tiré transitivement par `pandas` ;
-  `duckdb` a été installé **ad hoc** dans le venv du worktree (`pip install duckdb`) — à
-  officialiser dans le lockfile (`uv add duckdb pyarrow`).
-- Inclure les tests du module dans la CI : ajouter **`core/storage/tests`** aux `testpaths`
-  (ou au matrix de la CI qui lance chaque dossier en isolation, cf. note `pyproject` §pytest).
-- **Stub pré-existant (P04)** : `mypy` 1.20 signale `core/ingestion/gpu_market.py` (`import
-  requests`, `[import-untyped]`, non silencé par `ignore_missing_imports`). Ajouter
-  **`types-requests`** aux deps `dev` (installé ad hoc ici pour un `mypy core` vert). Non lié à P11.
+## 1. Dependencies & config (`pyproject.toml`)
+- Add to `dependencies`: **`duckdb>=1.0`**, **`pyarrow>=15`** (the cold store and the query
+  layer depend on them). `pyarrow` was already pulled in transitively by `pandas`;
+  `duckdb` was installed **ad hoc** in the worktree venv (`pip install duckdb`) — to be
+  made official in the lockfile (`uv add duckdb pyarrow`).
+- Include the module's tests in CI: add **`core/storage/tests`** to `testpaths` (or to the
+  CI matrix that runs each folder in isolation, see the `pyproject` pytest section note).
+- **Pre-existing stub (P04)**: `mypy` 1.20 flags `core/ingestion/gpu_market.py` (`import
+  requests`, `[import-untyped]`, not silenced by `ignore_missing_imports`). Add
+  **`types-requests`** to the `dev` deps (installed ad hoc here for a green `mypy core`).
+  Unrelated to P11.
 
-## 2. Fix distribution (P04 — `core/ingestion/`)  ⚠️ ne PAS éditer ici
-- **Constat** : `parse_vastai_offers` émet **une ligne par offre** (N prix H100 distincts au
-  même instant). La clé de dédup de `CsvSnapshotStore` `(t, source, modèle, bail)` les **écrase
-  à une seule ligne** → la distribution intra-source est détruite *dans le store*, alors que
-  l'agrégation appartient à l'indice (standard Silicon Data).
-- **Apporté par P11** : `ParquetPriceStore` déduplique au **contenu complet de ligne** (prix +
-  dispo inclus) → **conserve la distribution** des offres, reste un journal d'observations fidèle.
-- **À faire en convergence** : adapter `build_spot_index` / `MarketplaceProxySource` pour
-  **agréger la distribution intra-source** en un `VenueRate` (trimmed-mean par source) **avant**
-  le `latest_by_source`. Aujourd'hui, sur des offres au même timestamp, `latest_by_source`
-  retiendrait **une offre arbitraire** (dernier itéré) — incorrect dès que le store préserve la
-  distribution. Le store fournit désormais la matière première ; l'indice doit faire l'agrégation.
+## 2. Distribution fix (P04 — `core/ingestion/`)  ⚠️ do NOT edit here
+- **Observation**: `parse_vastai_offers` emits **one row per offer** (N distinct H100 prices
+  at the same instant). The dedup key of `CsvSnapshotStore` `(t, source, model, lease)`
+  **collapses them into a single row** -> the intra-source distribution is destroyed *inside
+  the store*, whereas aggregation belongs to the index (Silicon Data standard).
+- **Delivered by P11**: `ParquetPriceStore` deduplicates on the **full row content** (price +
+  availability included) -> **keeps the distribution** of offers, remains a faithful journal
+  of observations.
+- **To do at convergence**: adapt `build_spot_index` / `MarketplaceProxySource` to
+  **aggregate the intra-source distribution** into a `VenueRate` (trimmed mean per source)
+  **before** the `latest_by_source`. Today, on offers sharing a timestamp,
+  `latest_by_source` would keep **an arbitrary offer** (last iterated) — incorrect as soon
+  as the store preserves the distribution. The store now supplies the raw material; the
+  index must do the aggregation.
 
-## 3. Repointer l'indice sur le cold store Parquet (P04)  ⚠️ ne PAS éditer ici
-- `MarketplaceProxySource.fetch` lit aujourd'hui `CsvSnapshotStore.load()`. Le brancher sur le
-  cold store Parquet : soit `ParquetPriceStore(...).read(as_of=...)`, soit une requête DuckDB
-  (`core.storage.duckdb_query.query`) pour les jointures point-in-time à l'échelle.
-- Bénéfice : lecture typée/colonne, point-in-time natif (`as_of`), versionnée DVC.
+## 3. Repoint the index at the Parquet cold store (P04)  ⚠️ do NOT edit here
+- `MarketplaceProxySource.fetch` currently reads `CsvSnapshotStore.load()`. Wire it to the
+  Parquet cold store: either `ParquetPriceStore(...).read(as_of=...)`, or a DuckDB query
+  (`core.storage.duckdb_query.query`) for point-in-time joins at scale.
+- Benefit: typed/columnar reads, native point-in-time (`as_of`), DVC-versioned.
 
-## 4. Seed réel + DVC-track du cold store  ⛔ bloqué dans ce worktree
-- **Décision directeur** : *seed réel via collecteur live*. **Non exécutable ici** : ce worktree
-  n'a **pas de `.env`** (créé via `git worktree add`, qui n'honore pas `.worktreeinclude`) et
-  aucune clé `VASTAI_API_KEY` / `RUNPOD_API_KEY` dans l'environnement ; la lecture du `.env`
-  principal est (correctement) refusée par le garde-fou crédentiels. Aucune donnée n'a été
-  fabriquée (rule réel/simulé).
-- **À exécuter dans un environnement avec tokens** (convergence ou poste avec `.env`) :
+## 4. Real seed + DVC tracking of the cold store  ⛔ blocked in this worktree
+- **Director's decision**: *real seed via the live collector*. **Not executable here**: this
+  worktree has **no `.env`** (created via `git worktree add`, which does not honor
+  `.worktreeinclude`) and no `VASTAI_API_KEY` / `RUNPOD_API_KEY` key in the environment;
+  reading the main `.env` is (correctly) refused by the credentials guardrail. No data was
+  fabricated (real/simulated rule).
+- **To be run in an environment with tokens** (convergence or a machine with `.env`):
   ```bash
-  # 1) relevé live -> double écriture CSV (P04) + Parquet (cold store)
+  # 1) live reading -> dual write CSV (P04) + Parquet (cold store)
   python -m infra.collectors.gpu_price_snapshot
-  # 2) versionner le lac Parquet produit (pointeurs *.parquet.dvc, cf. .gitignore)
-  dvc add data/snapshots/**/*.parquet      # ou : dvc add data/snapshots
+  # 2) version the produced Parquet lake (*.parquet.dvc pointers, see .gitignore)
+  dvc add data/snapshots/**/*.parquet      # or: dvc add data/snapshots
   git add data/snapshots/**/*.dvc data/.gitignore
-  # 3) run consommateur (logge la version DVC via MLflow) — repro
+  # 3) consumer run (logs the DVC version via MLflow) — repro
   python -m core.storage.demo
   ```
-- La couche est prête : dès qu'une donnée existe, `ParquetPriceStore` la partitionne et DuckDB
-  la requête ; `core.utils.tracking` logge la version DVC.
+- The layer is ready: as soon as data exists, `ParquetPriceStore` partitions it and DuckDB
+  queries it; `core.utils.tracking` logs the DVC version.
 
-## 5. Nouvel employé — persona `infra-engineer` (à enregistrer via `agent-architect` / `/new-agent`)
-> Décrit ici (la zone `.claude/agents/` est protégée). À matérialiser en convergence.
+## 5. New employee — `infra-engineer` persona (to register via `agent-architect` / `/new-agent`)
+> Described here (the `.claude/agents/` zone is protected). To be materialized at convergence.
 
-- **name** : `infra-engineer`
-- **description** : « Services planifiés, stockage et CI du labo : collecteurs (snapshot prix
-  GPU), cold store Parquet/DVC, couche requête DuckDB, et — phases institutionnelles —
-  docker-compose Redpanda/TimescaleDB/Redis. À appeler pour poser/maintenir l'infra données. »
-- **tools** : `Read, Write, Edit, Bash` (build/test/dvc/compose) — pas de réseau applicatif.
-- **système (esquisse)** : possède `core/storage/` + `infra/` ; respecte 1 worktree = 1 module ;
-  ne touche jamais la zone protégée (remonte un patch convergence) ; tests-first ; cold store
-  immuable et versionné DVC ; **local-first** (docker-compose), managed cloud au seul palier
-  institutionnel ; ne monte Redpanda/Timescale/Redis **qu'après** décision de ticker intraday
-  (anti-sur-ingénierie, roadmap §4).
+- **name**: `infra-engineer`
+- **description**: "The lab's scheduled services, storage and CI: collectors (GPU price
+  snapshot), Parquet/DVC cold store, DuckDB query layer, and — institutional phases —
+  docker-compose Redpanda/TimescaleDB/Redis. To be called to set up/maintain the data
+  infrastructure."
+- **tools**: `Read, Write, Edit, Bash` (build/test/dvc/compose) — no application network.
+- **system prompt (sketch)**: owns `core/storage/` + `infra/`; respects 1 worktree = 1
+  module; never touches the protected zone (escalates a convergence patch); tests-first;
+  immutable, DVC-versioned cold store; **local-first** (docker-compose), managed cloud only
+  at the institutional tier; brings up Redpanda/Timescale/Redis **only after** the decision
+  to tick intraday (anti-over-engineering, roadmap section 4).
 
 ## 6. Skill / rule candidate
-- **Rule** (path-scopée modèles/entraînement) : « l'entraînement lit **toujours** le cold store
-  versionné (`core.storage`), **jamais** le hot store (Timescale/Redis) ». Matérialise le principe
-  non négociable de `docs/storage-roadmap.md` §0. À ajouter sous `.claude/rules/` en convergence.
+- **Rule** (path-scoped to models/training): "training **always** reads the versioned cold
+  store (`core.storage`), **never** the hot store (Timescale/Redis)". Materializes the
+  non-negotiable principle of `docs/storage-roadmap.md` section 0. To be added under
+  `.claude/rules/` at convergence.

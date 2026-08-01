@@ -1,14 +1,15 @@
-"""Cold store énergie (séries temporelles point-in-time) — Parquet partitionné.
+"""Energy cold store (point-in-time time series) — partitioned Parquet.
 
-Format **long** : ``(source, series, publish_time, interval_start, value)``. La colonne
-``publish_time`` préserve le **point-in-time** des prévisions (load / capacité STSA /
-net-load : connues à leur heure de publication) ; pour les séries *réalisées* (prix RTM),
-``publish_time = interval_start`` (connu en fin d'intervalle).
+**Long** format: ``(source, series, publish_time, interval_start, value)``. The
+``publish_time`` column preserves the **point-in-time** of forecasts (load / STSA
+capacity / net-load: known at their publication time); for *realized* series (RTM
+prices), ``publish_time = interval_start`` (known at the end of the interval).
 
-Append-only, **idempotent au contenu**, partitionné ``series`` / mois — socle de
-reproductibilité de la calibration (rule training-cold-store : l'entraînement lit ce lac
-immuable versionné DVC, jamais du live). Parallèle au lac de prix GPU (``ParquetPriceStore``),
-schéma distinct car l'énergie porte deux horodatages (publication + cible).
+Append-only, **content-idempotent**, partitioned by ``series`` / month — the foundation
+of calibration reproducibility (training-cold-store rule: training reads this immutable
+DVC-versioned lake, never live data). Parallel to the GPU price lake
+(``ParquetPriceStore``), with a distinct schema because energy carries two timestamps
+(publication + target).
 """
 
 from __future__ import annotations
@@ -20,18 +21,18 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as pads
 
-#: Marché d'origine (``"ercot"``).
+#: Originating market (``"ercot"``).
 SOURCE = "source"
-#: Série (``"rtm_spp"`` / ``"load_forecast"`` / ``"available_capacity"`` / ``"net_load_forecast"``).
+#: Series (``"rtm_spp"`` / ``"load_forecast"`` / ``"available_capacity"`` / ``"net_load_forecast"``).
 SERIES = "series"
-#: Heure de publication (UTC tz-aware) — clé du point-in-time des prévisions.
+#: Publication time (UTC tz-aware) — key to the point-in-time of forecasts.
 PUBLISH_TIME = "publish_time"
-#: Heure cible de l'intervalle (UTC tz-aware).
+#: Target time of the interval (UTC tz-aware).
 INTERVAL_START = "interval_start"
-#: Valeur observée ($/MWh pour RTM, MW pour charge/capacité/net-load).
+#: Observed value ($/MWh for RTM, MW for load/capacity/net-load).
 VALUE = "value"
 
-#: Colonnes obligatoires du schéma énergie.
+#: Mandatory columns of the energy schema.
 COLUMNS: list[str] = [SOURCE, SERIES, PUBLISH_TIME, INTERVAL_START, VALUE]
 
 _MONTH = "month"
@@ -41,16 +42,16 @@ _PARTITIONING = pads.partitioning(
 
 
 def normalize_energy_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    """Projette ``frame`` sur le schéma énergie et force les dtypes (horodatages UTC)."""
+    """Project ``frame`` onto the energy schema and enforce dtypes (UTC timestamps)."""
     missing = [c for c in COLUMNS if c not in frame.columns]
     if missing:
-        raise ValueError(f"Colonnes manquantes pour le cold store énergie : {missing}.")
+        raise ValueError(f"frame columns ({missing}) must be present for the energy cold store.")
     out = frame.loc[:, COLUMNS].copy()
     for col in (PUBLISH_TIME, INTERVAL_START):
         ts = pd.to_datetime(out[col])
         if getattr(ts.dtype, "tz", None) is None:
             if ts.notna().any():
-                raise ValueError(f"{col} naïf interdit : datetime tz-aware (UTC) requis.")
+                raise ValueError(f"{col} must be a tz-aware datetime (UTC), not naive.")
             ts = ts.dt.tz_localize("UTC")
         else:
             ts = ts.dt.tz_convert("UTC")
@@ -62,12 +63,12 @@ def normalize_energy_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 class EnergyColdStore:
-    """Lac Parquet énergie partitionné ``series`` / mois (point-in-time, idempotent).
+    """Energy Parquet lake partitioned by ``series`` / month (point-in-time, idempotent).
 
     Parameters
     ----------
     root
-        Racine du lac (créée si absente).
+        Root of the lake (created if absent).
     """
 
     def __init__(self, root: Path | str) -> None:
@@ -75,7 +76,7 @@ class EnergyColdStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def write(self, frame: pd.DataFrame) -> int:
-        """Append ``frame`` (typé, partitionné, dédupliqué) ; renvoie le nb de lignes neuves."""
+        """Append ``frame`` (typed, partitioned, deduplicated); returns the number of new rows."""
         frame = normalize_energy_frame(frame)
         if frame.empty:
             return 0
@@ -102,7 +103,7 @@ class EnergyColdStore:
         return len(part)
 
     def read(self, *, series: str | None = None) -> pd.DataFrame:
-        """Relit le lac (optionnellement filtré sur une ``series``) en frame typé."""
+        """Read the lake back (optionally filtered on a ``series``) as a typed frame."""
         if not any(self.root.rglob("*.parquet")):
             return normalize_energy_frame(pd.DataFrame(columns=COLUMNS))
         dataset = pads.dataset(

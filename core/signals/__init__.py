@@ -1,11 +1,11 @@
-"""Producteurs de signaux réutilisables (fondation du labo).
+"""Reusable signal producers (lab foundation).
 
-Promotion *PoC → fondation* : la logique de signal des projets de recherche remonte ici,
-derrière une interface commune (`SignalProducer`) compatible avec le moteur de backtest P08.
+*PoC to foundation* promotion: signal logic from research projects moves up here, behind a
+common interface (`SignalProducer`) compatible with the P08 backtest engine.
 
-- `MeanReversionSignal` — retour à la moyenne du spread (z-score à hystérésis, promu de P02).
-- `FuturesBasisSignal` — carry/roll de la base future↔spot (sur le cost-of-carry de P06).
-- `MLEnsembleSignal` — signal directionnel ML hors-échantillon (enveloppe l'adaptateur P09).
+- `MeanReversionSignal` — spread mean reversion (hysteresis z-score, promoted from P02).
+- `FuturesBasisSignal` — carry/roll of the future/spot basis (on top of the P06 cost-of-carry).
+- `MLEnsembleSignal` — out-of-sample ML directional signal (wraps the P09 adapter).
 """
 
 from core.signals.futures_basis import FuturesBasisSignal

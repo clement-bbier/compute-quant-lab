@@ -1,9 +1,9 @@
-"""Migration du cold store historique : CSV mensuels (P04) → lac Parquet (Phase 0).
+"""Historical cold store migration: monthly CSV files (P04) to the Parquet lake (Phase 0).
 
-Bascule la série propriétaire ``data/snapshots/gpu_prices_*.csv`` vers le lac Parquet
-partitionné, **sans perte** : la lecture réutilise le ``CsvSnapshotStore`` de P04 (donc
-le format CSV reste sa source de vérité), puis ``PriceStore.write`` (idempotent) absorbe
-les lignes. Rejouer la migration est un no-op (aucun doublon).
+Switches the proprietary ``data/snapshots/gpu_prices_*.csv`` series over to the
+partitioned Parquet lake, **losslessly**: reading reuses the P04 ``CsvSnapshotStore`` (so
+the CSV format remains its source of truth), then ``PriceStore.write`` (idempotent)
+absorbs the rows. Replaying the migration is a no-op (no duplicates).
 """
 
 from __future__ import annotations
@@ -16,19 +16,19 @@ from core.storage.protocols import PriceStore
 
 
 def migrate_csv_snapshots(csv_dir: Path | str, store: PriceStore) -> int:
-    """Migre les snapshots CSV de ``csv_dir`` vers ``store`` ; renvoie le nb de lignes neuves.
+    """Migrate the CSV snapshots of ``csv_dir`` to ``store``; returns the number of new rows.
 
     Parameters
     ----------
     csv_dir
-        Répertoire des ``gpu_prices_YYYYMM.csv`` (lu via ``CsvSnapshotStore``).
+        Directory of the ``gpu_prices_YYYYMM.csv`` files (read via ``CsvSnapshotStore``).
     store
-        Cold store de destination (typiquement un ``ParquetPriceStore``).
+        Destination cold store (typically a ``ParquetPriceStore``).
 
     Returns
     -------
     int
-        Nombre de lignes effectivement écrites (0 si déjà migré ou répertoire vide).
+        Number of rows actually written (0 if already migrated or the directory is empty).
     """
     snapshots = CsvSnapshotStore(Path(csv_dir)).load()
     return store.write(snapshots_to_frame(snapshots))

@@ -1,13 +1,13 @@
-"""Tests du connecteur TensorDock : parser robuste, hostnodes v2, cas dégénérés.
+"""Tests of the TensorDock connector: robust parser, v2 hostnodes, degenerate cases.
 
-Patron TDD : on appelle ``parse_tensordock`` directement (zéro réseau) et on vérifie
-les ``Snapshot`` produits. Les tests réseau utilisent ``patch_tensordock_network`` (conftest).
+TDD pattern: we call ``parse_tensordock`` directly (zero network) and check the ``Snapshot``
+rows produced. The network tests use ``patch_tensordock_network`` (conftest).
 
 Endpoint retenu : ``GET https://dashboard.tensordock.com/api/v2/hostnodes``
-  (retourne 403 sans auth — confirme que l'endpoint existe).
+  (returns 403 without auth -- confirms the endpoint exists).
 
-Schéma par nœud (à confirmer en live) :
-  ``specs.gpu.{amount, type, price}`` où ``price`` = $/GPU·h (hypothèse).
+Per-node schema (to be confirmed live):
+  ``specs.gpu.{amount, type, price}`` where ``price`` = $/GPU·h (assumption).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from core.ingestion.providers.tensordock import (
 _TS = dt.datetime(2026, 6, 23, tzinfo=dt.timezone.utc)
 
 
-# ── _hostnodes_records ────────────────────────────────────────────────────────
+# -- _hostnodes_records --------------------------------------------------------
 
 
 def test_hostnodes_records_accepts_list(
@@ -56,12 +56,12 @@ def test_hostnodes_records_unexpected_type_returns_empty() -> None:
 def test_hostnodes_records_reads_data_envelope(
     tensordock_hostnodes: list[dict[str, Any]],
 ) -> None:
-    """Enveloppe v2 réelle (vérifiée en live) : ``{"data": {"hostnodes": [...]}}``."""
+    """Real v2 envelope (verified live): ``{"data": {"hostnodes": [...]}}``."""
     result = _hostnodes_records({"data": {"hostnodes": tensordock_hostnodes}})
     assert result == tensordock_hostnodes
 
 
-# ── parse_tensordock ──────────────────────────────────────────────────────────
+# -- parse_tensordock ----------------------------------------------------------
 
 
 def test_parse_tensordock_happy_path(
@@ -89,7 +89,7 @@ def test_parse_tensordock_skips_zero_amount(
     tensordock_hostnodes: list[dict[str, Any]],
 ) -> None:
     snaps = parse_tensordock(tensordock_hostnodes, _TS)
-    # hn-3 a amount=0 → écarté
+    # hn-3 has amount=0 -> discarded
     assert all(s.availability > 0 for s in snaps)
 
 
@@ -123,7 +123,7 @@ def test_parse_tensordock_skips_non_dict_gpu() -> None:
 
 
 def test_parse_tensordock_skips_non_dict_node() -> None:
-    # L'enveloppe peut contenir des entrées corrompues
+    # The envelope may contain corrupted entries
     nodes: list[Any] = ["not-a-dict", None, 42]
     assert parse_tensordock(nodes, _TS) == []
 
@@ -144,7 +144,7 @@ def test_parse_tensordock_snapshotted_at_preserved(
 
 
 def test_parse_tensordock_handles_amount_as_string() -> None:
-    """``amount`` peut être une chaîne dans certaines implémentations."""
+    """``amount`` may be a string in some implementations."""
     nodes = [
         {"id": "x", "specs": {"gpu": {"amount": "4", "type": "H100", "price": 2.5}}},
     ]
@@ -158,7 +158,7 @@ def test_parse_tensordock_empty_list_returns_empty() -> None:
 
 
 def test_parse_tensordock_normalizes_gpu_type() -> None:
-    """Le champ ``type`` (ex. ``'h100-sxm5-80gb'``) est normalisé en ``'H100'``."""
+    """The ``type`` field (e.g. ``'h100-sxm5-80gb'``) is normalised to ``'H100'``."""
     nodes = [
         {"id": "y", "specs": {"gpu": {"amount": 1, "type": "h100-sxm5-80gb", "price": 3.0}}},
     ]
@@ -166,7 +166,7 @@ def test_parse_tensordock_normalizes_gpu_type() -> None:
     assert snaps[0].gpu_model == "H100"
 
 
-# ── fetch_tensordock (réseau mocké) ──────────────────────────────────────────
+# -- fetch_tensordock (mocked network) -----------------------------------------
 
 
 def test_fetch_tensordock_happy_path(
@@ -217,7 +217,7 @@ def test_fetch_tensordock_returns_empty_on_non_dict_response(
 def test_fetch_tensordock_uses_bearer_auth(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Vérifie que l'auth Bearer est bien envoyée dans les headers."""
+    """Check that the Bearer auth is properly sent in the headers."""
     captured: dict[str, Any] = {}
     from core.ingestion.providers.tests.conftest import FakeResponse
 

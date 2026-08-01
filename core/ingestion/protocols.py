@@ -1,22 +1,22 @@
-"""Protocoles et types de la jambe compute (ingestion).
+"""Protocols and types of the compute leg (ingestion).
 
-Définit les abstractions injectables (DI / SOLID) du sous-système d'ingestion
-compute et les types de données immuables qui circulent entre les couches :
-source d'indice → store de snapshots → agrégation → indice spot propre.
+Defines the injectable abstractions (DI / SOLID) of the compute ingestion subsystem and the
+immutable data types that flow between the layers: index source -> snapshot store ->
+aggregation -> clean spot index.
 
-Deux familles d'abstractions, toutes interchangeables par injection (OCP) :
+Two families of abstractions, all interchangeable through injection (OCP):
 
-- **sources** (:class:`ComputeIndexSource`) : d'où viennent les prix (Silicon Data,
-  proxy marketplace, …) ;
-- **agrégation** (:class:`OutlierFilter`, :class:`IndexEstimator`) : comment des prix
-  par-venue hétérogènes deviennent un prix canonique. Ajouter une méthode = nouvelle
-  implémentation, sans toucher au cœur ``build_spot_index``.
+- **sources** (:class:`ComputeIndexSource`): where the prices come from (Silicon Data, a
+  marketplace proxy, etc.);
+- **aggregation** (:class:`OutlierFilter`, :class:`IndexEstimator`): how heterogeneous
+  per-venue prices become one canonical price. Adding a method means a new implementation,
+  without touching the ``build_spot_index`` core.
 
-Tous les horodatages sont UTC timezone-aware (règle d'intégrité des données) : les
-dataclasses normalisent à la construction et refusent un datetime naïf, si bien qu'un
-état illégal (instant ambigu) ne peut pas être représenté.
+Every timestamp is UTC timezone-aware (data integrity rule): the dataclasses normalise on
+construction and reject a naive datetime, so an illegal state (an ambiguous instant) cannot
+be represented.
 
-Unité de prix : USD par GPU·heure ($/GPU·h), conformément au cadrage P04.
+Price unit: USD per GPU-hour ($/GPU·h), per the P04 framing.
 """
 
 from __future__ import annotations
@@ -28,42 +28,41 @@ from typing import Iterable, Protocol, Sequence, runtime_checkable
 
 
 def ensure_utc(ts: dt.datetime) -> dt.datetime:
-    """Convertit ``ts`` en UTC ; lève si ``ts`` est naïf.
+    """Convert ``ts`` to UTC; raise if ``ts`` is naive.
 
     Parameters
     ----------
     ts
-        Horodatage timezone-aware. Un datetime naïf est rejeté pour éviter toute
-        ambiguïté point-in-time.
+        Timezone-aware timestamp. A naive datetime is rejected to avoid any point-in-time
+        ambiguity.
 
     Returns
     -------
     datetime.datetime
-        Le même instant, exprimé en UTC.
+        The same instant, expressed in UTC.
 
     Raises
     ------
     ValueError
-        Si ``ts`` n'a pas de fuseau (datetime naïf).
+        If ``ts`` carries no timezone (naive datetime).
     """
     if ts.tzinfo is None:
-        raise ValueError("Horodatage naïf interdit : fournir un datetime tz-aware (UTC).")
+        raise ValueError("ts must be tz-aware (UTC): a naive datetime is forbidden.")
     return ts.astimezone(dt.timezone.utc)
 
 
 @dataclass(frozen=True)
 class Snapshot:
-    """Relevé de prix d'une source compute à un instant donné (unité brute).
+    """Price observation from a compute source at a given instant (raw unit).
 
-    Unité append-only stockée et dédupliquée par le :class:`SnapshotStore`. Le prix
-    est en USD par GPU·heure. ``lease_type`` distingue on-demand / spot / reserved :
-    on n'agrège jamais des types de bail différents (standard Silicon Data).
+    Append-only unit stored and deduplicated by the :class:`SnapshotStore`. The price is in
+    USD per GPU-hour. ``lease_type`` distinguishes on-demand / spot / reserved: different
+    lease types are never aggregated together (Silicon Data standard).
 
-    Les champs descriptifs optionnels (``region``, ``gpu_memory_gb``, ``vcpu``,
-    ``ram_gb``, ``disk_gb``, ``provider_detail``) enrichissent le relevé quand l'API
-    de la venue les expose. Ils N'entrent PAS dans ``dedup_key`` : l'idempotence
-    reste (instant, source, modèle, bail) — les métadonnées hardware ne brisent pas
-    la dédup point-in-time.
+    The optional descriptive fields (``region``, ``gpu_memory_gb``, ``vcpu``, ``ram_gb``,
+    ``disk_gb``, ``provider_detail``) enrich the observation when the venue's API exposes
+    them. They do NOT take part in ``dedup_key``: idempotence stays on (instant, source,
+    model, lease) -- hardware metadata never breaks point-in-time deduplication.
     """
 
     snapshotted_at: dt.datetime
@@ -72,7 +71,7 @@ class Snapshot:
     price_usd_per_hour: float
     lease_type: str = "on_demand"
     availability: int = 0
-    # ── champs descriptifs optionnels (compat ascendante : tout existant compile) ──
+    # -- optional descriptive fields (backward compatible: all existing code compiles) --
     region: str | None = None
     gpu_memory_gb: float | None = None
     vcpu: int | None = None
@@ -85,16 +84,17 @@ class Snapshot:
 
     @property
     def dedup_key(self) -> tuple[str, str, str, str]:
-        """Clé naturelle d'idempotence : (instant ISO, source, modèle GPU, type de bail)."""
+        """Natural idempotence key: (ISO instant, source, GPU model, lease type)."""
         return (self.snapshotted_at.isoformat(), self.source, self.gpu_model, self.lease_type)
 
 
 @dataclass(frozen=True)
 class VenueRate:
-    """Taux représentatif d'une venue (marketplace) entrant dans l'agrégation.
+    """Representative rate of one venue (marketplace) entering the aggregation.
 
-    Produit en réduisant, par source, les snapshots frais au plus récent. C'est l'unité
-    que voient les stratégies d'agrégation (:class:`OutlierFilter`, :class:`IndexEstimator`).
+    Produced by reducing, per source, the fresh snapshots down to the most recent one. This
+    is the unit the aggregation strategies see (:class:`OutlierFilter`,
+    :class:`IndexEstimator`).
     """
 
     source: str
@@ -108,11 +108,11 @@ class VenueRate:
 
 @dataclass(frozen=True)
 class SpotIndexPoint:
-    """Valeur canonique de l'indice spot compute pour un modèle à un instant.
+    """Canonical value of the compute spot index for one model at one instant.
 
-    Produit par ``build_spot_index`` en agrégeant plusieurs venues. ``method`` trace la
-    config d'agrégation (estimateur + filtre) et ``oldest_obs_at`` l'âge du plus vieux
-    relevé retenu : ensemble ils rendent chaque point **auditable et rejouable**.
+    Produced by ``build_spot_index`` by aggregating several venues. ``method`` records the
+    aggregation config (estimator + filter) and ``oldest_obs_at`` the age of the oldest
+    observation kept: together they make every point **auditable and replayable**.
     """
 
     as_of: dt.datetime
@@ -130,53 +130,53 @@ class SpotIndexPoint:
 
 @runtime_checkable
 class ComputeIndexSource(Protocol):
-    """Source de prix compute (Silicon Data, proxy marketplace, …).
+    """Compute price source (Silicon Data, marketplace proxy, etc.).
 
-    Abstraction d'injection : l'indice agrège des sources via ce protocole, donc
-    ajouter une marketplace = nouvelle implémentation sans toucher au cœur (OCP).
+    Injection abstraction: the index aggregates sources through this protocol, so adding a
+    marketplace means a new implementation without touching the core (OCP).
     """
 
     def fetch(self, start: dt.datetime, end: dt.datetime) -> Sequence[Snapshot]:
-        """Renvoie les relevés disponibles dans la fenêtre ``[start, end]`` (UTC)."""
+        """Return the observations available in the ``[start, end]`` window (UTC)."""
         ...
 
 
 @runtime_checkable
 class SnapshotStore(Protocol):
-    """Stockage append-only et idempotent des snapshots de prix compute."""
+    """Append-only, idempotent storage of compute price snapshots."""
 
     def append(self, rows: Iterable[Snapshot]) -> Path:
-        """Append ``rows`` en dédupliquant par clé naturelle ; renvoie le fichier écrit."""
+        """Append ``rows``, deduplicating by natural key; return the file written."""
         ...
 
     def load(self) -> list[Snapshot]:
-        """Recharge tous les snapshots stockés (ordre non garanti)."""
+        """Reload every stored snapshot (order not guaranteed)."""
         ...
 
 
 @runtime_checkable
 class OutlierFilter(Protocol):
-    """Stratégie de rejet des taux aberrants avant agrégation (interchangeable)."""
+    """Strategy for rejecting aberrant rates before aggregation (interchangeable)."""
 
     @property
     def name(self) -> str:
-        """Identifiant court tracé dans ``SpotIndexPoint.method`` (ex. ``mad2.5``)."""
+        """Short identifier recorded in ``SpotIndexPoint.method`` (e.g. ``mad2.5``)."""
         ...
 
     def filter(self, rates: Sequence[VenueRate]) -> list[VenueRate]:
-        """Renvoie le sous-ensemble des taux conservés (outliers retirés)."""
+        """Return the subset of rates kept (outliers removed)."""
         ...
 
 
 @runtime_checkable
 class IndexEstimator(Protocol):
-    """Stratégie d'agrégation de taux par-venue en un prix canonique (interchangeable)."""
+    """Strategy aggregating per-venue rates into a canonical price (interchangeable)."""
 
     @property
     def name(self) -> str:
-        """Identifiant court tracé dans ``SpotIndexPoint.method`` (ex. ``trimmed_mean20``)."""
+        """Short identifier recorded in ``SpotIndexPoint.method`` (e.g. ``trimmed_mean20``)."""
         ...
 
     def estimate(self, rates: Sequence[VenueRate]) -> float:
-        """Agrège les ``rates`` (non vides) en un unique prix $/GPU·h."""
+        """Aggregate the (non-empty) ``rates`` into a single $/GPU·h price."""
         ...

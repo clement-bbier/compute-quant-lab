@@ -1,6 +1,6 @@
-"""Moteur de backtest reproductible + métriques de risque (fondation du labo).
+"""Reproducible backtest engine + risk metrics (lab foundation).
 
-Point-in-time, polyglotte (phase 2 Rust), garde-fou anti look-ahead intégré.
+Point-in-time, polyglot (Rust phase 2), with a built-in anti look-ahead guard.
 """
 
 from core.backtest.costs import LinearCostModel

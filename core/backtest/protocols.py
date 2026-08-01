@@ -1,8 +1,8 @@
-"""Contrats du moteur de backtest (SOLID / DI).
+"""Backtest engine contracts (SOLID / DI).
 
-Le moteur orchestre via ces abstractions : `Strategy`, `CostModel`,
-`MetricsCalculator` et `PointInTimeView` sont **injectés**, jamais codés en dur.
-Un nouveau type de stratégie ne modifie donc pas le moteur (OCP).
+The engine orchestrates through these abstractions: `Strategy`, `CostModel`,
+`MetricsCalculator` and `PointInTimeView` are **injected**, never hard-coded.
+A new kind of strategy therefore does not modify the engine (OCP).
 """
 
 from __future__ import annotations
@@ -10,16 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-import numpy as np
-from numpy.typing import NDArray
-
-#: Tableau de flottants double précision (les séries du moteur sont en float64).
-FloatArray = NDArray[np.float64]
+#: Re-exported from :mod:`core.utils.types` so the public alias name is unchanged.
+from core.utils.types import FloatArray
 
 
 @dataclass(frozen=True)
 class Trade:
-    """Variation de position à un instant donné (ce qui déclenche un coût)."""
+    """Position change at a given instant (what triggers a cost)."""
 
     t: int
     delta_position: float
@@ -28,9 +25,9 @@ class Trade:
 
 @dataclass(frozen=True)
 class Ledger:
-    """Sortie de la phase 2 : comptabilité période par période.
+    """Phase 2 output: period-by-period accounting.
 
-    Tous les tableaux ont la même longueur que la série de prix.
+    All arrays have the same length as the price series.
     """
 
     returns: FloatArray
@@ -42,11 +39,11 @@ class Ledger:
 
 @dataclass(frozen=True)
 class BacktestResult:
-    """Résultat *pur* d'un run : comptabilité + métriques + params.
+    """*Pure* result of a run: accounting + metrics + params.
 
-    Les métadonnées de reproductibilité (SHA git, version DVC, run_id) ne vivent
-    pas ici : elles sont loggées dans MLflow par `core.backtest.tracking` (le run
-    est rejouable depuis son seul run_id MLflow). Garde le moteur sans I/O caché.
+    Reproducibility metadata (git SHA, DVC version, run_id) does not live here:
+    it is logged to MLflow by `core.backtest.tracking` (the run is replayable from
+    its MLflow run_id alone). Keeps the engine free of hidden I/O.
     """
 
     ledger: Ledger
@@ -56,46 +53,43 @@ class BacktestResult:
 
 @runtime_checkable
 class PointInTimeView(Protocol):
-    """Vue de données restreinte à l'instant courant t : ne voit que ≤ t.
+    """Data view restricted to the current instant t: sees only ≤ t.
 
-    Toute tentative d'accès à un index > t doit lever `LookAheadError`.
+    Any attempt to access an index > t must raise `LookAheadError`.
     """
 
-    #: Index temporel courant (les stratégies indexent relativement à `t`).
+    #: Current time index (strategies index relative to `t`).
     t: int
 
     def history(self) -> FloatArray:
-        """Toutes les valeurs connues jusqu'à t inclus."""
+        """All values known up to and including t."""
         ...
 
     def latest(self) -> float:
-        """Valeur à l'instant courant t."""
+        """Value at the current instant t."""
         ...
 
     def at(self, i: int) -> float:
-        """Valeur à l'index i ; lève `LookAheadError` si i > t."""
+        """Value at index i; raises `LookAheadError` if i > t."""
         ...
 
 
 @runtime_checkable
 class Strategy(Protocol):
-    """Produit une position cible à t à partir de données ≤ t uniquement."""
+    """Produces a target position at t from data ≤ t only."""
 
-    def signal(self, view: PointInTimeView) -> float:
-        ...
+    def signal(self, view: PointInTimeView) -> float: ...
 
 
 @runtime_checkable
 class CostModel(Protocol):
-    """Coût (€) d'un trade : frais + slippage."""
+    """Cost (€) of a trade: fees + slippage."""
 
-    def cost(self, trade: Trade) -> float:
-        ...
+    def cost(self, trade: Trade) -> float: ...
 
 
 @runtime_checkable
 class MetricsCalculator(Protocol):
-    """Calcule les métriques de risque à partir d'un `Ledger`."""
+    """Computes risk metrics from a `Ledger`."""
 
-    def compute(self, ledger: Ledger) -> dict[str, float]:
-        ...
+    def compute(self, ledger: Ledger) -> dict[str, float]: ...

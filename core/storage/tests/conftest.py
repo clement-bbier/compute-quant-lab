@@ -1,8 +1,8 @@
-"""Fixtures déterministes des tests du cold store (zéro réseau).
+"""Deterministic fixtures for the cold store tests (zero network).
 
-Les helpers sont exposés comme *factories* (fixtures renvoyant un callable) — même
-patron que ``core/features/tests`` — pour garder des tests lisibles sans import
-inter-tests fragile (le dossier ``tests/`` n'est pas un package).
+The helpers are exposed as *factories* (fixtures returning a callable) — same pattern as
+``core/features/tests`` — to keep tests readable without fragile inter-test imports (the
+``tests/`` folder is not a package).
 """
 
 from __future__ import annotations
@@ -24,16 +24,16 @@ from core.storage.schema import (
     SOURCE,
 )
 
-#: Origine commune des séries de test (UTC tz-aware).
+#: Common origin of the test series (UTC tz-aware).
 _ORIGIN = pd.Timestamp("2025-01-01", tz="UTC")
 
-#: Un relevé de test : (heure depuis J0, source, modèle, prix, dispo[, type de bail]).
+#: A test reading: (hours since D0, source, model, price, availability[, lease type]).
 Record = tuple
 
 
 @pytest.fixture
 def at() -> Callable[[int], pd.Timestamp]:
-    """Renvoie ``J0 + h heures`` en UTC (J0 = 2025-01-01)."""
+    """Return ``D0 + h hours`` in UTC (D0 = 2025-01-01)."""
 
     def _at(hours: int) -> pd.Timestamp:
         return _ORIGIN + pd.Timedelta(hours=hours)
@@ -43,7 +43,7 @@ def at() -> Callable[[int], pd.Timestamp]:
 
 @pytest.fixture
 def make_frame(at: Callable[[int], pd.Timestamp]) -> Callable[[Sequence[Record]], pd.DataFrame]:
-    """Construit un frame canonique typé depuis des tuples ``(h, source, modèle, prix, dispo[, bail])``."""
+    """Build a typed canonical frame from ``(h, source, model, price, avail[, lease])`` tuples."""
 
     def _make(records: Sequence[Record]) -> pd.DataFrame:
         rows = []
@@ -67,5 +67,5 @@ def make_frame(at: Callable[[int], pd.Timestamp]) -> Callable[[Sequence[Record]]
 
 @pytest.fixture
 def store(tmp_path: Path) -> ParquetPriceStore:
-    """Un ``ParquetPriceStore`` vide isolé dans le tmp_path du test."""
+    """An empty ``ParquetPriceStore`` isolated in the test's tmp_path."""
     return ParquetPriceStore(tmp_path / "snapshots")

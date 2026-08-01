@@ -1,18 +1,18 @@
-"""Validation temporelle anti-overfitting (López de Prado).
+"""Temporal anti-overfitting validation (Lopez de Prado).
 
-Trois briques, toutes au service du risque n°1 du projet — l'overfitting :
+Three building blocks, all serving the project's risk number 1 — overfitting:
 
-* `PurgedKFold` — k-fold **sans shuffle** : blocs de test contigus, avec *purge* de
-  l'horizon du label (on retire du train tout échantillon dont la fenêtre de label mord
-  sur le test) et *embargo* (on neutralise les échantillons juste après le test, contre
-  la corrélation sérielle). C'est la seule découpe correcte sur séries financières.
-* `oos_predict` — assemble un vecteur de prédictions **hors-échantillon** aligné sur les
-  lignes d'entrée : chaque ligne est prédite par un modèle qui ne l'a jamais vue ni vu
-  son voisinage (grâce au purge/embargo). C'est ce vecteur qui devient le signal backtesté.
-* `deflated_sharpe_ratio` — dégonfle le Sharpe observé par le nombre d'essais
-  (`n_trials`) : plus on teste de configurations, plus un beau Sharpe arrive par hasard.
+* `PurgedKFold` — k-fold **without shuffle**: contiguous test blocks, with *purging* of the
+  label horizon (any training sample whose label window overlaps the test set is removed)
+  and *embargo* (the samples just after the test set are neutralized, against serial
+  correlation). This is the only correct split on financial series.
+* `oos_predict` — assembles an **out-of-sample** prediction vector aligned on the input
+  rows: each row is predicted by a model that never saw it nor its neighborhood (thanks to
+  purge/embargo). This vector is what becomes the backtested signal.
+* `deflated_sharpe_ratio` — deflates the observed Sharpe by the number of trials
+  (`n_trials`): the more configurations are tested, the more a nice Sharpe arises by chance.
 
-Référence : Advances in Financial Machine Learning (purged CV, embargo, deflated Sharpe).
+Reference: Advances in Financial Machine Learning (purged CV, embargo, Deflated Sharpe).
 """
 
 from __future__ import annotations
@@ -24,53 +24,53 @@ from scipy.stats import norm
 
 from core.models.protocols import FloatArray, IntArray, Model
 
-#: Constante d'Euler-Mascheroni (loi du maximum d'un échantillon gaussien).
+#: Euler-Mascheroni constant (law of the maximum of a Gaussian sample).
 _EULER_MASCHERONI = 0.5772156649015329
 
 
 class PurgedKFold:
-    """K-fold temporel purgé + embargo (implémente `Splitter`).
+    """Purged temporal k-fold + embargo (implements `Splitter`).
 
     Parameters
     ----------
     n_splits
-        Nombre de folds (blocs de test contigus).
+        Number of folds (contiguous test blocks).
     horizon
-        Horizon du label (en pas) : largeur de la purge à gauche du test. Un label à ``i``
-        dépend de la fenêtre ``[i, i+horizon]`` ; tout train dont la fenêtre touche le test
-        est retiré.
+        Label horizon (in steps): width of the purge to the left of the test block. A label
+        at ``i`` depends on the window ``[i, i+horizon]``; any training sample whose window
+        touches the test block is removed.
     embargo
-        Nombre de pas neutralisés immédiatement après chaque bloc de test.
+        Number of steps neutralized immediately after each test block.
 
     Raises
     ------
     ValueError
-        Si ``n_splits < 2``, ``horizon < 0`` ou ``embargo < 0``.
+        If ``n_splits < 2``, ``horizon < 0`` or ``embargo < 0``.
     """
 
     def __init__(self, *, n_splits: int, horizon: int = 1, embargo: int = 0) -> None:
         if n_splits < 2:
-            raise ValueError(f"n_splits ({n_splits}) doit être >= 2.")
+            raise ValueError(f"n_splits ({n_splits}) must be >= 2.")
         if horizon < 0:
-            raise ValueError(f"horizon ({horizon}) doit être >= 0.")
+            raise ValueError(f"horizon ({horizon}) must be >= 0.")
         if embargo < 0:
-            raise ValueError(f"embargo ({embargo}) doit être >= 0.")
+            raise ValueError(f"embargo ({embargo}) must be >= 0.")
         self.n_splits = n_splits
         self.horizon = horizon
         self.embargo = embargo
 
     def split(self, n_samples: int) -> Iterator[tuple[IntArray, IntArray]]:
-        """Itère ``(train_idx, test_idx)`` : blocs de test contigus, train purgé + embargoé."""
+        """Iterate ``(train_idx, test_idx)``: contiguous test blocks, purged + embargoed train."""
         if n_samples < self.n_splits:
-            raise ValueError(f"n_samples ({n_samples}) < n_splits ({self.n_splits}).")
+            raise ValueError(f"n_samples ({n_samples}) must be >= n_splits ({self.n_splits}).")
         indices = np.arange(n_samples, dtype=np.intp)
         for test in np.array_split(indices, self.n_splits):
             if test.size == 0:
                 continue
             t0, t1 = int(test[0]), int(test[-1])
             mask = np.ones(n_samples, dtype=bool)
-            mask[t0 : t1 + 1] = False  # le bloc de test lui-même
-            mask[max(0, t0 - self.horizon) : t0] = False  # purge : label qui mord sur le test
+            mask[t0 : t1 + 1] = False  # the test block itself
+            mask[max(0, t0 - self.horizon) : t0] = False  # purge: label overlapping the test
             mask[t1 + 1 : min(n_samples, t1 + 1 + self.embargo)] = False  # embargo
             yield indices[mask], test
 
@@ -81,15 +81,15 @@ def oos_predict(
     y: FloatArray,
     splitter: PurgedKFold,
 ) -> FloatArray:
-    """Probabilités hors-échantillon alignées sur les lignes de ``x``.
+    """Out-of-sample probabilities aligned on the rows of ``x``.
 
-    Pour chaque fold, un modèle **neuf** (``make_model()``) est entraîné sur le train purgé
-    puis prédit le bloc de test. Aucune ligne n'est jamais prédite par un modèle l'ayant vue.
+    For each fold, a **fresh** model (``make_model()``) is trained on the purged training set
+    then predicts the test block. No row is ever predicted by a model that has seen it.
 
     Returns
     -------
     FloatArray
-        Vecteur ``P(montée)`` de longueur ``len(x)`` (``NaN`` pour une ligne jamais testée).
+        ``P(up)`` vector of length ``len(x)`` (``NaN`` for a row that was never tested).
     """
     n = x.shape[0]
     proba = np.full(n, np.nan, dtype=np.float64)
@@ -101,13 +101,14 @@ def oos_predict(
 
 
 def expected_max_sharpe(n_trials: int, sr_variance: float) -> float:
-    """Espérance du Sharpe maximum sur ``n_trials`` essais sous l'hypothèse nulle (SR vrai = 0).
+    """Expected maximum Sharpe over ``n_trials`` trials under the null (true SR = 0).
 
-    Approximation par la loi du maximum d'un échantillon gaussien (López de Prado) :
-    le seuil à battre **croît** avec le nombre d'essais — c'est le coût du multiple-testing.
+    Approximated by the law of the maximum of a Gaussian sample (Lopez de Prado): the
+    threshold to beat **grows** with the number of trials — that is the cost of
+    multiple-testing.
     """
     if n_trials < 1:
-        raise ValueError(f"n_trials ({n_trials}) doit être >= 1.")
+        raise ValueError(f"n_trials ({n_trials}) must be >= 1.")
     if n_trials == 1:
         return 0.0
     z1 = float(norm.ppf(1.0 - 1.0 / n_trials))
@@ -124,29 +125,29 @@ def deflated_sharpe_ratio(
     skew: float = 0.0,
     kurtosis: float = 3.0,
 ) -> float:
-    """Deflated Sharpe Ratio : probabilité que le vrai Sharpe soit > 0 **après** déflation.
+    """Deflated Sharpe Ratio: probability that the true Sharpe is > 0 **after** deflation.
 
-    On compare le Sharpe observé non pas à 0 mais au maximum *attendu sous le hasard* compte
-    tenu de ``n_trials`` (cf. `expected_max_sharpe`), puis on calcule un Probabilistic Sharpe
-    Ratio tenant compte de la non-normalité des rendements (``skew``, ``kurtosis``).
+    The observed Sharpe is compared not to 0 but to the maximum *expected under chance* given
+    ``n_trials`` (see `expected_max_sharpe`), then a Probabilistic Sharpe Ratio is computed
+    accounting for the non-normality of returns (``skew``, ``kurtosis``).
 
     Parameters
     ----------
     observed_sr
-        Sharpe observé (même base temporelle que ``n_obs``).
+        Observed Sharpe (same time base as ``n_obs``).
     n_obs
-        Nombre d'observations de rendement.
+        Number of return observations.
     n_trials
-        Nombre de configurations essayées (anti multiple-testing). **À logger honnêtement.**
+        Number of configurations tried (anti multiple-testing). **To be logged honestly.**
     sr_variance
-        Variance des estimations de Sharpe entre essais (dispersion de la recherche).
+        Variance of the Sharpe estimates across trials (dispersion of the search).
     skew, kurtosis
-        Moments d'ordre 3 et 4 des rendements (gaussien : 0 et 3).
+        Third and fourth moments of the returns (Gaussian: 0 and 3).
 
     Returns
     -------
     float
-        Probabilité dans ``[0, 1]`` — proche de 1 = robuste, proche de 0 = illusoire.
+        Probability in ``[0, 1]`` — close to 1 = robust, close to 0 = illusory.
     """
     sr_star = expected_max_sharpe(n_trials, sr_variance)
     denom = np.sqrt(1.0 - skew * observed_sr + (kurtosis - 1.0) / 4.0 * observed_sr**2)

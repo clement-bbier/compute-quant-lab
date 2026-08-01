@@ -1,6 +1,6 @@
-# Subcrate maturin AUTONOME — distinct du pyproject.toml racine (zone protégée).
-# `maturin develop` depuis ce dossier installe le module compilé sous
-# `core.pricing._kernel` dans le venv actif, sans toucher au build hatchling racine.
+# STANDALONE maturin subcrate — distinct from the root pyproject.toml (protected zone).
+# `maturin develop` from this folder installs the compiled module under
+# `core.pricing._kernel` in the active venv, without touching the root hatchling build.
 [build-system]
 requires = ["maturin>=1.5,<2.0"]
 build-backend = "maturin"
@@ -9,7 +9,7 @@ build-backend = "maturin"
 name = "spark-kernel"
 version = "0.1.0"
 requires-python = ">=3.11"
-description = "Noyau Rust du digital spark spread (parité avec l'oracle Python)."
+description = "Rust kernel for the digital spark spread (parity with the Python oracle)."
 
 [tool.maturin]
 module-name = "core.pricing._kernel"

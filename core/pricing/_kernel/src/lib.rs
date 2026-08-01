@@ -1,18 +1,18 @@
-//! Noyau vectoriel du digital spark spread, exposé à Python via pyo3.
+//! Vectorised digital spark spread kernel, exposed to Python through pyo3.
 //!
-//! Implémente strictement la même fonction que l'oracle Python
-//! (`core.pricing.oracle.PythonOracle`) : `cost = power · pue · energy / 1000`,
-//! `revenue = compute`, `spread = revenue − cost`, élément par élément. La boucle
-//! chaude est justifiée par la taille de la grille historique (région × temps × GPU).
+//! Implements strictly the same function as the Python oracle
+//! (`core.pricing.oracle.PythonOracle`): `cost = power · pue · energy / 1000`,
+//! `revenue = compute`, `spread = revenue − cost`, element-wise. The hot loop is
+//! justified by the size of the historical grid (region × time × GPU).
 //!
-//! La parité bit-à-bit avec l'oracle est vérifiée par `tests/test_pricer_parity.py`.
+//! Bit-for-bit parity with the oracle is checked by `tests/test_pricer_parity.py`.
 
 use numpy::{PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::prelude::*;
 
 const KWH_PER_MWH: f64 = 1000.0;
 
-/// Calcule `(revenu, coût, spread)` élément par élément.
+/// Computes `(revenue, cost, spread)` element-wise.
 #[pyfunction]
 fn compute<'py>(
     py: Python<'py>,

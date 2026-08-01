@@ -1,8 +1,8 @@
-"""Fixtures déterministes des tests de ``core.signals``.
+"""Deterministic fixtures for the ``core.signals`` tests.
 
-On prouve chaque producteur de signal sur des séries connues (analytiques ou OU), à
-graine fixée → reproductible (rule ``quant-no-lookahead``). Les producteurs sont
-point-in-time : ils ne consomment que la ``GuardedView`` de P08 (données ≤ t).
+Each signal producer is proven on known series (analytic or OU), with a fixed seed so the runs
+are reproducible (rule ``quant-no-lookahead``). The producers are point-in-time: they only
+consume the P08 ``GuardedView`` (data <= t).
 """
 
 from __future__ import annotations
@@ -12,12 +12,12 @@ import pytest
 
 from core.backtest.protocols import FloatArray
 
-#: Graine unique de tout l'aléatoire des fixtures (reproductibilité).
+#: Single seed for all randomness in the fixtures (reproducibility).
 SEED: int = 42
 
 
 def ou_series(n: int, *, theta: float = 0.08, sigma: float = 1.0, seed: int = SEED) -> FloatArray:
-    """Série stationnaire d'Ornstein-Uhlenbeck (oscillation → matière au mean-reversion)."""
+    """Stationary Ornstein-Uhlenbeck series (oscillation gives mean reversion something to do)."""
     rng = np.random.default_rng(seed)
     x = np.empty(n, dtype=np.float64)
     x[0] = 100.0
@@ -28,5 +28,5 @@ def ou_series(n: int, *, theta: float = 0.08, sigma: float = 1.0, seed: int = SE
 
 @pytest.fixture
 def prices() -> FloatArray:
-    """Série de prix desk synthétique strictement positive (OU autour de 100)."""
+    """Synthetic, strictly positive desk price series (OU around 100)."""
     return np.clip(ou_series(256), 1.0, None).astype(np.float64)

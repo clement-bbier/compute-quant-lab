@@ -1,10 +1,11 @@
-"""Contrats (abstractions) du pricing de futures compute théoriques.
+"""Contracts (abstractions) of theoretical compute futures pricing.
 
-Le :class:`~core.pricing.derivatives.futures.CarryFuturesPricer` dépend de ces
-``Protocol``, jamais d'une implémentation concrète (Dependency Inversion Principle).
-Toute source de forward — modèle de portage analytique (:class:`CostOfCarryModel`)
-ou adapter de la courbe Schwartz **simulée** de P04 — se conforme à ``CarryModel``,
-ce qui rend le pricer testable avec des mocks et la forward injectable.
+:class:`~core.pricing.derivatives.futures.CarryFuturesPricer` depends on these
+``Protocol`` classes, never on a concrete implementation (Dependency Inversion
+Principle). Any forward source -- an analytical carry model
+(:class:`CostOfCarryModel`) or an adapter of the **simulated** Schwartz curve of
+P04 -- conforms to ``CarryModel``, which makes the pricer testable with mocks and
+the forward injectable.
 """
 
 from __future__ import annotations
@@ -17,31 +18,31 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class CarryModel(Protocol):
-    """Stratégie productrice d'un prix forward théorique à partir du spot.
+    """Strategy producing a theoretical forward price from the spot.
 
-    Frontière réel/simulé : ``simulated`` fait partie du contrat. Les futures
-    compute n'étant pas listés, toute forward produite ici est simulée.
+    Real versus simulated boundary: ``simulated`` is part of the contract. Since
+    compute futures are not listed, every forward produced here is simulated.
     """
 
     @property
     def name(self) -> str:
-        """Identifiant du modèle (tracé MLflow)."""
+        """Model identifier (recorded in MLflow)."""
         ...
 
     @property
     def simulated(self) -> bool:
-        """``True`` si la forward est simulée/théorique (jamais un prix de marché)."""
+        """``True`` if the forward is simulated/theoretical (never a market price)."""
         ...
 
     def forward(self, spot: float, tau_years: float) -> float:
-        """Prix forward en $/GPU·h pour une maturité ``tau_years`` (années)."""
+        """Forward price in $/GPU·h for a ``tau_years`` maturity (in years)."""
         ...
 
 
 @runtime_checkable
 class FuturesPricer(Protocol):
-    """Orchestrateur : price un future compute théorique en ``FuturesQuote``."""
+    """Orchestrator: prices a theoretical compute future into a ``FuturesQuote``."""
 
     def price(self, spot: float, tau_years: float) -> FuturesQuote:
-        """Cote le future à partir du spot et de la maturité (cotation simulée)."""
+        """Quote the future from the spot and the maturity (simulated quote)."""
         ...

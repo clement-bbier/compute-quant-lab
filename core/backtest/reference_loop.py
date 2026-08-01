@@ -1,13 +1,13 @@
-"""Oracle Python pur de la phase 2 : accumulation du PnL période par période.
+"""Pure-Python oracle for phase 2: period-by-period PnL accumulation.
 
-C'est la **spécification de référence** du noyau Rust `_loop`. La boucle Rust doit
-reproduire *exactement* cette suite d'opérations float64 (même ordre de sommation)
-pour garantir la parité bit-à-bit (`test_parity`).
+This is the **reference specification** of the `_loop` Rust kernel. The Rust loop must
+reproduce *exactly* this sequence of float64 operations (same summation order) to
+guarantee bit-for-bit parity (`test_parity`).
 
-Convention point-in-time (anti look-ahead) :
-    rendement[t] = position[t-1] · (prix[t]/prix[t-1] − 1) − coût_de_rebalancement[t]
-La position décidée en t-1 (sur données ≤ t-1) capte le mouvement de marché jusqu'à
-t ; le rendement d'aujourd'hui ne dépend donc jamais de la position de demain.
+Point-in-time convention (anti look-ahead):
+    return[t] = position[t-1] · (price[t]/price[t-1] − 1) − rebalancing_cost[t]
+The position decided at t-1 (from data ≤ t-1) captures the market move up to t, so
+today's return never depends on tomorrow's position.
 """
 
 from __future__ import annotations
@@ -24,21 +24,21 @@ def accumulate(
     fees_bps: float,
     slippage_bps: float,
 ) -> tuple[FloatArray, int]:
-    """Calcule la série de rendements et le nombre de trades.
+    """Compute the return series and the number of trades.
 
     Parameters
     ----------
     positions, prices
-        Tableaux float64 de même longueur (positions normalisées, prix de marché).
+        float64 arrays of equal length (normalised positions, market prices).
     fees_bps, slippage_bps
-        Coûts en basis points appliqués à la variation absolue de position |Δpos|.
+        Costs in bps applied to the absolute position change |Δpos|.
 
     Returns
     -------
     returns
-        Rendement de la stratégie par période (sans dimension).
+        Strategy return per period (dimensionless).
     n_trades
-        Nombre de périodes où la position change.
+        Number of periods where the position changes.
     """
     n = positions.shape[0]
     cost_rate = (fees_bps + slippage_bps) / BPS

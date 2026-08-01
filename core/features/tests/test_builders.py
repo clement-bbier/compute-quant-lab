@@ -1,8 +1,8 @@
-"""Transforms purs + builder sur fixtures connues (§6d).
+"""Pure transforms + builder on known fixtures (section 6d).
 
-Les transforms (`lag`, `rolling_mean`, `diff`) opèrent sur le snapshot *déjà*
-point-in-time (donc toutes ≤ t par construction). On les vérifie sur des séries
-connues à la main, puis on assemble le panel via `PointInTimeFeatureBuilder`.
+The transforms (`lag`, `rolling_mean`, `diff`) operate on the *already* point-in-time
+snapshot (so all of them are <= t by construction). They are checked against
+hand-computed series, then the panel is assembled via `PointInTimeFeatureBuilder`.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def test_diff_feature(day_ts):
 
 
 def test_build_panel_shape_names_and_point_in_time(day_ts, make_vintages, fake_source):
-    # Variable sans lag (knowledge_ts == value_ts) pour isoler la mécanique builder.
+    # Variable without lag (knowledge_ts == value_ts) to isolate the builder machinery.
     records = [(day_ts(i), day_ts(i), 10.0 + i) for i in range(4)]
     source = fake_source({"gas_price": make_vintages(records)})
     builder = PointInTimeFeatureBuilder(
@@ -61,9 +61,9 @@ def test_build_panel_shape_names_and_point_in_time(day_ts, make_vintages, fake_s
 
     assert list(panel.columns) == ["gas_price_lag0", "gas_price_lag1", "gas_price_roll2"]
     assert panel.shape == (2, 3)
-    # À D3 : connu = {10,11,12,13} → lag0=13, lag1=12, roll2=mean(12,13)=12.5.
+    # At D3: known = {10,11,12,13} -> lag0=13, lag1=12, roll2=mean(12,13)=12.5.
     assert panel.loc[day_ts(3), "gas_price_lag0"] == 13.0
     assert panel.loc[day_ts(3), "gas_price_lag1"] == 12.0
     assert panel.loc[day_ts(3), "gas_price_roll2"] == 12.5
-    # À D2 : connu = {10,11,12} → lag0=12 (pas 13 : anti look-ahead).
+    # At D2: known = {10,11,12} -> lag0=12 (not 13: anti look-ahead).
     assert panel.loc[day_ts(2), "gas_price_lag0"] == 12.0

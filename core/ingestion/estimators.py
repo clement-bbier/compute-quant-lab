@@ -1,17 +1,17 @@
-"""Stratégies concrètes d'agrégation de l'indice spot compute.
+"""Concrete aggregation strategies for the compute spot index.
 
-Chaque classe satisfait structurellement un protocole de ``protocols.py`` :
+Each class structurally satisfies one of the protocols in ``protocols.py``:
 
-- :class:`OutlierFilter` → :class:`MadOutlierFilter`, :class:`NoOutlierFilter` ;
-- :class:`IndexEstimator` → :class:`TrimmedMean`, :class:`Median`,
+- :class:`OutlierFilter` -> :class:`MadOutlierFilter`, :class:`NoOutlierFilter`;
+- :class:`IndexEstimator` -> :class:`TrimmedMean`, :class:`Median`,
   :class:`AvailabilityWeightedMean`.
 
-Ajouter une méthode d'agrégation = ajouter une classe ici, sans modifier le cœur
-``build_spot_index`` (Open/Closed). Calcul en NumPy uniquement (dépendance déjà
-déclarée), pas de SciPy requis.
+Adding an aggregation method means adding a class here, without modifying the
+``build_spot_index`` core (Open/Closed). Computation uses NumPy only (an already
+declared dependency), no SciPy required.
 
-Défauts du marché (cf. GPU Markets / Silicon Data) : trimmed mean 20 % + rejet à
-2.5 MAD — assemblés dans ``DEFAULT_INDEX_CONFIG`` (voir ``compute_index.py``).
+Market defaults (see GPU Markets / Silicon Data): 20 % trimmed mean + rejection at
+2.5 MAD -- assembled in ``DEFAULT_INDEX_CONFIG`` (see ``compute_index.py``).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from core.ingestion.protocols import VenueRate
 
 @dataclass(frozen=True)
 class NoOutlierFilter:
-    """Filtre identité : conserve tous les taux (rejet d'outliers désactivé)."""
+    """Identity filter: keeps every rate (outlier rejection disabled)."""
 
     @property
     def name(self) -> str:
@@ -38,15 +38,15 @@ class NoOutlierFilter:
 
 @dataclass(frozen=True)
 class MadOutlierFilter:
-    """Rejette les taux à plus de ``k`` écarts absolus médians (MAD) de la médiane.
+    """Reject rates further than ``k`` median absolute deviations (MAD) from the median.
 
-    Méthode robuste standard (insensible aux valeurs extrêmes, contrairement à
-    l'écart-type). Un MAD nul (taux tous égaux) conserve tout.
+    Standard robust method (insensitive to extreme values, unlike the standard deviation).
+    A zero MAD (all rates equal) keeps everything.
 
     Parameters
     ----------
     k
-        Multiplicateur du MAD au-delà duquel un taux est rejeté. Défaut marché : 2.5.
+        MAD multiplier beyond which a rate is rejected. Market default: 2.5.
     """
 
     k: float = 2.5
@@ -67,13 +67,13 @@ class MadOutlierFilter:
 
 @dataclass(frozen=True)
 class TrimmedMean:
-    """Moyenne tronquée : retire ``trim`` à chaque extrémité, puis moyenne le reste.
+    """Trimmed mean: drop ``trim`` at each end, then average the remainder.
 
     Parameters
     ----------
     trim
-        Proportion retirée à chaque queue (0.20 = 20 % en haut et en bas). Si trop
-        peu de points pour tronquer (k = 0), équivaut à une moyenne simple.
+        Proportion removed from each tail (0.20 = 20 % at the top and at the bottom).
+        With too few points to trim (k = 0), this is equivalent to a plain mean.
     """
 
     trim: float = 0.20
@@ -92,7 +92,7 @@ class TrimmedMean:
 
 @dataclass(frozen=True)
 class Median:
-    """Médiane des taux par-venue (équipondérée, robuste)."""
+    """Median of the per-venue rates (equally weighted, robust)."""
 
     @property
     def name(self) -> str:
@@ -104,10 +104,10 @@ class Median:
 
 @dataclass(frozen=True)
 class AvailabilityWeightedMean:
-    """Moyenne pondérée par la disponibilité (volume d'offres) de chaque venue.
+    """Mean weighted by each venue's availability (offer volume).
 
-    Représentative du marché mais sensible à une grosse venue. Si toutes les
-    disponibilités sont nulles, retombe sur une moyenne équipondérée.
+    Representative of the market but sensitive to one large venue. If every availability
+    is zero, falls back to an equally weighted mean.
     """
 
     @property

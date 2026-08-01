@@ -1,8 +1,8 @@
-"""Modèle directionnel XGBoost + ensemble de graines (déterminisme, apprentissage).
+"""XGBoost directional model + seed ensemble (determinism, learning).
 
-Le déterminisme est non négociable (reproductibilité du labo) : même graine ⇒ mêmes
-probabilités, bit pour bit. L'ensemble de graines moyenne les probabilités de membres
-identiques sauf la graine — c'est l'« ensemble » du PoC (réduction de variance).
+Determinism is non-negotiable (the lab's reproducibility): same seed implies same
+probabilities, bit for bit. The seed ensemble averages the probabilities of members that are
+identical except for the seed — that is the PoC's "ensemble" (variance reduction).
 """
 
 from __future__ import annotations

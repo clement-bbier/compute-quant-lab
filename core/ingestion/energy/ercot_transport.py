@@ -1,22 +1,22 @@
-"""Transports ERCOT injectables — egress direct (géobloqué) vs hébergé (US).
+"""Injectable ERCOT transports -- direct egress (geoblocked) vs hosted (US).
 
-Sépare le *fetch* (où l'on prend la donnée) de la *normalisation* (parsers purs de
-``ercot.py``). Deux transports interchangeables derrière un même protocole :
+Separates the *fetch* (where the data is taken from) from the *normalisation* (the pure
+parsers in ``ercot.py``). Two interchangeable transports behind one protocol:
 
-- :class:`GridstatusDirectTransport` — ``gridstatus.Ercot()`` qui tape ercot.com en
-  direct. **Géobloqué** (WAF Imperva) depuis les IP non-US.
-- :class:`GridstatusIoTransport` — API hébergée **GridStatus.io** (serveurs US) via
-  ``gridstatusio.GridStatusClient``. Contourne le géoblocage légitimement. Clé via
+- :class:`GridstatusDirectTransport` -- ``gridstatus.Ercot()`` hitting ercot.com directly.
+  **Geoblocked** (Imperva WAF) from non-US IPs.
+- :class:`GridstatusIoTransport` -- hosted **GridStatus.io** API (US servers) through
+  ``gridstatusio.GridStatusClient``. Legitimately works around the geoblock. Key via
   ``GRIDSTATUS_API_KEY``.
 
-Chaque transport ramène ses frames au **schéma canonique gridstatus** (colonnes
+Each transport brings its frames back to the **canonical gridstatus schema** (columns
 ``"Interval Start"`` / ``"Location"`` / ``"SPP"`` / ``"Publish Time"`` / ``"System
-Total"``) que les parsers de ``ercot.py`` consomment déjà — zéro duplication de parsing.
+Total"``) that the ``ercot.py`` parsers already consume -- zero parsing duplication.
 
-⚠️ Schéma hébergé *présumé* (snake_case + suffixes ``_utc``), construit depuis la doc
-publique GridStatus.io. **À confirmer par le test live** (``-m live`` avec une vraie
-clé) : si une colonne diffère, l'ajustement est localisé dans les mappers ci-dessous.
-Quota free plan : 500k lignes/mois → toujours passer ``limit`` sur les gros tirages.
+Warning: the hosted schema is *presumed* (snake_case + ``_utc`` suffixes), built from the
+public GridStatus.io documentation. **To be confirmed by the live test** (``-m live`` with a
+real key): if a column differs, the adjustment is localised in the mappers below.
+Free plan quota: 500k rows/month -> always pass ``limit`` on large pulls.
 """
 
 from __future__ import annotations
@@ -26,45 +26,45 @@ from typing import Protocol
 
 import pandas as pd
 
-#: Dataset IDs de l'API hébergée GridStatus.io (à confirmer via ``list_datasets()``).
+#: Dataset IDs of the hosted GridStatus.io API (to be confirmed via ``list_datasets()``).
 RTM_DATASET = "ercot_spp_real_time_15_min"
 FORECAST_DATASET = "ercot_load_forecast"
 ADEQUACY_DATASET = "ercot_short_term_system_adequacy"
 NET_LOAD_DATASET = "ercot_net_load_forecast"
 
-#: Colonne de capacité hébergée retenue pour la marge de réserve L0 (à confirmer live).
+#: Hosted capacity column kept for the L0 reserve margin (to be confirmed live).
 _HOSTED_CAPACITY_COL = "available_capacity_generation"
-#: Colonne net-load hébergée (à confirmer live ; absente de la lib OSS → hébergé seul).
+#: Hosted net-load column (to be confirmed live; absent from the OSS lib -> hosted only).
 _HOSTED_NETLOAD_COL = "net_load_forecast"
 
 
 class ErcotTransport(Protocol):
-    """Abstraction de fetch ERCOT → frames au schéma canonique gridstatus."""
+    """ERCOT fetch abstraction -> frames in the canonical gridstatus schema."""
 
     def fetch_rtm_spp(self, start: pd.Timestamp, end: pd.Timestamp, location: str) -> pd.DataFrame:
-        """Frame RTM SPP brut (colonnes canoniques ``Interval Start``/``Location``/``SPP``)."""
+        """Raw RTM SPP frame (canonical ``Interval Start``/``Location``/``SPP`` columns)."""
         ...
 
     def fetch_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        """Frame prévision de charge brut (colonnes canoniques ``Publish Time``/…)."""
+        """Raw load forecast frame (canonical ``Publish Time`` and related columns)."""
         ...
 
     def fetch_system_adequacy(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        """Frame STSA brut (capacité prévue, colonne ``Available Capacity Generation``)."""
+        """Raw STSA frame (forecast capacity, ``Available Capacity Generation`` column)."""
         ...
 
     def fetch_net_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        """Frame prévision de net-load brut (colonne canonique ``Net Load``)."""
+        """Raw net-load forecast frame (canonical ``Net Load`` column)."""
         ...
 
 
 # ---------------------------------------------------------------------------
-# Transport direct (gridstatus.Ercot — géobloqué hors US)
+# Direct transport (gridstatus.Ercot -- geoblocked outside the US)
 # ---------------------------------------------------------------------------
 
 
 class GridstatusDirectTransport:
-    """Tape ercot.com en direct via ``gridstatus``. Géobloqué (WAF) hors US."""
+    """Hits ercot.com directly through ``gridstatus``. Geoblocked (WAF) outside the US."""
 
     def __init__(self) -> None:
         self._iso: object | None = None  # lazy import/init
@@ -97,28 +97,28 @@ class GridstatusDirectTransport:
         )
 
     def fetch_net_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        # La lib OSS n'expose pas la prévision de net-load (seul le temps-réel) → hébergé seul.
+        # The OSS lib exposes no net-load forecast (real-time only) -> hosted transport only.
         raise NotImplementedError(
-            "Prévision net-load indisponible en direct gridstatus ; utiliser le transport hébergé."
+            "Net-load forecast is unavailable through direct gridstatus; use the hosted transport."
         )
 
 
 # ---------------------------------------------------------------------------
-# Transport hébergé (GridStatus.io — contourne le géoblocage)
+# Hosted transport (GridStatus.io -- works around the geoblock)
 # ---------------------------------------------------------------------------
 
 
 class GridstatusIoTransport:
-    """API hébergée GridStatus.io (US). Clé via ``GRIDSTATUS_API_KEY`` ou injectée.
+    """Hosted GridStatus.io API (US). Key via ``GRIDSTATUS_API_KEY`` or injected.
 
     Parameters
     ----------
     api_key
-        Clé API ; à défaut, lue dans ``GRIDSTATUS_API_KEY`` au premier appel.
+        API key; otherwise read from ``GRIDSTATUS_API_KEY`` on the first call.
     client
-        Client déjà construit (injection de test). Si fourni, ``api_key`` est ignorée.
+        Already-built client (test injection). If provided, ``api_key`` is ignored.
     limit
-        Plafond de lignes par requête (quota free = 500k/mois). ``None`` = pas de plafond.
+        Row cap per request (free quota = 500k/month). ``None`` = no cap.
     """
 
     def __init__(
@@ -138,7 +138,7 @@ class GridstatusIoTransport:
 
             key = self._api_key or os.environ.get("GRIDSTATUS_API_KEY")
             if not key:
-                raise RuntimeError("GRIDSTATUS_API_KEY absente : transport hébergé indisponible")
+                raise RuntimeError("GRIDSTATUS_API_KEY must be set: hosted transport unavailable")
             self._client = GridStatusClient(api_key=key)
         return self._client
 
@@ -182,17 +182,17 @@ class GridstatusIoTransport:
 
 
 # ---------------------------------------------------------------------------
-# Mappers schéma hébergé → schéma canonique gridstatus (point de confirmation live)
+# Hosted schema -> canonical gridstatus schema mappers (live confirmation point)
 # ---------------------------------------------------------------------------
 
 
 def _date_str(ts: pd.Timestamp) -> str:
-    """Borne de requête au format ISO date (l'API hébergée accepte 'YYYY-MM-DD')."""
+    """Query bound in ISO date format (the hosted API accepts 'YYYY-MM-DD')."""
     return pd.Timestamp(ts).strftime("%Y-%m-%d")
 
 
 def _hosted_rtm_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
-    """Renomme le schéma hébergé SPP vers le canonique gridstatus (temps UTC tz-aware)."""
+    """Rename the hosted SPP schema to the canonical gridstatus one (UTC tz-aware times)."""
     return pd.DataFrame(
         {
             "Interval Start": pd.to_datetime(df["interval_start_utc"], utc=True),
@@ -204,11 +204,11 @@ def _hosted_rtm_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _hosted_forecast_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
-    """Renomme le schéma hébergé ``ercot_load_forecast`` vers le canonique gridstatus.
+    """Rename the hosted ``ercot_load_forecast`` schema to the canonical gridstatus one.
 
-    Schéma RÉEL confirmé en live (2026-06) : colonnes ``interval_start_utc`` /
-    ``interval_end_utc`` / ``publish_time_utc`` / ``load_forecast`` — prévision de
-    charge **system-wide**, un seul jeu par intervalle (pas de dimension modèle).
+    REAL schema confirmed live (2026-06): columns ``interval_start_utc`` /
+    ``interval_end_utc`` / ``publish_time_utc`` / ``load_forecast`` -- a **system-wide** load
+    forecast, one single set per interval (no model dimension).
     """
     return pd.DataFrame(
         {
@@ -221,11 +221,11 @@ def _hosted_forecast_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _hosted_adequacy_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
-    """Renomme le schéma hébergé ``ercot_short_term_system_adequacy`` vers le canonique.
+    """Rename the hosted ``ercot_short_term_system_adequacy`` schema to the canonical one.
 
-    STSA est un rapport de **capacité** (PAS de demande). On retient
-    ``available_capacity_generation`` (capacité de génération disponible prévue)
-    comme capacité de la marge de réserve L0. Nom hébergé à confirmer par le test live.
+    STSA is a **capacity** report (NOT a demand one). We keep
+    ``available_capacity_generation`` (forecast available generation capacity) as the
+    capacity of the L0 reserve margin. Hosted name to be confirmed by the live test.
     """
     return pd.DataFrame(
         {
@@ -238,10 +238,10 @@ def _hosted_adequacy_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _hosted_net_load_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
-    """Renomme le schéma hébergé ``ercot_net_load_forecast`` vers le canonique.
+    """Rename the hosted ``ercot_net_load_forecast`` schema to the canonical one.
 
-    Net-load = charge − renouvelables (le ramp au coucher du soleil est le driver de
-    rareté). Colonne hébergée présumée ``net_load_forecast`` → à confirmer par le test live.
+    Net-load = load - renewables (the sunset ramp is the scarcity driver). Presumed hosted
+    column ``net_load_forecast`` -> to be confirmed by the live test.
     """
     return pd.DataFrame(
         {

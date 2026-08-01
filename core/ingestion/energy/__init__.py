@@ -1,17 +1,17 @@
-"""Sous-paquet ``energy`` : fondation multi-marché pluggable pour l'ingestion énergie.
+"""``energy`` subpackage: pluggable multi-market foundation for energy ingestion.
 
-Registre de marchés énergétiques, calqué sur ``core.ingestion.providers``.
-Chaque marché expose :class:`~core.ingestion.energy.base.EnergyMarket`
-(prix RTM + prévision de réserve point-in-time).
+Registry of energy markets, modelled on ``core.ingestion.providers``.
+Each market exposes :class:`~core.ingestion.energy.base.EnergyMarket`
+(RTM price + point-in-time reserve forecast).
 
-Premier marché branché : ERCOT (Texas), 100 % réel via ``gridstatus``.
+First market wired in: ERCOT (Texas), 100 % real via ``gridstatus``.
 
-Registre des sources :
-    - Unité      : $/MWh (RTM), MW (prévision de charge/capacité)
-    - Fuseau     : UTC en interne (conversion depuis US/Central assurée par les connecteurs)
-    - Fréquence  : RTM = intervalles 15 min ; prévisions = horaires
-    - Limites    : ERCOT géoblocase l'API depuis certains réseaux hors US (WAF Imperva).
-                   Le smoke live est conditionné à un accès réseau vers ercot.com.
+Source registry:
+    - Unit       : $/MWh (RTM), MW (load/capacity forecast)
+    - Timezone   : UTC internally (conversion from US/Central handled by the connectors)
+    - Frequency  : RTM = 15 min intervals; forecasts = hourly
+    - Limits     : ERCOT geoblocks the API from some non-US networks (Imperva WAF).
+                   The live smoke test requires network access to ercot.com.
 """
 
 from core.ingestion.energy.base import (

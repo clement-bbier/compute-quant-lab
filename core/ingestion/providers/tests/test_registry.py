@@ -1,9 +1,8 @@
-"""Registre pluggable : agrégation, key-gating et skip sans clé (réseau mocké).
+"""Pluggable registry: aggregation, key-gating and skipping without a key (mocked network).
 
-Le registre n'appelle un provider que si **toutes** ses ``required_env`` sont présentes ;
-sinon il loggue un avertissement et le saute (comportement historique de
-``fetch_live_gpu_prices``). Les tests contrôlent l'environnement via ``monkeypatch`` pour
-rester hermétiques (le worktree n'a pas de ``.env``).
+The registry calls a provider only if **all** of its ``required_env`` are present; otherwise it
+logs a warning and skips it (the historical behaviour of ``fetch_live_gpu_prices``). The tests
+control the environment via ``monkeypatch`` to stay hermetic (the worktree has no ``.env``).
 """
 
 from __future__ import annotations
@@ -16,8 +15,8 @@ import pytest
 
 from core.ingestion.providers import PROVIDERS, fetch_all
 
-#: Toutes les clés d'environnement des venues enregistrées (gate du registre). Purgées
-#: avant chaque test pour rester hermétique : un ``.env`` ambiant ne doit pas influer.
+#: Every environment key of the registered venues (the registry gate). Purged before each
+#: test to stay hermetic: an ambient ``.env`` must not have any influence.
 _ALL_PROVIDER_KEYS = (
     "VASTAI_API_KEY",
     "RUNPOD_API_KEY",
@@ -32,7 +31,7 @@ _ALL_PROVIDER_KEYS = (
 
 @pytest.fixture(autouse=True)
 def _clear_provider_keys(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Environnement vierge de toute clé venue avant chaque test (déterminisme)."""
+    """Environment free of any venue key before each test (determinism)."""
     for key in _ALL_PROVIDER_KEYS:
         monkeypatch.delenv(key, raising=False)
 
@@ -48,7 +47,7 @@ def test_providers_expose_the_protocol_surface() -> None:
         "tensordock",
     }
     for p in PROVIDERS:
-        assert p.required_env  # au moins une clé requise
+        assert p.required_env  # at least one required key
         assert callable(p.fetch)
 
 
@@ -78,7 +77,7 @@ def test_fetch_all_is_key_gated(
 
     snaps = fetch_all(now)
 
-    assert {s.source for s in snaps} == {"vastai"}  # runpod sauté faute de clé
+    assert {s.source for s in snaps} == {"vastai"}  # runpod skipped for lack of a key
 
 
 def test_fetch_all_aggregates_active_providers_in_order(
@@ -97,8 +96,8 @@ def test_fetch_all_aggregates_active_providers_in_order(
     snaps = fetch_all(now)
 
     assert {s.source for s in snaps} == {"vastai", "runpod"}
-    assert len(snaps) == 4  # 2 vastai (rentables) + 2 runpod (prix valides)
-    assert snaps[0].source == "vastai"  # ordre du registre préservé
+    assert len(snaps) == 4  # 2 vastai (rentable) + 2 runpod (valid prices)
+    assert snaps[0].source == "vastai"  # registry order preserved
     assert snaps[-1].source == "runpod"
 
 
@@ -108,12 +107,12 @@ def test_fetch_all_includes_active_w2_venue(
     patch_cudo_network: Callable[[list[dict[str, Any]]], None],
     cudo_machine_types: list[dict[str, Any]],
 ) -> None:
-    # Une venue W2 (CUDO) doit transiter par le registre dès que sa clé est présente,
-    # sans qu'aucune autre couche ne change (les venues sans clé restent sautées).
+    # A W2 venue (CUDO) must flow through the registry as soon as its key is present,
+    # with no other layer changing (the venues without a key stay skipped).
     monkeypatch.setenv("CUDO_API_KEY", "k")
     patch_cudo_network(cudo_machine_types)
 
     snaps = fetch_all(now)
 
     assert {s.source for s in snaps} == {"cudo"}
-    assert len(snaps) == 2  # 2 types de machine GPU valides
+    assert len(snaps) == 2  # 2 valid GPU machine types

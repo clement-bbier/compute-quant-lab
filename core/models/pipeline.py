@@ -1,16 +1,16 @@
-"""Construction de la matrice de features et de la cible directionnelle (point-in-time).
+"""Building the feature matrix and the directional target (point-in-time).
 
-`build_labels` encode la **direction future** du spread (cible binaire). `FeaturePipeline`
-assemble deux sources de features, toutes causales (``<= t``) :
+`build_labels` encodes the **future direction** of the spread (binary target).
+`FeaturePipeline` assembles two feature sources, all causal (``<= t``):
 
-* features dérivées du spread lui-même (lags, moyennes glissantes, momentum) — causales par
-  construction (``shift`` positif, ``rolling`` arrière) ;
-* features exogènes point-in-time de **P07** (`core.features`), si un builder est injecté :
-  à ``t``, seules les observations dont le ``knowledge_ts <= t`` entrent (lags de publication
-  + révisions gérés en amont).
+* features derived from the spread itself (lags, rolling means, momentum) — causal by
+  construction (positive ``shift``, backward ``rolling``);
+* point-in-time exogenous features from **P07** (`core.features`), if a builder is injected:
+  at ``t``, only the observations whose ``knowledge_ts <= t`` enter (publication lags +
+  revisions handled upstream).
 
-La cible n'est JAMAIS une feature : `build_labels` regarde ``t+horizon`` (le futur), ce qui
-en fait un label d'entraînement, jamais une entrée du modèle à l'inférence.
+The target is NEVER a feature: `build_labels` looks at ``t+horizon`` (the future), which
+makes it a training label, never an input of the model at inference time.
 """
 
 from __future__ import annotations
@@ -24,13 +24,13 @@ from core.features.protocols import FeatureBuilder
 
 
 def build_labels(spread: pd.Series, *, horizon: int) -> pd.Series:
-    """Cible directionnelle : ``1`` si le spread monte sur ``horizon`` pas, ``0`` sinon.
+    """Directional target: ``1`` if the spread rises over ``horizon`` steps, ``0`` otherwise.
 
-    Les ``horizon`` dernières lignes n'ont pas de futur observable → ``NaN`` (exclues de
-    l'entraînement). C'est la seule façon honnête de borner l'apprentissage.
+    The last ``horizon`` rows have no observable future -> ``NaN`` (excluded from training).
+    This is the only honest way to bound the learning set.
     """
     if horizon < 1:
-        raise ValueError(f"horizon ({horizon}) doit être >= 1.")
+        raise ValueError(f"horizon ({horizon}) must be >= 1.")
     forward_move = spread.shift(-horizon) - spread
     direction = (forward_move > 0.0).astype(float)
     direction[forward_move.isna()] = np.nan
@@ -40,7 +40,7 @@ def build_labels(spread: pd.Series, *, horizon: int) -> pd.Series:
 
 @dataclass(frozen=True)
 class SpreadFeatureSpec:
-    """Transforms causales à dériver du spread (toutes ``<= t`` par construction)."""
+    """Causal transforms to derive from the spread (all ``<= t`` by construction)."""
 
     lags: tuple[int, ...] = ()
     rolling_means: tuple[int, ...] = ()
@@ -48,14 +48,14 @@ class SpreadFeatureSpec:
 
 
 class FeaturePipeline:
-    """Assemble une matrice de features point-in-time (spread + exogènes P07).
+    """Assemble a point-in-time feature matrix (spread + P07 exogenous features).
 
     Parameters
     ----------
     spread_spec
-        Quelles features dériver du spread.
+        Which features to derive from the spread.
     exog_builder
-        Builder point-in-time P07 optionnel (`FeatureBuilder`) pour les variables exogènes.
+        Optional P07 point-in-time builder (`FeatureBuilder`) for the exogenous variables.
     """
 
     def __init__(
@@ -78,9 +78,9 @@ class FeaturePipeline:
         return pd.DataFrame(columns, index=spread.index)
 
     def build_matrix(self, spread: pd.Series) -> pd.DataFrame:
-        """Matrice de features (une ligne par instant de décision = index du spread)."""
+        """Feature matrix (one row per decision instant = index of the spread)."""
         if not isinstance(spread.index, pd.DatetimeIndex):
-            raise ValueError("le spread doit être indexé par un DatetimeIndex (point-in-time).")
+            raise ValueError("spread must be indexed by a DatetimeIndex (point-in-time).")
         matrix = self._spread_features(spread)
         if self._exog_builder is not None:
             exog = self._exog_builder.build_panel(spread.index)

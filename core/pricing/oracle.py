@@ -1,8 +1,8 @@
-"""Noyau vectoriel de référence du spread (pur numpy).
+"""Reference vectorised spread kernel (pure numpy).
 
-C'est l'implémentation *canonique* du `SpreadKernel` : l'oracle contre lequel la
-parité du noyau Rust est testée. Pur, sans I/O, sans état — substituable au Rust
-par simple injection dans le pricer.
+This is the *canonical* implementation of `SpreadKernel`: the oracle against which
+the parity of the Rust kernel is tested. Pure, no I/O, no state -- substitutable by
+the Rust kernel through plain injection into the pricer.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ KWH_PER_MWH: float = 1000.0
 
 
 class PythonOracle:
-    """Noyau Python de référence (implémente `SpreadKernel`)."""
+    """Reference Python kernel (implements `SpreadKernel`)."""
 
     def compute(
         self,
@@ -22,12 +22,11 @@ class PythonOracle:
         power_kw_per_gpu: FloatArray,
         pue: FloatArray,
     ) -> tuple[FloatArray, FloatArray, FloatArray]:
-        """Calcule ``(revenu, coût, spread)`` élément par élément.
+        """Compute ``(revenue, cost, spread)`` element-wise.
 
-        Le coût énergétique d'une heure-GPU vaut
-        ``power_kw · pue · (€/MWh) / 1000`` : la puissance IT (kW), majorée par
-        le PUE pour le refroidissement, consommée pendant une heure (kWh), au
-        prix de l'électricité ramené en €/kWh.
+        The energy cost of one GPU-hour is ``power_kw · pue · (EUR/MWh) / 1000``:
+        the IT power (kW), scaled up by the PUE to account for cooling, drawn for
+        one hour (kWh), at the electricity price expressed in EUR/kWh.
         """
         revenue = compute_eur_per_gpu_h
         cost = power_kw_per_gpu * pue * energy_eur_per_mwh / KWH_PER_MWH
