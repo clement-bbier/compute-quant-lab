@@ -1,19 +1,14 @@
 {
-  "$comment": "MCP manifest — MUST stay at the repo root (Claude Code doesn't detect it under .claude/). The CODE for custom servers lives in infra/mcp-servers/. No secrets here: tokens flow through the environment (see .env.example). S&P Global and Tavily are connectors already available on the account.",
+  "$comment": "MCP manifest — MUST stay at the repo root (Claude Code doesn't detect it under .claude/). The CODE for custom servers lives in infra/mcp-servers/. No secrets here: tokens flow through the environment (see .env.example). S&P Global and Tavily are connectors already available on the account. ${CLAUDE_PROJECT_DIR} is a Claude-Code-specific substitution (absolute repo root); the ':-.' fallback keeps these entries launchable relative to cwd under any other MCP client.",
   "mcpServers": {
     "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CLAUDE_PROJECT_DIR:-.}/data"]
     },
-    "fetch": {
-      "$comment": "Web page fetching (reference server). Verify the exact package name at install time.",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch"]
-    },
     "gpu-price": {
-      "$comment": "Custom server — infra/mcp-servers/gpu-price-server/.",
-      "command": "python",
-      "args": ["${CLAUDE_PROJECT_DIR:-.}/infra/mcp-servers/gpu-price-server/server.py"]
+      "$comment": "Custom server — infra/mcp-servers/gpu-price-server/. Run via the repo's uv environment (no global `python` assumed): needs `mcp` + `core.storage`, both resolved from the root pyproject.toml.",
+      "command": "uv",
+      "args": ["run", "--directory", "${CLAUDE_PROJECT_DIR:-.}", "python", "infra/mcp-servers/gpu-price-server/server.py"]
     },
     "sp-global": {
       "$comment": "S&P Global / Kensho — institutional reference financial data. HTTP connector already available on the account; URL/auth to confirm in the console.",
