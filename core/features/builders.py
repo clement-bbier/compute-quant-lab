@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from core.features.protocols import KNOWLEDGE_TS, VALUE, VALUE_TS, ExogenousSource
+from core.utils.timeindex import to_utc_index
 
 # ---------------------------------------------------------------------------
 # Lags de publication par défaut — fixés par le directeur de recherche.
@@ -40,20 +41,6 @@ DEFAULT_PUBLICATION_LAGS: dict[str, pd.Timedelta] = {
 
 class LookAheadError(RuntimeError):
     """Levée quand une feature à ``t`` consommerait une donnée connue après ``t``."""
-
-
-def _to_utc_index(index: pd.Index) -> pd.DatetimeIndex:
-    """Valide qu'un index est temporel tz-aware et le ramène en UTC.
-
-    Réplique locale de la règle d'intégrité du labo (cf.
-    ``core.pricing._timeindex.to_utc_index``) pour garder `core.features`
-    auto-suffisant. Convergence : promouvoir ce helper dans ``core.utils``.
-    """
-    if not isinstance(index, pd.DatetimeIndex):
-        raise ValueError("l'index doit être un DatetimeIndex")
-    if index.tz is None:
-        raise ValueError("datetime naïf interdit : index UTC tz-aware obligatoire")
-    return index.tz_convert("UTC")
 
 
 def from_lagged_series(
@@ -78,7 +65,7 @@ def from_lagged_series(
     pd.DataFrame
         Colonnes ``(value_ts, knowledge_ts, value)``, horodatages UTC.
     """
-    value_ts = _to_utc_index(values.index)
+    value_ts = to_utc_index(values.index)
     return pd.DataFrame(
         {
             VALUE_TS: value_ts,
