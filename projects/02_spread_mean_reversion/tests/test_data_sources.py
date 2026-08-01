@@ -48,3 +48,19 @@ def test_compute_index_series_from_real_snapshots() -> None:
     assert len(series) == 3
     values = series.to_numpy()
     assert (values > 1.5).all() and (values < 2.5).all()
+
+
+def test_compute_index_series_omits_grid_points_without_fresh_snapshot() -> None:
+    """A grid point past the staleness window (default 24h) must be dropped, not carried forward."""
+    grid = pd.DatetimeIndex(
+        [pd.Timestamp("2025-01-01", tz="UTC"), pd.Timestamp("2025-01-05", tz="UTC")]
+    )
+    only_first = grid[0].to_pydatetime()
+    snaps = [
+        Snapshot(only_first, "vastai", "H100", 2.0, availability=10),
+        Snapshot(only_first, "runpod", "H100", 2.1, availability=8),
+    ]
+    series = compute_index_series(snaps, grid, "H100")
+    # The second fix is 4 days past the only snapshot (> 24h staleness): omitted, not NaN-filled.
+    assert list(series.index) == [grid[0]]
+    assert len(series) == 1
