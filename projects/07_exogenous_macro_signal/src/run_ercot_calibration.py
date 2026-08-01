@@ -11,6 +11,7 @@ Usage : ``uv run python projects/07_exogenous_macro_signal/src/run_ercot_calibra
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -23,10 +24,19 @@ from core.utils.tracking import run  # noqa: E402
 from ercot_calibration import run_calibration  # noqa: E402
 from ercot_dataset import build_calibration_dataset  # noqa: E402
 
-_COLD = Path("data/cold/ercot")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+log = logging.getLogger("run_ercot_calibration")
+
+# Racine du dépôt : ce fichier est à projects/07_exogenous_macro_signal/src/.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_COLD = _REPO_ROOT / "data" / "cold" / "ercot"
 
 
 def main() -> None:  # pragma: no cover (opérationnel, lit le cold store réel)
+    if not _COLD.exists():
+        log.warning(
+            "Cold store ERCOT introuvable (%s) — le dataset de calibration sera vide.", _COLD
+        )
     store = EnergyColdStore(_COLD)
     x, y_hod, index = build_calibration_dataset(store, label="hod")
     _, y_abs, _ = build_calibration_dataset(store, label="abs")

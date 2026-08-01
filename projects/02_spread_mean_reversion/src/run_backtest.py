@@ -13,6 +13,7 @@ cointégration, demi-vie, réel/simulé) + métriques de risque + figure PnL. Re
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -31,6 +32,11 @@ import cointegration  # noqa: E402  (src ajouté au sys.path ci-dessus)
 from data_sources import DataProvenance, SpreadDataset, build_spread, compute_index_series  # noqa: E402
 from strategy import MeanReversionStrategy  # noqa: E402
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+log = logging.getLogger("run_backtest")
+
+# Racine du dépôt : ce fichier est à projects/02_spread_mean_reversion/src/.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_DIR = _HERE.parent / "results"
 EXPERIMENT = "p02_spread_mean_reversion"
 SEED = 42
@@ -78,7 +84,14 @@ def _simulated_legs(n: int = 2000) -> tuple[pd.DataFrame, pd.DataFrame]:
 def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
     """Charge les deux jambes réelles si disponibles, sinon bascule sur le jeu simulé étiqueté."""
     token = os.environ.get("ENTSOE_API_TOKEN")
-    snapshots = CsvSnapshotStore(Path("data/snapshots")).load()
+    snapshots_dir = _REPO_ROOT / "data" / "snapshots"
+    snapshots = CsvSnapshotStore(snapshots_dir).load()
+    if not token:
+        log.warning("Pas de token ENTSO-E (ENTSOE_API_TOKEN) — bascule sur le jeu simulé.")
+    elif not snapshots:
+        log.warning(
+            "Aucun snapshot compute trouvé dans %s — bascule sur le jeu simulé.", snapshots_dir
+        )
     if token and snapshots:
         from data_sources import load_energy_entsoe  # import tardif : réseau token-gated
 
