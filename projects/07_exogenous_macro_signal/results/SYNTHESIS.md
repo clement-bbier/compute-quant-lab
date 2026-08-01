@@ -20,4 +20,4 @@
 - Alignement / fuseau UTC tz-aware (rejet du datetime naïf).
 - Mesure du lead anti-overfit : cross-corrélation + OLS out-of-sample.
 
-Run MLflow : `d0376bc0c08d4f74960722bf1f14ab2b` — brut exogène DVC : tracked (cache local ; pointeurs `.dvc` gitignorés → committal en convergence, cf. CONVERGENCE).
+Run MLflow : `6459de3055b64ce38d7b0a1c4f0eca05` — brut exogène : local_cache (data/raw/, gitignoré par design).

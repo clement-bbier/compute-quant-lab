@@ -5,15 +5,14 @@
 1. charge le panel exogène (synthétique déterministe à défaut de token) ;
 2. construit le panel de features **point-in-time** (`core.features`) ;
 3. mesure le lead sur le spread P01 : cross-corrélation aux lags + OLS de confirmation ;
-4. versionne le brut exogène (DVC, best-effort) ;
-5. logge un run MLflow (variables, lags de publication, fenêtres + SHA + DVC) ;
+4. écrit le brut exogène dans le cache local (`data/raw/`, gitignoré par design) ;
+5. logge un run MLflow (variables, lags de publication, fenêtres + SHA git) ;
 6. écrit `results/run_summary.json` + `results/SYNTHESIS.md`.
 """
 
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -77,25 +76,15 @@ def measure_lead(panel_features: pd.DataFrame, spread: pd.Series) -> dict[str, A
     }
 
 
-def _version_raw(frames: dict[str, pd.DataFrame]) -> dict[str, str]:
-    """Écrit le brut exogène et tente `dvc add` (dégrade proprement si bloqué)."""
+def _write_raw(frames: dict[str, pd.DataFrame]) -> dict[str, str]:
+    """Écrit le brut exogène dans le cache local (`data/raw/`, gitignoré par design)."""
     RAW_EXO_DIR.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, frame in frames.items():
         path = RAW_EXO_DIR / f"{name}.parquet"
         frame.to_parquet(path)
         paths.append(str(path))
-    try:
-        subprocess.run(["dvc", "add", *paths], check=True, capture_output=True, text=True)
-        pointer = f"{paths[0]}.dvc"
-        ignored = (
-            subprocess.run(["git", "check-ignore", pointer], capture_output=True).returncode == 0
-        )
-        # P01 §3 : le motif `data/raw/*` avale aussi les pointeurs .dvc → committal bloqué.
-        return {"status": "tracked", "pointer_committable": not ignored}
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-        logger.warning("dvc add indisponible/bloqué → brut laissé untracked (%s).", exc)
-        return {"status": "untracked", "pointer_committable": False}
+    return {"status": "local_cache", "paths": ",".join(paths)}
 
 
 def main() -> None:
@@ -105,7 +94,7 @@ def main() -> None:
     spread = panel.spread.reindex(panel.spread.index)  # cible alignée par timestamp
 
     lead = measure_lead(features, spread)
-    dvc_status = _version_raw(panel.raw)
+    raw_status = _write_raw(panel.raw)
 
     lags_days = {k: v / pd.Timedelta("1D") for k, v in sources.DEFAULT_PUBLICATION_LAGS.items()}
     params = {
@@ -134,20 +123,20 @@ def main() -> None:
         "params": params,
         "lead": {k: v for k, v in lead.items() if k != "per_feature"},
         "per_feature": lead["per_feature"],
-        "dvc": dvc_status,
+        "raw_data": raw_status,
     }
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "run_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     _write_synthesis(summary)
 
     logger.info(
-        "run_id=%s  best=%s lead=%d j |corr|=%.3f  r2_oos=%.3f  dvc=%s",
+        "run_id=%s  best=%s lead=%d j |corr|=%.3f  r2_oos=%.3f  raw=%s",
         run_id,
         lead["best_feature"],
         lead["best_lag"],
         lead["best_abs_corr"],
         lead["ols_confirmation"]["r2_oos"],
-        dvc_status["status"],
+        raw_status["status"],
     )
 
 
@@ -178,13 +167,8 @@ def _write_synthesis(summary: dict[str, Any]) -> None:
         "- Alignement / fuseau UTC tz-aware (rejet du datetime naïf).",
         "- Mesure du lead anti-overfit : cross-corrélation + OLS out-of-sample.",
         "",
-        f"Run MLflow : `{summary['run_id']}` — brut exogène DVC : {summary['dvc']['status']}"
-        + (
-            "."
-            if summary["dvc"].get("pointer_committable")
-            else " (cache local ; pointeurs `.dvc` gitignorés → committal en convergence, "
-            "cf. CONVERGENCE)."
-        ),
+        f"Run MLflow : `{summary['run_id']}` — brut exogène : "
+        f"{summary['raw_data']['status']} (data/raw/, gitignoré par design).",
     ]
     (RESULTS_DIR / "SYNTHESIS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

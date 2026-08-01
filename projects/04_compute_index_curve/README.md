@@ -63,6 +63,7 @@ uv run pytest projects/04_compute_index_curve
 
 ## Reproductibilité
 
-- **DVC** : `dvc add data/snapshots` (et `data/raw/<source>`) après chaque accumulation.
+- **Données** : `data/snapshots` est versionné en git ordinaire — `git add`/`git commit`
+  après chaque accumulation (`data/raw/<source>` reste local, gitignoré par design).
 - **MLflow** : `build_forward_curve` logue modèle, moteur, calibrateur, seed, n_paths,
   κ/θ/σ + SHA git (`experiments/mlruns`, `mlflow ui`). MLflow 2026 → `MLFLOW_ALLOW_FILE_STORE=true`.

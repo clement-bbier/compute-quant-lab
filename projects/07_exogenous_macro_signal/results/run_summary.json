@@ -1,5 +1,5 @@
 {
-  "run_id": "d0376bc0c08d4f74960722bf1f14ab2b",
+  "run_id": "6459de3055b64ce38d7b0a1c4f0eca05",
   "params": {
     "mode": "synthetic",
     "seed": 7,
@@ -60,8 +60,8 @@
       "corr": 0.0665651322333406
     }
   },
-  "dvc": {
-    "status": "tracked",
-    "pointer_committable": false
+  "raw_data": {
+    "status": "local_cache",
+    "paths": "C:\\Users\\perso\\Documents\\projets\\compute\\compute-quant-lab-projects\\data\\raw\\exogenous\\gas_price.parquet,C:\\Users\\perso\\Documents\\projets\\compute\\compute-quant-lab-projects\\data\\raw\\exogenous\\hdd.parquet,C:\\Users\\perso\\Documents\\projets\\compute\\compute-quant-lab-projects\\data\\raw\\exogenous\\cdd.parquet"
   }
 }

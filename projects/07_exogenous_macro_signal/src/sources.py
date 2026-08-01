@@ -51,7 +51,7 @@ class ExogenousPanel:
 
     source: ExogenousSource
     spread: pd.Series  # cible (€/GPU·h), indexée par date
-    raw: dict[str, pd.DataFrame]  # frames vintage bruts (versionnés DVC)
+    raw: dict[str, pd.DataFrame]  # frames vintage bruts (cache local data/raw/)
     decision_index: pd.DatetimeIndex
     mode: str  # "synthetic" | "real"
 

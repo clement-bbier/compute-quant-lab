@@ -9,8 +9,9 @@ Granularité produit : **fix quotidien** (00:30 UTC). Le fix d'un jour settle ap
 (fenêtre de staleness 24 h) ; la grille s'étend donc de ``staleness`` au-delà du dernier
 relevé pour inclure le fix de settlement le plus récent.
 
-Données : ce worktree démarre avec ``data/snapshots`` vide. Pour un run réel, peupler le
-lac via ``git checkout data-snapshots -- data/snapshots`` (ou ``dvc pull`` en ops normales).
+Données : ``data/snapshots`` est versionné en git ordinaire sur ``main``. Pour la collecte
+la plus récente (accumulée en continu par le cron CI), peupler le lac via
+``git checkout data-snapshots -- data/snapshots``.
 Lancement : ``uv run python projects/13_compute_benchmark/run_build_benchmark.py [--root DIR]``.
 """
 
@@ -215,7 +216,7 @@ def main() -> None:
     if not report.history.n_snapshots:
         _LOG.warning(
             "Cold store vide : peupler via `git checkout data-snapshots -- data/snapshots` "
-            "(ou `dvc pull`) avant de relancer pour un benchmark réel."
+            "avant de relancer pour un benchmark réel."
         )
 
 

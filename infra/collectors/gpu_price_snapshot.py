@@ -9,8 +9,9 @@ le prix live et en l'horodatant. Planifier ce script via cron (ex. toutes les he
 - **CSV** via :class:`~core.ingestion.snapshot_store.CsvSnapshotStore` — inchangé, lu par
   l'indice P04 tant que la convergence ne l'a pas re-pointé sur le Parquet.
 - **Parquet** via :class:`~core.storage.parquet_store.ParquetPriceStore` — le nouveau cold
-  store versionné DVC, colonne/typé, qui **conserve la distribution** des offres (là où la
-  dédup CSV ``(t, source, modèle, bail)`` l'écrase). Cf. handoff convergence « fix distribution ».
+  store versionné en git ordinaire, colonne/typé, qui **conserve la distribution** des offres
+  (là où la dédup CSV ``(t, source, modèle, bail)`` l'écrase). Cf. handoff convergence
+  « fix distribution ».
 
 Les deux écritures sont **idempotentes** : relancer le collecteur ne crée pas de doublon.
 Le relevé live réel vient de :func:`core.ingestion.gpu_market.fetch_live_gpu_prices`

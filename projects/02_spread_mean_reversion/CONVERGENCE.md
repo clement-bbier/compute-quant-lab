@@ -30,7 +30,7 @@ La jambe énergie réelle est aujourd'hui chargée depuis `projects/02_.../src/d
 auront besoin) : elle appartient à `core/ingestion/`. Proposition :
 - `core/ingestion/energy_market.py` : `EntsoeSource` (token `ENTSOE_API_TOKEN`), parsing → série
   €/MWh UTC tz-aware, gap-filling documenté (rule `data-integrity`).
-- Versionner la série réelle via DVC (`data/raw/energy/…`) avant tout backtest publié.
+- Versionner la série réelle en git ordinaire (`data/raw/energy/…`) avant tout backtest publié.
 
 ---
 

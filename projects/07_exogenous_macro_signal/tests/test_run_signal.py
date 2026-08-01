@@ -1,6 +1,6 @@
 """Smoke d'intégration : sources → builder point-in-time → mesure du lead.
 
-Sans réseau ni I/O MLflow/DVC (déterministe) : on vérifie que le pipeline complet
+Sans réseau ni I/O MLflow (déterministe) : on vérifie que le pipeline complet
 *retrouve* le lead injecté par le DGP synthétique, en respectant le point-in-time.
 """
 

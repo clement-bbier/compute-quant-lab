@@ -23,17 +23,12 @@ testpaths = [
 > En attendant, P07 lance explicitement
 > `pytest core/features/tests projects/07_exogenous_macro_signal/tests`.
 
-## 2. `.gitignore` (racine) — pointeurs DVC du brut exogène (même blocage que P01 §3)
-`dvc add data/raw/exogenous/*.parquet` **réussit** (cache peuplé, `.dvc` créés) mais le
-motif `data/raw/*` **gitignore aussi les pointeurs `.dvc`** → impossible de committer la
-référence de données. La DoD « brut versionné DVC » est donc atteinte *localement* mais
-le pointeur n'est pas committable depuis le worktree.
-- **Fix** : exception pour les pointeurs, p. ex.
-  ```gitignore
-  !/data/raw/**/*.dvc
-  !/data/raw/**/.gitignore
-  ```
-- À fusionner avec le fix jumeau demandé par P01 (`data/interim`, `data/processed`).
+## 2. `.gitignore` (racine) — pointeurs DVC du brut exogène (RÉSOLU, obsolète)
+Historique : `dvc add data/raw/exogenous/*.parquet` réussissait (cache peuplé, `.dvc`
+créés) mais le motif `data/raw/*` gitignorait aussi les pointeurs `.dvc`, empêchant leur
+commit (même blocage que P01 §3). **Résolu autrement** : DVC a été retiré du dépôt ;
+`data/raw/` reste un cache local gitignoré par design (jamais destiné à être committé,
+réel ou synthétique), donc ce blocage ne s'applique plus.
 
 ## 3. Baseline tests : noyaux Rust à compiler (hérité P08 §1b)
 La suite globale ne se collecte pas dans un worktree neuf tant que `backtest_loop` (P08)
@@ -73,6 +68,6 @@ directement les frames vintage (chemin révisions déjà géré par `as_of_snaps
 ## 8. État de la DoD (prompt §11)
 - [x] Tests verts : anti look-ahead (lag, garde-fou rouge), alignement/fuseau, révisions, builders — 16 + 4.
 - [x] `ruff check .` & `mypy core` verts.
-- [x] Run MLflow loggué (params + lags + SHA + DVC) ; brut DVC **tracké localement** (pointeur bloqué, §2).
+- [x] Run MLflow loggué (params + lags + SHA) ; brut exogène en cache local (`data/raw/`, gitignoré par design, cf. §2).
 - [x] Synthèse `results/SYNTHESIS.md` + `run_summary.json` (lead, pouvoir prédictif, pièges).
 - [x] Rien écrit hors `core/features/` + `projects/07_…` (hors artefacts data/MLflow git-ignorés). Commit branche, ni merge ni push.

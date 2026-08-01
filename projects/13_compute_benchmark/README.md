@@ -80,8 +80,9 @@ version DVC est reproductible. Synthèse écrite dans `results/benchmark_summary
 ## 6. Lancer
 
 ```bash
-# Peupler le cold store (ce worktree démarre vide) :
-git checkout data-snapshots -- data/snapshots      # ou : dvc pull
+# data/snapshots est versionné en git ordinaire sur main. Pour la collecte la plus
+# récente (accumulée en continu par le cron CI) :
+git checkout data-snapshots -- data/snapshots
 
 uv run pytest -q projects/13_compute_benchmark/tests          # tests
 uv run python projects/13_compute_benchmark/run_build_benchmark.py   # run + results/

@@ -6,7 +6,7 @@ Usage :
 Pipeline : (1) énergie régionale FR/DE (ENTSO-E réel si token, sinon repli synthétique
 étiqueté) + indice compute global P04 ; (2) un ``SparkSpreadPricer`` (P01) par région
 portant son PUE ; (3) ``BasisCalculator`` point-in-time ; (4) ``detect_dislocations``
-(seuil + demi-vie AR(1)) ; (5) **run MLflow** loggué (params + SHA git + DVC) ; (6) synthèse
+(seuil + demi-vie AR(1)) ; (5) **run MLflow** loggué (params + SHA git) ; (6) synthèse
 ``results/SYNTHESIS.md``.
 
 Frontière réel/synthétique : ``energy_source`` / ``compute_source`` sont loggués en params.

@@ -21,18 +21,13 @@ Ajouter Rust + `maturin develop` du subcrate + exécuter `pytest -k parity`.
 Sans cela, le test de parité Rust↔Python **skip** en CI (il passe en local après
 compilation : `np.allclose` bit-exact sur 10 000 points).
 
-## 3. `.gitignore` racine — DVC bloqué sur `data/interim`
-`dvc add data/interim/aligned_spark.parquet` échoue :
-`ERROR: bad DVC file name '...aligned_spark.parquet.dvc' is git-ignored`.
-Cause : le motif `/data/interim/*` ignore **aussi** les pointeurs `*.dvc`, ce qui
-contredit le commentaire du `.gitignore` (« le contenu, pas les .dvc »).
-- **Fix** : ajouter une exception, p. ex.
-  ```gitignore
-  !/data/interim/*.dvc
-  !/data/processed/*.dvc
-  ```
-  Sans ce fix, la DoD « données versionnées DVC » est **inatteignable** depuis la
-  zone P01 (le script dégrade proprement en `untracked`).
+## 3. `.gitignore` racine — DVC bloqué sur `data/interim` (RÉSOLU, obsolète)
+Historique : `dvc add data/interim/aligned_spark.parquet` échouait
+(`ERROR: bad DVC file name '...aligned_spark.parquet.dvc' is git-ignored`, le motif
+`/data/interim/*` ignorant aussi les pointeurs `*.dvc`). **Résolu autrement** :
+la convergence a retiré DVC du dépôt et versionne les données en git ordinaire
+(`aligned_spark.parquet` committable directement). `run_pricer.py` ne shell-out
+plus vers `dvc` ; ce blocage ne s'applique plus.
 
 ## 4. `core/utils/tracking.py` — MLflow ≥ 3 (owner : core/utils)
 MLflow 3.14 met le file store en « maintenance mode » et lève une exception sans
@@ -64,7 +59,7 @@ déterministe** (loggué). Le swap vers le réel est automatique dès le token f
 - [x] Tests verts dont anti look-ahead (b) + parité Rust/Python (d) — 18 passed.
 - [x] `ruff check .` & `mypy core` verts.
 - [x] Run MLflow loggué (params + métriques + SHA) via `core.utils.tracking`.
-- [~] Données DVC — **bloqué par §3** (gitignore) ; parquet produit, `untracked`.
+- [x] Données versionnées — git ordinaire (DVC retiré, cf. §3) ; parquet produit.
 - [x] Synthèse écrite (`results/SYNTHESIS.md` + `run_summary.json`).
 - [x] Rien écrit hors `core/pricing/` + `projects/01…` (hors artefacts data/MLflow
       générés par le run, git-ignorés). Patches zone protégée listés ci-dessus.

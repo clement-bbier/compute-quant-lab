@@ -22,18 +22,19 @@ Chaque observation porte deux horodatages : `value_ts` (période décrite) et
   `PointInTimeFeatureBuilder`).
 - `projects/07_…/src/` : `sources.py` (I/O, repli synthétique déterministe),
   `analysis.py` (cross-corrélation + OLS de confirmation, purs), `run_signal.py`
-  (orchestration + MLflow + DVC).
+  (orchestration + MLflow).
 
 ## Reproductibilité
 Run MLflow via `core.utils.tracking.run` (params : variables, lags de publication,
-fenêtres, seed ; tags SHA + DVC). Brut exogène → `data/raw/exogenous/` versionné DVC.
+fenêtres, seed ; tags SHA + DVC). Brut exogène → `data/raw/exogenous/`, cache local
+(gitignoré par design, jamais committé).
 
 ## État d'avancement (PoC-now ✅)
 - [x] Mécanique point-in-time (lag + révisions) dans `core/features/` + 16 tests.
 - [x] Anti look-ahead STRICT testé en rouge (lag de publication, garde-fou).
 - [x] Builders point-in-time (lags, moyennes mobiles, diffs) sur fixtures connues.
 - [x] Mesure du lead anti-overfit : cross-corrélation + OLS out-of-sample (split temporel).
-- [x] Run MLflow reproductible + brut DVC (cache local ; pointeur cf. CONVERGENCE).
+- [x] Run MLflow reproductible + brut exogène en cache local (`data/raw/`, cf. CONVERGENCE).
 
 ## Résultats clés (données SIMULÉES, seed=7)
 DGP injectant un lead de 3 j ; le pipeline retrouve **2 j exploitables** (le lag de
@@ -48,5 +49,5 @@ régression fallacieuse (mesure sur les **variations**, pas les niveaux).
 nowcasting, modèle causal, panel large, gestion fine des révisions réelles.
 
 ## Convergence
-Patchs zone protégée (testpaths, .gitignore DVC, registre sources…) :
+Patchs zone protégée (testpaths, registre sources…) :
 voir [CONVERGENCE.md](CONVERGENCE.md).

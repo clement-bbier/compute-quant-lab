@@ -9,7 +9,7 @@ Pipeline (modèle d'honnêteté de P01/P04) :
 2. volatilité **réalisée** + **EWMA** sur les log-returns → régime de vol courant ;
 3. courbe forward **SIMULÉE** de P04 (Schwartz 1-facteur) calibrée sur le log-spot ;
 4. **term structure** (pente/courbure/forme) + **signal** directionnel (roll-yield) ;
-5. **run MLflow** loggué (params + métriques + SHA git + DVC) ;
+5. **run MLflow** loggué (params + métriques + SHA git) ;
 6. synthèse écrite dans ``results/`` (``SYNTHESIS.md`` + ``run_summary.json``).
 
 ⚠️ La term structure dérive d'une forward **SIMULÉE** (futures CME non listés) : tout

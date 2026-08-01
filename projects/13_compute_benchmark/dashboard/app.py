@@ -5,8 +5,9 @@ Rend la **mesure** publiable : courbe de l'indice canonique + dispersion inter-v
 recommandation de timing (« louer sur X maintenant ») — c'est la frontière edge.
 
 Lancer : ``uv run streamlit run projects/13_compute_benchmark/dashboard/app.py``.
-Ce worktree démarre avec ``data/snapshots`` vide : renseigner dans la barre latérale la
-racine d'un cold store peuplé (``git checkout data-snapshots -- data/snapshots`` ou ``dvc pull``).
+``data/snapshots`` est versionné en git ordinaire sur ``main``. Pour la collecte la plus
+récente (accumulée en continu par le cron CI), renseigner dans la barre latérale la racine
+d'un cold store peuplé via ``git checkout data-snapshots -- data/snapshots``.
 """
 
 from __future__ import annotations
@@ -81,7 +82,7 @@ def main() -> None:
     if not snapshots:
         st.warning(
             "Cold store vide. Peupler le lac puis renseigner sa racine :\n\n"
-            "`git checkout data-snapshots -- data/snapshots`  (ou `dvc pull`)."
+            "`git checkout data-snapshots -- data/snapshots`."
         )
         return
 
