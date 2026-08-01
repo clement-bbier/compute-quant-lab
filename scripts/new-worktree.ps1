@@ -1,5 +1,5 @@
-# Crée un worktree partitionné pour travailler un module en parallèle.
-# Usage : .\scripts\new-worktree.ps1 -Module ingestion
+# Creates a partitioned worktree to work on a module in parallel.
+# Usage: .\scripts\new-worktree.ps1 -Module ingestion
 param(
     [Parameter(Mandatory=$true)][string]$Module
 )
@@ -8,8 +8,8 @@ $path   = "../lab-$Module"
 
 git worktree add $path -b $branch
 Write-Host ""
-Write-Host "Worktree créé : $path  (branche $branch)" -ForegroundColor Green
-Write-Host "Rappel : cette session ne doit écrire QUE dans le module '$Module'."
-Write-Host "Voir docs/parallel-ops.md pour la partition de propriété."
+Write-Host "Worktree created: $path  (branch $branch)" -ForegroundColor Green
+Write-Host "Reminder: this session must write ONLY into the '$Module' module."
+Write-Host "See docs/parallel-ops.md for the ownership partition."
 Write-Host ""
-Write-Host "Prochaine étape : ouvrir un terminal dans $path puis lancer 'claude'."
+Write-Host "Next step: open a terminal in $path then run 'claude'."
