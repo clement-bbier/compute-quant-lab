@@ -1,12 +1,12 @@
-"""Calibrateurs des paramètres de Schwartz (κ, θ, σ) — stratégies interchangeables.
+"""Schwartz parameter calibrators (κ, θ, σ) — interchangeable strategies.
 
-- :class:`OlsAr1Calibrator` (défaut) : régression AR(1) du log-prix (standard Schwartz
-  1997). Robuste à l'absence de mean-reversion via un *repli* configurable.
-- :class:`ImposedHalfLifeCalibrator` : demi-vie imposée + θ/σ d'échantillon ; stable même
-  sur un historique court (le cas du spot compute, fraîchement accumulé).
+- :class:`OlsAr1Calibrator` (default): AR(1) regression on the log-price (standard Schwartz
+  1997). Robust to the absence of mean-reversion via a configurable *fallback*.
+- :class:`ImposedHalfLifeCalibrator`: imposed half-life + sample θ/σ; stable even
+  on a short history (the case of freshly accumulated compute spot).
 
-Le modèle discret exact donne, avec ``b = e^{-κΔ}`` :
-``κ = -ln(b)/Δ`` · ``θ = exp(a/(1-b))`` · ``σ = std(résidus)·sqrt(-2 ln b /(Δ(1-b²)))``.
+The exact discrete model gives, with ``b = e^{-κΔ}``:
+``κ = -ln(b)/Δ`` · ``θ = exp(a/(1-b))`` · ``σ = std(residuals)·sqrt(-2 ln b /(Δ(1-b²)))``.
 """
 
 from __future__ import annotations
@@ -22,17 +22,17 @@ from forward.protocols import ForwardCalibrator
 
 
 class CalibrationError(ValueError):
-    """Levée quand la calibration échoue (données insuffisantes, pas de mean-reversion)."""
+    """Raised when calibration fails (insufficient data, no mean-reversion)."""
 
 
 @dataclass(frozen=True)
 class ImposedHalfLifeCalibrator:
-    """κ fixé par une demi-vie ; θ et σ estimés sur l'échantillon (robuste, peu de points).
+    """κ fixed by a half-life; θ and σ estimated on the sample (robust, few points).
 
     Parameters
     ----------
     half_life_days
-        Demi-vie de retour à la moyenne (jours) ; ``κ = ln 2 / half_life``.
+        Mean-reversion half-life (days); ``κ = ln 2 / half_life``.
     """
 
     half_life_days: float = 30.0
@@ -44,7 +44,7 @@ class ImposedHalfLifeCalibrator:
     def calibrate(self, log_prices: Sequence[float], dt_days: float) -> SchwartzParams:
         x = np.asarray(log_prices, dtype=float)
         if x.size < 2:
-            raise CalibrationError("Au moins 2 points requis pour la calibration.")
+            raise CalibrationError("At least 2 points are required for calibration.")
         kappa = math.log(2.0) / self.half_life_days
         theta = math.exp(float(x.mean()))
         sigma = float(np.std(np.diff(x), ddof=1)) / math.sqrt(dt_days)
@@ -53,13 +53,13 @@ class ImposedHalfLifeCalibrator:
 
 @dataclass(frozen=True)
 class OlsAr1Calibrator:
-    """Calibration OLS AR(1) (standard Schwartz). Repli si la série n'a pas de reversion.
+    """OLS AR(1) calibration (standard Schwartz). Falls back if the series has no reversion.
 
     Parameters
     ----------
     fallback
-        Calibrateur de secours utilisé quand la pente ``b`` sort de ``(0, 1)`` (κ non
-        positif). Si ``None``, une :class:`CalibrationError` est levée.
+        Fallback calibrator used when the slope ``b`` falls outside ``(0, 1)`` (non-
+        positive κ). If ``None``, a :class:`CalibrationError` is raised.
     """
 
     fallback: ForwardCalibrator | None = None
@@ -71,7 +71,7 @@ class OlsAr1Calibrator:
     def calibrate(self, log_prices: Sequence[float], dt_days: float) -> SchwartzParams:
         x = np.asarray(log_prices, dtype=float)
         if x.size < 3:
-            raise CalibrationError("Au moins 3 points requis pour l'OLS AR(1).")
+            raise CalibrationError("At least 3 points are required for OLS AR(1).")
 
         x_t, x_next = x[:-1], x[1:]
         slope, intercept = np.polyfit(x_t, x_next, 1)
@@ -81,7 +81,7 @@ class OlsAr1Calibrator:
             if self.fallback is not None:
                 return self.fallback.calibrate(log_prices, dt_days)
             raise CalibrationError(
-                f"Pas de mean-reversion exploitable (b={b:.4f} hors (0,1)) : κ non positif."
+                f"No usable mean-reversion (b={b:.4f} outside (0,1)): non-positive κ."
             )
 
         kappa = -math.log(b) / dt_days

@@ -1,7 +1,7 @@
-"""Smoke test du pipeline headline : features → OOS → backtestable par P08.
+"""Smoke test of the headline pipeline: features → OOS → backtestable by P08.
 
-Skippé proprement si le noyau Rust ``backtest_loop`` n'est pas compilé (CI en isolation),
-de sorte que le gate reste vert sans build Rust ; exécuté pour de vrai quand il l'est.
+Cleanly skipped if the Rust core ``backtest_loop`` isn't compiled (CI in isolation),
+so the gate stays green without a Rust build; runs for real when it's available.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pytest.importorskip("backtest_loop")  # le moteur P08 importe le noyau Rust en dur
+pytest.importorskip("backtest_loop")  # the P08 engine hard-imports the Rust core
 
 from core.backtest import BacktestEngine, LinearCostModel  # noqa: E402
 from core.models import PrecomputedSignalStrategy  # noqa: E402
@@ -32,7 +32,7 @@ def test_oos_proba_is_aligned_and_mostly_predicted() -> None:
     features, labels = build_features(dataset)
     proba = out_of_sample_proba(features, labels)
     assert proba.shape == (len(dataset.spread),)
-    # La plupart des lignes (hors warm-up / queue) reçoivent une prédiction OOS.
+    # Most rows (outside warm-up / tail) receive an OOS prediction.
     assert np.isfinite(proba).mean() > 0.8
 
 

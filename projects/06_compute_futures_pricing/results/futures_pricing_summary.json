@@ -1,5 +1,5 @@
 {
-  "disclaimer": "THÉORIQUE/SIMULÉ — les futures compute (settlement SDH100RT) ne sont pas listés. La forward provient d'un modèle (Schwartz/carry), jamais d'un marché observé.",
+  "disclaimer": "THEORETICAL/SIMULATED — compute futures (SDH100RT settlement) are not listed. The forward comes from a model (Schwartz/carry), never from an observed market.",
   "simulated": true,
   "params": {
     "gpu": "H100",

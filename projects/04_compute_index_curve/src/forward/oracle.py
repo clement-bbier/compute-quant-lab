@@ -1,14 +1,14 @@
-"""Oracle Python de la courbe forward : analytique + Monte-Carlo de référence.
+"""Python oracle for the forward curve: analytical + reference Monte-Carlo.
 
-Modèle de Schwartz un-facteur (OU sur le log-prix). Le **forward analytique** est la
-référence (oracle) contre laquelle on teste le moteur Rust ; le **MC Python** reproduit
-le même schéma de transition exacte, utile comme repli et comme contre-vérification.
+1-factor Schwartz model (OU on the log-price). The **analytical forward** is the
+reference (oracle) against which the Rust engine is tested; the **Python MC** reproduces
+the same exact transition scheme, useful as a fallback and as a cross-check.
 
-Forward (espérance du spot sous le modèle, prix lognormal) :
+Forward (expectation of spot under the model, lognormal price):
 
     F(t, T) = exp( e^{-kτ} ln S_t + (1 - e^{-kτ}) ln θ + ½ · (σ²/2k)(1 - e^{-2kτ}) )
 
-Propriétés : F(τ=0) = S_t (convergence) ; monotone de S_t vers le niveau de long terme.
+Properties: F(τ=0) = S_t (convergence); monotone from S_t toward the long-run level.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from forward.models import Curve, CurvePoint, SchwartzParams
 
 
 def forward_price(spot: float, params: SchwartzParams, tau_days: float) -> float:
-    """Prix forward analytique pour une échéance ``tau_days`` (jours)."""
+    """Analytical forward price for a ``tau_days`` maturity (days)."""
     if tau_days == 0:
         return spot
     k, theta, sigma = params.kappa, params.theta, params.sigma
@@ -35,7 +35,7 @@ def forward_price(spot: float, params: SchwartzParams, tau_days: float) -> float
 
 @dataclass(frozen=True)
 class SchwartzAnalyticForward:
-    """Courbe forward fermée (oracle de référence pour la parité)."""
+    """Closed-form forward curve (reference oracle for parity checks)."""
 
     @property
     def name(self) -> str:
@@ -62,10 +62,10 @@ class SchwartzAnalyticForward:
 
 @dataclass(frozen=True)
 class PythonMonteCarloForward:
-    """Monte-Carlo Python (transition OU exacte) — repli et contre-vérification.
+    """Python Monte-Carlo (exact OU transition) — fallback and cross-check.
 
-    Échantillonne ``n_paths`` chemins en avançant par transitions exactes entre échéances
-    consécutives : estimateur non biaisé du forward analytique.
+    Samples ``n_paths`` paths, stepping forward via exact transitions between
+    consecutive maturities: unbiased estimator of the analytical forward.
     """
 
     n_paths: int = 100_000
@@ -94,8 +94,10 @@ class PythonMonteCarloForward:
             if step > 0:
                 decay = math.exp(-k * step)
                 var = (sigma**2 / (2.0 * k)) * (1.0 - math.exp(-2.0 * k * step))
-                x = decay * x + (1.0 - decay) * ln_theta + math.sqrt(var) * rng.standard_normal(
-                    self.n_paths
+                x = (
+                    decay * x
+                    + (1.0 - decay) * ln_theta
+                    + math.sqrt(var) * rng.standard_normal(self.n_paths)
                 )
             forwards[maturity] = float(np.mean(np.exp(x)))
             previous = maturity

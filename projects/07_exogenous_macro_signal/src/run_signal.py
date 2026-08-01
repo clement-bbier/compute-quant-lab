@@ -1,19 +1,18 @@
-"""Bout-en-bout P07 : features exogènes point-in-time → lead sur le spread → MLflow.
+"""P07 end-to-end: point-in-time exogenous features -> lead over the spread -> MLflow.
 
     uv run python projects/07_exogenous_macro_signal/src/run_signal.py
 
-1. charge le panel exogène (synthétique déterministe à défaut de token) ;
-2. construit le panel de features **point-in-time** (`core.features`) ;
-3. mesure le lead sur le spread P01 : cross-corrélation aux lags + OLS de confirmation ;
-4. versionne le brut exogène (DVC, best-effort) ;
-5. logge un run MLflow (variables, lags de publication, fenêtres + SHA + DVC) ;
-6. écrit `results/run_summary.json` + `results/SYNTHESIS.md`.
+1. loads the exogenous panel (deterministic synthetic fallback absent a token);
+2. builds the **point-in-time** feature panel (`core.features`);
+3. measures the lead over the P01 spread: cross-correlation across lags + confirmation OLS;
+4. writes the raw exogenous data to the local cache (`data/raw/`, gitignored by design);
+5. logs an MLflow run (variables, publication lags, windows + git SHA);
+6. writes `results/run_summary.json` + `results/SYNTHESIS.md`.
 """
 
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -28,7 +27,7 @@ from core.utils.tracking import run as tracked_run
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
-import analysis  # noqa: E402  (src ajouté au sys.path ci-dessus)
+import analysis  # noqa: E402  (src added to sys.path above)
 import sources  # noqa: E402
 
 logger = get_logger(__name__)
@@ -38,7 +37,7 @@ RAW_EXO_DIR = RAW_DIR / "exogenous"
 EXPERIMENT = "p07_exogenous_macro_signal"
 MAX_LAG = 7
 
-#: Features dérivées par variable (toutes ≤ t par construction).
+#: Derived features per variable (all <= t by construction).
 FEATURE_SPECS: dict[str, FeatureSpec] = {
     "gas_price": FeatureSpec(lags=(0, 1), rolling_means=(7,), diffs=(7,)),
     "hdd": FeatureSpec(lags=(0,), rolling_means=(7,)),
@@ -47,12 +46,11 @@ FEATURE_SPECS: dict[str, FeatureSpec] = {
 
 
 def measure_lead(panel_features: pd.DataFrame, spread: pd.Series) -> dict[str, Any]:
-    """Cross-corrélation par feature + OLS de confirmation sur le meilleur lead.
+    """Per-feature cross-correlation + confirmation OLS on the best lead.
 
-    Mesure sur les **variations** (Δ) et non les niveaux : les séries macro dérivent
-    ensemble (saisonnalité, marche aléatoire) et une corrélation de niveaux culmine
-    spurieusement à lag 0 (régression fallacieuse, cf. §10). Différencier isole la
-    dynamique de lead.
+    Measured on **changes** (delta), not levels: macro series drift together
+    (seasonality, random walk), and a level correlation peaks spuriously at lag 0
+    (spurious regression, cf. §10). Differencing isolates the lead dynamics.
     """
     feature_changes = panel_features.diff()
     spread_changes = spread.diff()
@@ -77,35 +75,25 @@ def measure_lead(panel_features: pd.DataFrame, spread: pd.Series) -> dict[str, A
     }
 
 
-def _version_raw(frames: dict[str, pd.DataFrame]) -> dict[str, str]:
-    """Écrit le brut exogène et tente `dvc add` (dégrade proprement si bloqué)."""
+def _write_raw(frames: dict[str, pd.DataFrame]) -> dict[str, str]:
+    """Writes the raw exogenous data to the local cache (`data/raw/`, gitignored by design)."""
     RAW_EXO_DIR.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, frame in frames.items():
         path = RAW_EXO_DIR / f"{name}.parquet"
         frame.to_parquet(path)
         paths.append(str(path))
-    try:
-        subprocess.run(["dvc", "add", *paths], check=True, capture_output=True, text=True)
-        pointer = f"{paths[0]}.dvc"
-        ignored = (
-            subprocess.run(["git", "check-ignore", pointer], capture_output=True).returncode == 0
-        )
-        # P01 §3 : le motif `data/raw/*` avale aussi les pointeurs .dvc → committal bloqué.
-        return {"status": "tracked", "pointer_committable": not ignored}
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-        logger.warning("dvc add indisponible/bloqué → brut laissé untracked (%s).", exc)
-        return {"status": "untracked", "pointer_committable": False}
+    return {"status": "local_cache", "paths": ",".join(paths)}
 
 
 def main() -> None:
     panel = sources.load_panel()
     builder = PointInTimeFeatureBuilder(panel.source, FEATURE_SPECS)
     features = builder.build_panel(panel.decision_index)
-    spread = panel.spread.reindex(panel.spread.index)  # cible alignée par timestamp
+    spread = panel.spread.reindex(panel.spread.index)  # target aligned by timestamp
 
     lead = measure_lead(features, spread)
-    dvc_status = _version_raw(panel.raw)
+    raw_status = _write_raw(panel.raw)
 
     lags_days = {k: v / pd.Timedelta("1D") for k, v in sources.DEFAULT_PUBLICATION_LAGS.items()}
     params = {
@@ -117,7 +105,7 @@ def main() -> None:
         "feature_specs": json.dumps({k: v.__dict__ for k, v in FEATURE_SPECS.items()}),
         "max_lag": MAX_LAG,
         "n_decision_points": int(len(features)),
-        "simulated": True,  # rule forward-real-simulated : données synthétiques étiquetées
+        "simulated": True,  # rule forward-real-simulated: synthetic data flagged as such
     }
 
     with tracked_run(EXPERIMENT, params):
@@ -134,20 +122,20 @@ def main() -> None:
         "params": params,
         "lead": {k: v for k, v in lead.items() if k != "per_feature"},
         "per_feature": lead["per_feature"],
-        "dvc": dvc_status,
+        "raw_data": raw_status,
     }
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "run_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     _write_synthesis(summary)
 
     logger.info(
-        "run_id=%s  best=%s lead=%d j |corr|=%.3f  r2_oos=%.3f  dvc=%s",
+        "run_id=%s  best=%s lead=%dd |corr|=%.3f  r2_oos=%.3f  raw=%s",
         run_id,
         lead["best_feature"],
         lead["best_lag"],
         lead["best_abs_corr"],
         lead["ols_confirmation"]["r2_oos"],
-        dvc_status["status"],
+        raw_status["status"],
     )
 
 
@@ -155,36 +143,31 @@ def _write_synthesis(summary: dict[str, Any]) -> None:
     lead = summary["lead"]
     ols = lead["ols_confirmation"]
     lines = [
-        "# P07 — Synthèse : signal macro exogène (lead sur le spread)",
+        "# P07 — Synthesis: exogenous macro signal (lead over the spread)",
         "",
-        "> Données **SIMULÉES** (repli déterministe, seed fixe) : démonstration de",
-        "> méthode point-in-time, pas une prétention de réalisme. Connecteur réel",
-        "> météo/gaz = item `data-engineer` (cf. CONVERGENCE).",
+        "> **SIMULATED** data (deterministic fallback, fixed seed): a demonstration of",
+        "> point-in-time method, not a claim of realism. Real weather/gas",
+        "> connector = `data-engineer` item (cf. CONVERGENCE).",
         "",
-        "## Lead observé",
-        f"- Meilleure feature : **{lead['best_feature']}**",
-        f"- Lead optimal : **{lead['best_lag']} jour(s)** "
-        f"(le DGP injecte un lead de {summary['params']['lead_injected_days']} j).",
-        f"- |corrélation| au lead : **{lead['best_abs_corr']:.3f}**",
+        "## Observed lead",
+        f"- Best feature: **{lead['best_feature']}**",
+        f"- Optimal lead: **{lead['best_lag']} day(s)** "
+        f"(the DGP injects a {summary['params']['lead_injected_days']}-day lead).",
+        f"- |correlation| at lead: **{lead['best_abs_corr']:.3f}**",
         "",
-        "## Confirmation OLS (split temporel strict, pas de shuffle)",
+        "## OLS confirmation (strict temporal split, no shuffling)",
         f"- coef = {ols['coef']:.4f}, p-value = {ols['pvalue']:.2e}",
-        f"- R² in-sample = {ols['r2_in']:.3f}, **R² out-of-sample = {ols['r2_oos']:.3f}**",
+        f"- in-sample R² = {ols['r2_in']:.3f}, **out-of-sample R² = {ols['r2_oos']:.3f}**",
         f"- n_train = {ols['n_train']}, n_test = {ols['n_test']}",
         "",
-        "## Pièges look-ahead couverts",
-        "- Lag de publication explicite (knowledge_ts = value_ts + lag) — test rouge.",
-        "- Révisions tardives : seul le millésime publié à temps est vu (vintages).",
-        "- Alignement / fuseau UTC tz-aware (rejet du datetime naïf).",
-        "- Mesure du lead anti-overfit : cross-corrélation + OLS out-of-sample.",
+        "## Look-ahead pitfalls covered",
+        "- Explicit publication lag (knowledge_ts = value_ts + lag) — red-first test.",
+        "- Late revisions: only the vintage published in time is seen (vintages).",
+        "- UTC tz-aware alignment (naive datetime rejected).",
+        "- Anti-overfit lead measurement: cross-correlation + out-of-sample OLS.",
         "",
-        f"Run MLflow : `{summary['run_id']}` — brut exogène DVC : {summary['dvc']['status']}"
-        + (
-            "."
-            if summary["dvc"].get("pointer_committable")
-            else " (cache local ; pointeurs `.dvc` gitignorés → committal en convergence, "
-            "cf. CONVERGENCE)."
-        ),
+        f"MLflow run: `{summary['run_id']}` — raw exogenous data: "
+        f"{summary['raw_data']['status']} (data/raw/, gitignored by design).",
     ]
     (RESULTS_DIR / "SYNTHESIS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

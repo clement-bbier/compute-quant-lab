@@ -1,8 +1,8 @@
-"""Tests des loaders de données : intégration P01 (pricing) et jambe compute réelle (ingestion).
+"""Tests for the data loaders: P01 (pricing) integration and the real compute leg (ingestion).
 
-``load_energy_entsoe`` (réseau ENTSO-E) n'est pas testé en unitaire (I/O token-gated, comme le
-connecteur Vast.ai de P04). On teste ici le câblage *pur* : pricing du spread via P01 et
-construction d'une série d'indice compute à partir de snapshots réels accumulés.
+``load_energy_entsoe`` (ENTSO-E network call) is not unit-tested (I/O token-gated, like P04's
+Vast.ai connector). Here we test the *pure* wiring: spread pricing via P01 and
+building a compute index series from accumulated real snapshots.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def test_build_spread_decomposes_via_p01() -> None:
         region="FR",
         provenance=DataProvenance(source="test", simulated=True),
     )
-    # spread = revenu − coût (décomposition P01), franchement positif pour un H100.
+    # spread = revenue - cost (P01 decomposition), clearly positive for an H100.
     np.testing.assert_allclose(
         ds.spread.to_numpy(), (ds.pricing.revenue - ds.pricing.cost).to_numpy()
     )

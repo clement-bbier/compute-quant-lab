@@ -1,14 +1,14 @@
-"""Série d'indice spot compute **point-in-time** sur le cold store.
+"""**Point-in-time** compute spot index series on the cold store.
 
-:func:`build_index_series` échantillonne l'indice canonique
-(:func:`core.ingestion.build_spot_index`) sur une grille d'instants de fix. La
-granularité *produit publiée* est le **fix quotidien** (:func:`daily_fix_grid`,
-00:30 UTC, analogue au fix GPU Markets) ; le dashboard de démo peut rendre une cadence
-plus fine sans changer la méthode.
+:func:`build_index_series` samples the canonical index
+(:func:`core.ingestion.build_spot_index`) on a grid of fix instants. The
+*published product* granularity is the **daily fix** (:func:`daily_fix_grid`,
+00:30 UTC, analogous to the GPU Markets fix); the demo dashboard can render a finer
+cadence without changing the method.
 
-Garantie point-in-time : héritée de ``build_spot_index`` (aucune observation ``> as_of``
-n'entre dans un fix). Robustesse données creuses : un fix sans venue fraîche est **sauté
-et enregistré** (``IndexSeries.skipped``), jamais inventé par carry-forward.
+Point-in-time guarantee: inherited from ``build_spot_index`` (no observation ``> as_of``
+enters a fix). Sparse-data robustness: a fix without a fresh venue is **skipped
+and recorded** (``IndexSeries.skipped``), never invented via carry-forward.
 """
 
 from __future__ import annotations
@@ -27,10 +27,10 @@ from core.ingestion.compute_index import (
 )
 from core.ingestion.protocols import Snapshot, SpotIndexPoint, ensure_utc
 
-#: Heure du fix quotidien canonique (UTC) — analogue au fix 00:30 de GPU Markets.
+#: Time of the canonical daily fix (UTC) — analogous to the GPU Markets 00:30 fix.
 DEFAULT_FIX_TIME = dt.time(0, 30)
 
-#: Colonnes auditables exposées par :meth:`IndexSeries.to_frame`.
+#: Auditable columns exposed by :meth:`IndexSeries.to_frame`.
 _FRAME_COLUMNS = [
     "as_of",
     "gpu_model",
@@ -44,19 +44,19 @@ _FRAME_COLUMNS = [
 def daily_fix_grid(
     start: dt.datetime, end: dt.datetime, fix_time: dt.time = DEFAULT_FIX_TIME
 ) -> list[dt.datetime]:
-    """Liste les instants de fix quotidien (``fix_time`` UTC) dans ``[start, end]``.
+    """Lists the daily fix instants (``fix_time`` UTC) within ``[start, end]``.
 
     Parameters
     ----------
     start, end
-        Bornes UTC tz-aware (un datetime naïf est rejeté — intégrité point-in-time).
+        UTC tz-aware bounds (a naive datetime is rejected — point-in-time integrity).
     fix_time
-        Heure du fix dans la journée (défaut 00:30 UTC).
+        Time of the fix within the day (default 00:30 UTC).
 
     Returns
     -------
     list[datetime.datetime]
-        Un instant par jour calendaire tombant dans ``[start, end]`` (bornes incluses).
+        One instant per calendar day falling within ``[start, end]`` (bounds included).
     """
     start, end = ensure_utc(start), ensure_utc(end)
     grid: list[dt.datetime] = []
@@ -72,10 +72,10 @@ def daily_fix_grid(
 def observed_fix_grid(
     snapshots: Sequence[Snapshot], *, gpu_model: str | None = None
 ) -> list[dt.datetime]:
-    """Cadence **démo** : instants de snapshot observés distincts, triés.
+    """**Demo** cadence: distinct observed snapshot instants, sorted.
 
-    Sert à rendre une courbe sur l'historique réel maigre (cadence fine, étiquetée démo),
-    là où le fix quotidien canonique ne produirait qu'un point. Optionnellement filtré par
+    Used to render a curve over the thin real history (fine cadence, labeled demo),
+    where the canonical daily fix would only produce a single point. Optionally filtered by
     ``gpu_model``.
     """
     times = {s.snapshotted_at for s in snapshots if gpu_model is None or s.gpu_model == gpu_model}
@@ -84,11 +84,11 @@ def observed_fix_grid(
 
 @dataclass(frozen=True)
 class IndexSeries:
-    """Série d'indice canonique pour un modèle GPU + les fix sautés (données creuses).
+    """Canonical index series for a GPU model + skipped fixes (sparse data).
 
-    ``points`` est la série calculée (un :class:`SpotIndexPoint` auditable par fix) ;
-    ``skipped`` liste les ``as_of`` sans venue fraîche — l'historique maigre est explicite,
-    jamais comblé par carry-forward.
+    ``points`` is the computed series (an auditable :class:`SpotIndexPoint` per fix);
+    ``skipped`` lists the ``as_of`` values without a fresh venue — the thin history is explicit,
+    never filled by carry-forward.
     """
 
     gpu_model: str
@@ -96,7 +96,7 @@ class IndexSeries:
     skipped: list[dt.datetime]
 
     def to_frame(self) -> pd.DataFrame:
-        """Sérialise ``points`` en DataFrame auditable (colonnes :data:`_FRAME_COLUMNS`)."""
+        """Serializes ``points`` into an auditable DataFrame (columns :data:`_FRAME_COLUMNS`)."""
         rows = [
             {
                 "as_of": p.as_of,
@@ -118,26 +118,26 @@ def build_index_series(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> IndexSeries:
-    """Échantillonne l'indice canonique de ``gpu_model`` sur ``as_of_grid``.
+    """Samples the canonical index of ``gpu_model`` over ``as_of_grid``.
 
-    Chaque ``as_of`` produit un fix via ``build_spot_index`` ; un fix sans venue fraîche
-    (``InsufficientDataError``) est enregistré dans ``skipped`` plutôt que comblé.
+    Each ``as_of`` produces a fix via ``build_spot_index``; a fix without a fresh venue
+    (``InsufficientDataError``) is recorded in ``skipped`` rather than filled.
 
     Parameters
     ----------
     snapshots
-        Relevés bruts multi-venues (filtrés par ``build_spot_index``).
+        Raw multi-venue readings (filtered by ``build_spot_index``).
     as_of_grid
-        Instants de fix (UTC) — typiquement issus de :func:`daily_fix_grid`.
+        Fix instants (UTC) — typically produced by :func:`daily_fix_grid`.
     gpu_model
-        Modèle agrégé (ex. ``"H100"``).
+        Aggregated model (e.g. ``"H100"``).
     config
-        Stratégie d'agrégation (défaut : standard marché).
+        Aggregation strategy (default: market standard).
 
     Returns
     -------
     IndexSeries
-        Points calculés + ``as_of`` sautés (données creuses).
+        Computed points + skipped ``as_of`` values (sparse data).
     """
     points: list[SpotIndexPoint] = []
     skipped: list[dt.datetime] = []

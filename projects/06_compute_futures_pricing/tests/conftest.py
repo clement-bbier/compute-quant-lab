@@ -1,10 +1,10 @@
-"""Fixtures et chemins des tests P06 (futures compute théoriques).
+"""Fixtures and paths for P06 tests (theoretical compute futures).
 
-Le cœur du pricing vit dans ``core.pricing.derivatives`` (paquet installé en
-editable, importable directement). Ce conftest rend en plus importables :
-  - le code projet sous ``projects/06_compute_futures_pricing/src`` (adapter P04) ;
-  - le paquet ``forward`` de P04 sous ``projects/04_compute_index_curve/src``
-    (courbe forward SIMULÉE servant à la cohérence carry ↔ Schwartz).
+The pricing core lives in ``core.pricing.derivatives`` (package installed in
+editable mode, directly importable). This conftest additionally makes importable:
+  - the project code under ``projects/06_compute_futures_pricing/src`` (P04 adapter);
+  - P04's ``forward`` package under ``projects/04_compute_index_curve/src``
+    (SIMULATED forward curve used for carry ↔ Schwartz consistency).
 """
 
 from __future__ import annotations

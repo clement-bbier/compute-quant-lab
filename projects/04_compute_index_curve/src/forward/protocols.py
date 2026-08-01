@@ -1,14 +1,14 @@
-"""Protocoles injectables de la jambe forward (Strategy + DI).
+"""Injectable protocols for the forward leg (Strategy + DI).
 
-Deux abstractions interchangeables, dans l'esprit configurable du labo :
+Two interchangeable abstractions, in the lab's configurable spirit:
 
-- :class:`ForwardCurveModel` — produit une :class:`~forward.models.Curve` à partir d'un
-  spot et de paramètres (impl analytique Python, MC Python, MC Rust) ;
-- :class:`ForwardCalibrator` — estime les :class:`~forward.models.SchwartzParams` à
-  partir d'un historique de log-prix (impl OLS AR(1), demi-vie imposée, …).
+- :class:`ForwardCurveModel` — produces a :class:`~forward.models.Curve` from a
+  spot and parameters (Python analytical impl, Python MC, Rust MC);
+- :class:`ForwardCalibrator` — estimates the :class:`~forward.models.SchwartzParams` from
+  a log-price history (OLS AR(1) impl, imposed half-life, …).
 
-Ajouter un modèle/calibrateur = nouvelle implémentation, sans toucher l'orchestration
-``build_curve`` (Open/Closed).
+Adding a model/calibrator = new implementation, without touching the ``build_curve``
+orchestration (Open/Closed).
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ from forward.models import Curve, SchwartzParams
 
 @runtime_checkable
 class ForwardCurveModel(Protocol):
-    """Modèle de génération de courbe forward (toujours ``simulated=True`` ici)."""
+    """Forward curve generation model (always ``simulated=True`` here)."""
 
     @property
     def name(self) -> str:
-        """Identifiant du modèle (tracé dans ``Curve.model_name`` et MLflow)."""
+        """Model identifier (tracked in ``Curve.model_name`` and MLflow)."""
         ...
 
     def simulate(
@@ -33,19 +33,19 @@ class ForwardCurveModel(Protocol):
         params: SchwartzParams,
         maturities_days: Sequence[float],
     ) -> Curve:
-        """Construit la courbe forward aux échéances ``maturities_days`` (en jours)."""
+        """Builds the forward curve at the ``maturities_days`` maturities (in days)."""
         ...
 
 
 @runtime_checkable
 class ForwardCalibrator(Protocol):
-    """Estimation des paramètres de Schwartz à partir d'un historique de log-prix."""
+    """Estimation of Schwartz parameters from a log-price history."""
 
     @property
     def name(self) -> str:
-        """Identifiant du calibrateur (tracé dans MLflow)."""
+        """Calibrator identifier (tracked in MLflow)."""
         ...
 
     def calibrate(self, log_prices: Sequence[float], dt_days: float) -> SchwartzParams:
-        """Calibre ``kappa, theta, sigma`` sur ``log_prices`` espacés de ``dt_days`` jours."""
+        """Calibrates ``kappa, theta, sigma`` on ``log_prices`` spaced ``dt_days`` days apart."""
         ...

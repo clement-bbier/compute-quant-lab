@@ -1,16 +1,16 @@
-"""Frontière public / edge — le **point d'injection unique** du produit.
+"""Public / edge boundary — the product's **single injection point**.
 
-Le produit public consomme un :class:`SignalSource` *injecté*. L'implémentation par
-défaut (:class:`NaiveSignalSource`) est une **heuristique triviale, sans edge** : elle ne
-fait que regarder la mesure du moment. Le vrai **timing calibré** (l'edge monétisable)
-vit dans ``private/`` (WP) et substitue ce ``SignalSource`` *localement*, **jamais
-committé**. Comme le produit ne dépend que du Protocol, il est structurellement
-impossible de fuiter l'edge en clair (mypy garde la frontière).
+The public product consumes an *injected* :class:`SignalSource`. The default
+implementation (:class:`NaiveSignalSource`) is a **trivial, non-edge heuristic**: it only
+looks at the current measurement. The real **calibrated timing** (the monetizable edge)
+lives in ``private/`` (WP) and substitutes this ``SignalSource`` *locally*, **never
+committed**. Since the product depends only on the Protocol, it is structurally
+impossible to leak the edge in the clear (mypy guards the boundary).
 
-Discipline réel/simulé empruntée à ``core.signals`` (rule ``forward-real-simulated``)
-mais **découplée** : la couche produit ne tire pas le moteur de backtest (noyau Rust).
-Ici ``simulated=True`` signifie « recommandation heuristique non-edge » — le free tier
-n'est jamais pris pour un signal validé. Une impl edge calibrée porterait ``simulated=False``.
+Real/simulated discipline borrowed from ``core.signals`` (rule ``forward-real-simulated``)
+but **decoupled**: the product layer does not pull in the backtest engine (Rust core).
+Here ``simulated=True`` means "non-edge heuristic recommendation" — the free tier is
+never mistaken for a validated signal. A calibrated edge impl would carry ``simulated=False``.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from views import MarketView
 
 
 class Action(Enum):
-    """Recommandation de procurement (le « quoi faire maintenant »)."""
+    """Procurement recommendation (the "what to do now")."""
 
     WAIT = "wait"
     RENT_NOW = "rent_now"
@@ -31,10 +31,10 @@ class Action(Enum):
 
 @dataclass(frozen=True)
 class SignalProvenance:
-    """Origine d'une recommandation. ``simulated`` est **obligatoire** (sans défaut).
+    """Origin of a recommendation. ``simulated`` is **mandatory** (no default).
 
-    Impossible d'oublier d'étiqueter une recommandation : la construire sans le drapeau
-    lève ``TypeError`` (un test le garantit). ``simulated=True`` ⇔ heuristique non-edge.
+    Impossible to forget to label a recommendation: constructing it without the flag
+    raises ``TypeError`` (guaranteed by a test). ``simulated=True`` ⇔ non-edge heuristic.
     """
 
     name: str
@@ -43,11 +43,11 @@ class SignalProvenance:
 
 @dataclass(frozen=True)
 class ProcurementSignal:
-    """Recommandation point-in-time servie par un :class:`SignalSource`.
+    """Point-in-time recommendation served by a :class:`SignalSource`.
 
-    ``action`` est la décision ; ``venue``/``reference_price`` situent la meilleure offre
-    *mesurée* ; ``rationale`` explicite la raison (auditable) ; ``provenance`` étiquette
-    l'origine (edge vs heuristique).
+    ``action`` is the decision; ``venue``/``reference_price`` locate the best *measured*
+    offer; ``rationale`` explains the reason (auditable); ``provenance`` labels
+    the origin (edge vs. heuristic).
     """
 
     action: Action
@@ -60,10 +60,10 @@ class ProcurementSignal:
 
 @runtime_checkable
 class SignalSource(Protocol):
-    """Source d'une recommandation de procurement — **le point d'injection**.
+    """Source of a procurement recommendation — **the injection point**.
 
-    Une seule méthode : à partir d'une :class:`~views.MarketView` point-in-time, rendre
-    une :class:`ProcurementSignal`. L'impl publique est naïve ; l'edge privé la substitue.
+    A single method: from a point-in-time :class:`~views.MarketView`, produce
+    a :class:`ProcurementSignal`. The public impl is naive; the private edge substitutes it.
     """
 
     name: str
@@ -73,11 +73,11 @@ class SignalSource(Protocol):
 
 @dataclass(frozen=True)
 class NaiveSignalSource:
-    """Impl publique par défaut — heuristique triviale, **aucun edge**.
+    """Default public impl — trivial heuristic, **no edge**.
 
-    ``RENT_NOW`` ssi la venue la moins chère est *strictement* sous la médiane inter-venues
-    (il existe un vrai écart à capter) ; sinon ``WAIT`` (pas d'écart → rien d'urgent). Aucun
-    seuil calibré, aucune information de timing : le vrai edge vit dans ``private/`` (WP).
+    ``RENT_NOW`` iff the cheapest venue is *strictly* below the cross-venue median
+    (a real gap worth capturing exists); otherwise ``WAIT`` (no gap → nothing urgent). No
+    calibrated threshold, no timing information: the real edge lives in ``private/`` (WP).
     """
 
     name: str = "naive_public"
@@ -87,9 +87,9 @@ class NaiveSignalSource:
         has_spread = cheapest.rate < market.median_rate
         action = Action.RENT_NOW if has_spread else Action.WAIT
         rationale = (
-            f"heuristique publique : {cheapest.source} à {cheapest.rate:.2f} $/GPU·h "
-            f"{'sous' if has_spread else 'au niveau de'} la médiane inter-venues "
-            f"({market.median_rate:.2f}). Timing calibré = premium (edge privé)."
+            f"public heuristic: {cheapest.source} at {cheapest.rate:.2f} $/GPU·h "
+            f"{'below' if has_spread else 'at the level of'} the cross-venue median "
+            f"({market.median_rate:.2f}). Calibrated timing = premium (private edge)."
         )
         return ProcurementSignal(
             action=action,

@@ -1,56 +1,57 @@
-# P09 — ML Signal Ensemble (direction du spark spread)
+# P09 — ML Signal Ensemble (spark spread direction)
 
-Ensemble ML directionnel sur le **digital spark spread**, backtestable **sans glue** via
-l'interface `Strategy` du moteur P08. La discipline centrale est l'**anti-overfitting** :
-validation temporelle stricte (purged CV + embargo), Sharpe dégonflé, `n_trials` loggé.
+Directional ML ensemble on the **digital spark spread**, backtestable **glue-free** via
+the P08 engine's `Strategy` interface. The central discipline is **anti-overfitting**:
+strict temporal validation (purged CV + embargo), deflated Sharpe, logged `n_trials`.
 
 ## Pipeline
 
 ```
-core.features (P07, ≤t)  ┐
-spread P01 (lags/roll ≤t) ├─►  X  ──►  PurgedKFold + embargo  ──►  proba OOS  ─┐
-label = sign(Δspread_{t+h})┘            (ensemble XGBoost, oos_predict)         │
+core.features (P07, <=t)  ┐
+spread P01 (lags/roll <=t) ├─►  X  ──►  PurgedKFold + embargo  ──►  OOS proba  ─┐
+label = sign(Δspread_{t+h})┘            (XGBoost ensemble, oos_predict)         │
                                                                                 ▼
                           PrecomputedSignalStrategy.signal(view) = pos(proba[view.t])
                                                                                 │
-                                       moteur de backtest P08 (GuardedView) → PnL/Sharpe
+                                       P08 backtest engine (GuardedView) → PnL/Sharpe
 ```
 
-**Trois défenses anti-look-ahead empilées** : (a) features point-in-time (réutilise le garde-fou
-P07), (b) purge + embargo dans la CV (la prédiction de `t` n'a jamais vu son futur), (c)
-`GuardedView` du moteur à l'exécution (hérité de P08, gratuit).
+**Three stacked anti-look-ahead defenses**: (a) point-in-time features (reuses the P07
+guard), (b) purge + embargo in the CV (the prediction for `t` never sees its future), (c)
+`GuardedView` at execution time (inherited from P08, free).
 
-## Lancer
+## Run it
 
 ```bash
-# 1. Noyau Rust du moteur P08 (prérequis du backtest réel — comme P05)
+# 1. Rust core of the P08 engine (prerequisite for a real backtest — like P05)
 uv run maturin develop -m core/backtest/_loop/Cargo.toml --release
 
-# 2. Tests de la couche modèle (logique pure ; exige le noyau Rust pour importer core.backtest)
+# 2. Model layer tests (pure logic; requires the Rust core to import core.backtest)
 uv run pytest core/models/tests -q
 
-# 3. Run headline (entraînement + backtest + MLflow, sur SIMULÉ)
+# 3. Headline run (training + backtest + MLflow, on SIMULATED data)
 uv run python projects/09_ml_signal_ensemble/src/run_train.py
 
-# 4. Tests projet (smoke + provenance ; skippés sans noyau Rust)
+# 4. Project tests (smoke + provenance; skipped without the Rust core)
 uv run pytest projects/09_ml_signal_ensemble/tests -q
 ```
 
-Le run logge un run MLflow sous `results/mlruns/` (params + `n_trials` + SHA git + version DVC +
-figure PnL) et écrit `results/last_run.json`. Tableau de bord : `mlflow ui`.
+The run logs an MLflow run under `results/mlruns/` (params + `n_trials` + git SHA + DVC
+version + PnL figure) and writes `results/last_run.json`. Dashboard: `mlflow ui`.
 
-## Briques réutilisables promues dans `core/models/`
+## Reusable building blocks promoted into `core/models/`
 
-| Module | Rôle |
+| Module | Role |
 |---|---|
-| `protocols` | Contrats `Model` / `Splitter` (DI). |
+| `protocols` | `Model` / `Splitter` contracts (DI). |
 | `validation` | `PurgedKFold`, `oos_predict`, `deflated_sharpe_ratio`, `expected_max_sharpe`. |
-| `pipeline` | `FeaturePipeline` (consomme `core.features`), `build_labels`, `SpreadFeatureSpec`. |
-| `xgboost_model` | `XGBoostDirectionModel` (déterministe), `SeedBaggingEnsemble`. |
-| `strategy` | `PrecomputedSignalStrategy` (adaptateur vers `core.backtest`). |
+| `pipeline` | `FeaturePipeline` (consumes `core.features`), `build_labels`, `SpreadFeatureSpec`. |
+| `xgboost_model` | `XGBoostDirectionModel` (deterministic), `SeedBaggingEnsemble`. |
+| `strategy` | `PrecomputedSignalStrategy` (adapter to `core.backtest`). |
 
-## État & honnêteté
-PoC sur **données simulées étiquetées** (`provenance.simulated=True`). Résultat **modeste et
-non vendu comme alpha** : le verdict adversarial complet (checklist `/backtest-pitfalls`) vit dans
-[results/SYNTHESIS.md](results/SYNTHESIS.md). Le palier institutionnel (réel, walk-forward, LSTM/TFT,
-deflated Sharpe avec vrai `n_trials`) est listé dans [CONVERGENCE.md](CONVERGENCE.md).
+## Status & honesty
+PoC on **labeled simulated data** (`provenance.simulated=True`). **Modest result, not sold
+as alpha**: the full adversarial verdict (`/backtest-pitfalls` checklist) lives in
+[results/SYNTHESIS.md](results/SYNTHESIS.md). The institutional tier (real data,
+walk-forward, LSTM/TFT, deflated Sharpe with a real `n_trials`) is listed in
+[CONVERGENCE.md](CONVERGENCE.md).

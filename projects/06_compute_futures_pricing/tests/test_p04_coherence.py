@@ -1,22 +1,23 @@
-"""Tests-first de la cohérence carry ↔ forward Schwartz SIMULÉE de P04 (spec §6e).
+"""Tests-first for carry ↔ P04 SIMULATED Schwartz forward consistency (spec §6e).
 
-``P04ForwardAdapter`` (couche projet) branche la courbe forward de P04 dans le
-contrat ``CarryModel`` du cœur. On vérifie : (1) il reproduit fidèlement la forward
-analytique P04 (avec conversion années→jours), (2) le pricer en tire une cotation
-toujours simulée, (3) le convenience yield implicite reconstruit exactement la
-forward Schwartz — c'est le pont entre le cadre cost-of-carry et le modèle P04.
+``P04ForwardAdapter`` (project layer) plugs P04's forward curve into the core's
+``CarryModel`` contract. Checks: (1) it faithfully reproduces the P04 analytic
+forward (with years→days conversion), (2) the pricer derives a quote that is
+always simulated, (3) the implicit convenience yield exactly reconstructs the
+Schwartz forward — this is the bridge between the cost-of-carry framework and
+the P04 model.
 """
 
 from __future__ import annotations
 
 import pytest
 
-# Cœur (paquet installé en editable).
+# Core (package installed in editable mode).
 from core.pricing.derivatives.carry import carry_forward
 from core.pricing.derivatives.futures import CarryFuturesPricer, FuturesQuote
 from core.pricing.derivatives.protocols import CarryModel
 
-# Couche projet + paquet P04 (rendus importables par conftest).
+# Project layer + P04 package (made importable by conftest).
 from forward.models import SchwartzParams
 from forward.oracle import SchwartzAnalyticForward, forward_price
 from p04_forward_adapter import DAYS_PER_YEAR, P04ForwardAdapter
@@ -34,7 +35,7 @@ def test_adapter_satisfies_carry_model_protocol() -> None:
 
 
 def test_adapter_reproduces_p04_analytic_forward() -> None:
-    # La forward de l'adapter (en années) doit égaler forward_price P04 (en jours).
+    # The adapter's forward (in years) must equal P04's forward_price (in days).
     adapter = P04ForwardAdapter(PARAMS)
     tau_years = 90.0 / DAYS_PER_YEAR
     expected = forward_price(SPOT, PARAMS, 90.0)
@@ -42,7 +43,7 @@ def test_adapter_reproduces_p04_analytic_forward() -> None:
 
 
 def test_adapter_matches_full_p04_curve_point_by_point() -> None:
-    # Cohérence sur toute la courbe P04 (oracle analytique).
+    # Consistency across the entire P04 curve (analytic oracle).
     maturities_days = [30.0, 90.0, 180.0, 360.0]
     curve = SchwartzAnalyticForward().simulate(SPOT, PARAMS, maturities_days)
     adapter = P04ForwardAdapter(PARAMS)
@@ -60,8 +61,8 @@ def test_pricer_on_p04_forward_is_simulated() -> None:
 
 
 def test_implied_yield_reconstructs_p04_forward() -> None:
-    # Le yield implicite extrait de la forward Schwartz, réinjecté dans le carry,
-    # doit redonner exactement la forward P04 (cohérence du round-trip).
+    # The implicit yield extracted from the Schwartz forward, reinjected into carry,
+    # must return exactly the P04 forward (round-trip consistency).
     tau_years = 180.0 / DAYS_PER_YEAR
     f_p04 = forward_price(SPOT, PARAMS, 180.0)
     quote = CarryFuturesPricer(P04ForwardAdapter(PARAMS), rate=RATE).price(SPOT, tau_years)

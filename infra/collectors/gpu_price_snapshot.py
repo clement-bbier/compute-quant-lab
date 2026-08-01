@@ -1,20 +1,21 @@
-"""Collecteur de prix GPU — accumule l'historique compute jour après jour.
+"""GPU price collector — accumulates compute history day after day.
 
-L'historique des prix de location GPU n'existe PAS rétroactivement : les marketplaces
-n'exposent que le prix courant. On le construit donc en relevant (snapshot) régulièrement
-le prix live et en l'horodatant. Planifier ce script via cron (ex. toutes les heures).
+GPU rental price history does NOT exist retroactively: marketplaces only expose the
+current price. We therefore build it by regularly taking a snapshot of the live price
+and timestamping it. Schedule this script via cron (e.g. every hour).
 
-**Double écriture (transition Phase 0)** : chaque relevé est persisté dans deux backends.
+**Dual write (Phase 0 transition)**: each reading is persisted to two backends.
 
-- **CSV** via :class:`~core.ingestion.snapshot_store.CsvSnapshotStore` — inchangé, lu par
-  l'indice P04 tant que la convergence ne l'a pas re-pointé sur le Parquet.
-- **Parquet** via :class:`~core.storage.parquet_store.ParquetPriceStore` — le nouveau cold
-  store versionné DVC, colonne/typé, qui **conserve la distribution** des offres (là où la
-  dédup CSV ``(t, source, modèle, bail)`` l'écrase). Cf. handoff convergence « fix distribution ».
+- **CSV** via :class:`~core.ingestion.snapshot_store.CsvSnapshotStore` — unchanged, read by
+  the P04 index until convergence repoints it at the Parquet store.
+- **Parquet** via :class:`~core.storage.parquet_store.ParquetPriceStore` — the new cold
+  store versioned as plain git, columnar/typed, which **preserves the distribution** of
+  offers (whereas the CSV dedup on ``(t, source, model, lease)`` collapses it). See the
+  "fix distribution" convergence handoff.
 
-Les deux écritures sont **idempotentes** : relancer le collecteur ne crée pas de doublon.
-Le relevé live réel vient de :func:`core.ingestion.gpu_market.fetch_live_gpu_prices`
-(Vast.ai / RunPod ; clés via ``.env``).
+Both writes are **idempotent**: re-running the collector does not create duplicates.
+The actual live reading comes from :func:`core.ingestion.gpu_market.fetch_live_gpu_prices`
+(Vast.ai / RunPod; keys via ``.env``).
 """
 
 from __future__ import annotations
@@ -39,21 +40,21 @@ def snapshot(
     *,
     fetch: Callable[[], Sequence[Snapshot]] = fetch_live_gpu_prices,
 ) -> tuple[Path, int]:
-    """Relève le prix live et le persiste en double (CSV P04 + cold store Parquet).
+    """Take a live price reading and persist it twice (CSV P04 + Parquet cold store).
 
     Parameters
     ----------
     csv_store
-        Store CSV (P04). Par défaut : ``data/snapshots/``.
+        CSV store (P04). Defaults to ``data/snapshots/``.
     parquet_store
-        Cold store Parquet. Par défaut : ``data/snapshots/`` (coexiste avec les CSV).
+        Parquet cold store. Defaults to ``data/snapshots/`` (coexists with the CSVs).
     fetch
-        Source des relevés (injectable pour les tests). Par défaut : le live marketplace.
+        Source of the readings (injectable for tests). Defaults to the live marketplace.
 
     Returns
     -------
     tuple[pathlib.Path, int]
-        Le fichier CSV écrit et le nombre de lignes **neuves** ajoutées au lac Parquet.
+        The CSV file written and the number of **new** rows added to the Parquet lake.
     """
     csv_store = csv_store or CsvSnapshotStore(SNAPSHOT_DIR)
     parquet_store = parquet_store or ParquetPriceStore(SNAPSHOT_DIR)
@@ -63,7 +64,7 @@ def snapshot(
     written = parquet_store.write(snapshots_to_frame(rows))
 
     logger.info(
-        "Snapshot collecté : %d relevés -> CSV %s ; %d ligne(s) neuve(s) -> Parquet %s",
+        "Snapshot collected: %d reading(s) -> CSV %s; %d new row(s) -> Parquet %s",
         len(rows),
         csv_path,
         written,

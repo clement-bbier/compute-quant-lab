@@ -1,7 +1,7 @@
-"""Tests des calibrateurs de paramètres de Schwartz (Strategy interchangeable).
+"""Tests of the Schwartz parameter calibrators (interchangeable Strategy).
 
-Le test fort : générer une série OU de paramètres connus puis vérifier que l'OLS AR(1)
-les recouvre. On teste aussi le repli quand la série n'a pas de mean-reversion.
+The strong test: generate an OU series with known parameters then verify that OLS AR(1)
+recovers them. We also test the fallback when the series has no mean-reversion.
 """
 
 from __future__ import annotations
@@ -18,8 +18,10 @@ from forward.calibrators import (
 )
 
 
-def _simulate_ou(kappa: float, theta: float, sigma: float, dt: float, n: int, seed: int) -> np.ndarray:
-    """Série de log-prix OU (transition exacte) de paramètres connus."""
+def _simulate_ou(
+    kappa: float, theta: float, sigma: float, dt: float, n: int, seed: int
+) -> np.ndarray:
+    """OU log-price series (exact transition) with known parameters."""
     rng = np.random.default_rng(seed)
     ln_theta = math.log(theta)
     decay = math.exp(-kappa * dt)
@@ -40,10 +42,10 @@ def test_ols_recovers_known_parameters() -> None:
 
 
 def test_ols_uses_fallback_when_no_mean_reversion() -> None:
-    x = math.log(2.0) * (1.5 ** np.arange(15))  # série explosive -> b=1.5 (pas de reversion)
+    x = math.log(2.0) * (1.5 ** np.arange(15))  # explosive series -> b=1.5 (no reversion)
     fallback = ImposedHalfLifeCalibrator(half_life_days=30.0)
     p = OlsAr1Calibrator(fallback=fallback).calibrate(x, dt_days=1.0)
-    assert p.kappa == pytest.approx(math.log(2) / 30.0)  # repli déclenché
+    assert p.kappa == pytest.approx(math.log(2) / 30.0)  # fallback triggered
 
 
 def test_ols_raises_without_fallback_on_no_mean_reversion() -> None:

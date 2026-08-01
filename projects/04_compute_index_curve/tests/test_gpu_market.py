@@ -1,7 +1,7 @@
-"""Tests de la logique pure du connecteur marketplace (parsing & normalisation).
+"""Tests of the marketplace connector's pure logic (parsing & normalization).
 
-Le parsing est séparé de l'appel réseau : on teste la transformation payload → Snapshot
-sans dépendre d'une API live (l'appel HTTP token-gated reste non testé en unitaire).
+Parsing is decoupled from the network call: we test the payload → Snapshot
+transformation without depending on a live API (the token-gated HTTP call remains untested at the unit level).
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def test_parse_vastai_offers_computes_per_gpu_price() -> None:
     by_model = {s.gpu_model: s.price_usd_per_hour for s in snaps}
     assert by_model["H100"] == 2.0  # 16 / 8 GPUs
     assert by_model["A100"] == 1.0  # 4 / 4 GPUs
-    assert len(snaps) == 2  # l'offre non rentable est écartée
+    assert len(snaps) == 2  # the non-rentable offer is discarded
     assert all(s.source == "vastai" for s in snaps)
     assert all(s.lease_type == "on_demand" for s in snaps)
     assert all(s.snapshotted_at == _TS for s in snaps)
@@ -46,7 +46,7 @@ def test_parse_vastai_offers_skips_zero_gpu() -> None:
 
 
 def test_parse_runpod_keeps_lowest_available_on_demand() -> None:
-    # Forme réelle de l'API RunPod (gpuTypes) : secure + community cloud.
+    # Real shape of the RunPod API (gpuTypes): secure + community cloud.
     gpu_types = [
         {"displayName": "A100 PCIe", "securePrice": 1.39, "communityPrice": 1.19},
         {"displayName": "A40", "securePrice": 0, "communityPrice": 0.35},
@@ -56,8 +56,8 @@ def test_parse_runpod_keeps_lowest_available_on_demand() -> None:
 
     by_model = {s.gpu_model: s.price_usd_per_hour for s in snaps}
     assert by_model["A100"] == 1.19  # min(secure, community)
-    assert by_model["A40"] == 0.35  # securePrice=0 ignoré -> community retenu
-    assert "MI300X" not in by_model  # aucun prix valide -> écarté
+    assert by_model["A40"] == 0.35  # securePrice=0 ignored -> community retained
+    assert "MI300X" not in by_model  # no valid price -> discarded
     assert all(s.source == "runpod" for s in snaps)
     assert all(s.lease_type == "on_demand" for s in snaps)
     assert len(snaps) == 2

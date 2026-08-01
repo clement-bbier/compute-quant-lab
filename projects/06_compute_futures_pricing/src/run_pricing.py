@@ -1,16 +1,16 @@
-"""Démo P06 : pricing THÉORIQUE de futures compute, loggué MLflow.
+"""P06 demo: THEORETICAL pricing of compute futures, logged to MLflow.
 
-Pipeline reproductible (params connus, oracle analytique déterministe) :
-  1. charge le spot compute **réel** (``core.ingestion``) ; repli **loggué** sur une
-     hypothèse si aucun snapshot n'est disponible (jamais un échec silencieux) ;
-  2. construit la courbe forward **SIMULÉE** de P04 (Schwartz analytique) ;
-  3. price la grille d'échéances via DEUX sources de forward — cost-of-carry exogène
-     et adapter P04 — et calcule la base ``F − S`` + le convenience yield implicite ;
-  4. loggue params + métriques dans MLflow (``core.utils.tracking.run``) ;
-  5. écrit ``results/futures_pricing_summary.json`` avec l'avertissement réel/simulé.
+Reproducible pipeline (known params, deterministic analytic oracle):
+  1. loads the **real** compute spot (``core.ingestion``); **logged** fallback to an
+     assumption if no snapshot is available (never a silent failure);
+  2. builds P04's **SIMULATED** forward curve (analytic Schwartz);
+  3. prices the maturity grid via TWO forward sources — exogenous cost-of-carry
+     and the P04 adapter — and computes the base ``F − S`` + implied convenience yield;
+  4. logs params + metrics to MLflow (``core.utils.tracking.run``);
+  5. writes ``results/futures_pricing_summary.json`` with the real/simulated disclaimer.
 
-⚠️ Tous les prix sont THÉORIQUES/SIMULÉS : les futures compute (settlement SDH100RT)
-ne sont pas listés. Ne jamais présenter ces chiffres comme un marché observé.
+WARNING: all prices are THEORETICAL/SIMULATED: compute futures (SDH100RT settlement)
+are not listed. Never present these figures as an observed market.
 """
 
 from __future__ import annotations
@@ -23,10 +23,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# MLflow >= 3 met le file store en « maintenance mode » : opt-out explicite (avant import).
+# MLflow >= 3 puts the file store into "maintenance mode": explicit opt-out (before import).
 os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 
-import mlflow  # noqa: E402 - après l'opt-out file-store ci-dessus
+import mlflow  # noqa: E402 - after the file-store opt-out above
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _P06_SRC = Path(__file__).resolve().parent
@@ -51,26 +51,26 @@ log = logging.getLogger("run_pricing")
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 
 GPU = "H100"
-RATE = DEFAULT_RISK_FREE_RATE  # taux de financement annualisé (hypothèse)
-CONVENIENCE_YIELD = 0.01  # convenience yield exogène (hypothèse PoC, non observable)
+RATE = DEFAULT_RISK_FREE_RATE  # annualized financing rate (assumption)
+CONVENIENCE_YIELD = 0.01  # exogenous convenience yield (PoC assumption, not observable)
 MATURITIES_DAYS = [30.0, 90.0, 180.0, 360.0]
-# Courbe forward Schwartz : paramètres d'hypothèse (à défaut de calibration réelle ici).
+# Schwartz forward curve: assumed parameters (no real calibration here).
 SCHWARTZ = SchwartzParams(kappa=0.05, theta=2.5, sigma=0.3)
-ASSUMED_SPOT_USD = 2.50  # repli documenté si aucun snapshot réel n'est disponible
+ASSUMED_SPOT_USD = 2.50  # documented fallback if no real snapshot is available
 
 DISCLAIMER = (
-    "THÉORIQUE/SIMULÉ — les futures compute (settlement SDH100RT) ne sont pas listés. "
-    "La forward provient d'un modèle (Schwartz/carry), jamais d'un marché observé."
+    "THEORETICAL/SIMULATED — compute futures (SDH100RT settlement) are not listed. "
+    "The forward comes from a model (Schwartz/carry), never from an observed market."
 )
 
 
 def load_real_spot() -> tuple[float, str]:
-    """Spot compute réel via ``core.ingestion`` ; repli **loggué** sinon.
+    """Real compute spot via ``core.ingestion``; **logged** fallback otherwise.
 
     Returns
     -------
     tuple[float, str]
-        ``(spot_usd_per_gpu_h, source)`` où ``source`` distingue le réel du repli.
+        ``(spot_usd_per_gpu_h, source)`` where ``source`` distinguishes real from fallback.
     """
     try:
         from core.ingestion import CsvSnapshotStore, build_spot_index
@@ -78,18 +78,20 @@ def load_real_spot() -> tuple[float, str]:
 
         snapshots = CsvSnapshotStore(SNAPSHOTS_DIR).load()
         if not snapshots:
-            raise FileNotFoundError(f"aucun snapshot sous {SNAPSHOTS_DIR}")
+            raise FileNotFoundError(f"no snapshots under {SNAPSHOTS_DIR}")
         point = build_spot_index(snapshots, dt.datetime.now(dt.timezone.utc), GPU)
         log.info(
-            "Spot réel %s = %.4f $/GPU·h (%d venues)",
+            "Real spot %s = %.4f $/GPU·h (%d venues)",
             GPU,
             point.price_usd_per_hour,
             point.n_sources,
         )
         return point.price_usd_per_hour, "real:compute_index"
-    except Exception as exc:  # noqa: BLE001 - repli documenté, jamais silencieux
+    except Exception as exc:  # noqa: BLE001 - documented fallback, never silent
         log.warning(
-            "Spot réel indisponible (%s) — repli sur hypothèse %.2f $/GPU·h", exc, ASSUMED_SPOT_USD
+            "Real spot unavailable (%s) — falling back to assumption %.2f $/GPU·h",
+            exc,
+            ASSUMED_SPOT_USD,
         )
         return ASSUMED_SPOT_USD, "assumed_fallback"
 
@@ -156,13 +158,13 @@ def main() -> None:
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     log.info(
-        "Spot=%.4f $/GPU·h (%s) | base P04 360j=%.4f | yield impl. 360j=%.4f",
+        "Spot=%.4f $/GPU·h (%s) | P04 base 360d=%.4f | implied yield 360d=%.4f",
         spot,
         spot_source,
         term_structure[-1]["p04_basis"],
         term_structure[-1]["p04_implied_convenience_yield"],
     )
-    log.info("Résumé écrit : %s — %s", RESULTS / "futures_pricing_summary.json", DISCLAIMER)
+    log.info("Summary written: %s — %s", RESULTS / "futures_pricing_summary.json", DISCLAIMER)
 
 
 if __name__ == "__main__":

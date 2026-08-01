@@ -1,71 +1,74 @@
 # P09 → Convergence
 
-Patchs touchant la **zone protégée** (`pyproject.toml`, `.claude/`, `core/` hors `core/models/`)
-ou d'autres modules : préparés ici, **non appliqués** dans le worktree P09. À appliquer par la
-session de convergence (pilote `integration`).
+Patches touching the **protected zone** (`pyproject.toml`, `.claude/`, `core/` outside
+`core/models/`) or other modules: prepared here, **not applied** in the P09 worktree.
+To be applied by the convergence session (pilot `integration`).
 
 ---
 
-## 1. `pyproject.toml` (racine) — découverte des tests par pytest
+## 1. `pyproject.toml` (root) — test discovery by pytest
 
-`core/models/` (possédé par P09) et ses tests ne sont pas dans `testpaths`, et le projet P09 non
-plus. Aligner sur la convention déjà ouverte par P04/P02.
+`core/models/` (owned by P09) and its tests aren't in `testpaths`, nor is the P09 project.
+Align with the convention already opened by P04/P02.
 
 ```toml
 [tool.pytest.ini_options]
 testpaths = [
     "tests",
     "core/backtest/tests",
-    "core/models/tests",                       # ← P09 (couche modèle)
+    "core/models/tests",                       # <- P09 (model layer)
     "projects/04_compute_index_curve/tests",
     "projects/02_spread_mean_reversion/tests",
-    "projects/09_ml_signal_ensemble/tests",    # ← P09 (projet)
+    "projects/09_ml_signal_ensemble/tests",    # <- P09 (project)
 ]
 ```
 
-> En attendant : `uv run pytest core/models/tests projects/09_ml_signal_ensemble -q`.
-> ⚠️ La CI lance chaque dossier **en isolation** (collision de `conftest` entre projets).
-> Les tests de `core/models/tests` **importent `core.backtest`** → ils exigent le noyau Rust
-> compilé (`maturin develop -m core/backtest/_loop/Cargo.toml`), comme déjà documenté pour P05/P08.
+> In the meantime: `uv run pytest core/models/tests projects/09_ml_signal_ensemble -q`.
+> Warning: CI runs each folder **in isolation** (conftest collision between projects).
+> The `core/models/tests` tests **import `core.backtest`** → they require the compiled
+> Rust core (`maturin develop -m core/backtest/_loop/Cargo.toml`), as already documented
+> for P05/P08.
 
 ---
 
-## 2. Promotion de briques dans `core/features/` (croissance labo, prompt §8)
+## 2. Promoting building blocks into `core/features/` (lab growth, prompt §8)
 
-- Les transforms causales dérivées du spread (`SpreadFeatureSpec` / `FeaturePipeline._spread_features`
-  dans `core/models/pipeline.py`) recoupent les transforms exogènes de `core/features` (`lag_feature`,
-  `rolling_mean_feature`, `diff_feature`). À **unifier** dans `core.features` pour une seule source de
-  vérité du feature engineering point-in-time (P03/P07/P09).
-- `InMemoryExogenousSource` (dans `projects/09_.../src/synthetic.py`) est une implémentation de
-  référence du protocole `ExogenousSource` : candidate à `core/features` (utile à tout projet ML/test).
-
----
-
-## 3. Employé manquant : agent `risk-validator` (croissance labo, prompt §8 — OBLIGATOIRE)
-
-Le `CLAUDE.md` racine §6 décrit `risk-validator` (adversaire) et le prompt P09 le rend **obligatoire**
-avant de croire un Sharpe, mais il **n'est toujours pas enregistré** dans l'environnement (déjà signalé
-par P02). L'audit `/backtest-pitfalls` de P09 a donc été conduit **à la main**
-([results/SYNTHESIS.md](results/SYNTHESIS.md)). À créer via `agent-architect` / `/new-agent` (écrit
-dans `.claude/agents/`, zone protégée → convergence). Spec proposée : adversaire **lecture seule**,
-traque look-ahead / overfitting / data-snooping / coûts irréalistes ; refuse tout Sharpe « trop beau »
-sans **deflated Sharpe** (avec vrai `n_trials`) + **walk-forward** ; exige la reproductibilité MLflow.
+- The causal transforms derived from the spread (`SpreadFeatureSpec` / `FeaturePipeline._spread_features`
+  in `core/models/pipeline.py`) overlap with the exogenous transforms in `core/features` (`lag_feature`,
+  `rolling_mean_feature`, `diff_feature`). To be **unified** into `core.features` for a single
+  source of truth for point-in-time feature engineering (P03/P07/P09).
+- `InMemoryExogenousSource` (in `projects/09_.../src/synthetic.py`) is a reference implementation
+  of the `ExogenousSource` protocol: a candidate for `core/features` (useful to any ML/test project).
 
 ---
 
-## 4. `references/` (possédé par `feature/research`) — via `literature-scout`
+## 3. Missing hire: `risk-validator` agent (lab growth, prompt §8 — MANDATORY)
 
-Distiller pour le palier institutionnel (3b), socle théorique de P09 :
-- **López de Prado**, *Advances in Financial Machine Learning* : purged k-fold + embargo,
-  **Deflated Sharpe Ratio**, backtest overfitting (PBO), feature importance robuste (MDA/MDI).
+The root `CLAUDE.md` §6 describes `risk-validator` (adversary) and the P09 prompt makes it
+**mandatory** before trusting any Sharpe, but it is **still not registered** in the
+environment (already flagged by P02). The P09 `/backtest-pitfalls` audit was therefore
+conducted **by hand** ([results/SYNTHESIS.md](results/SYNTHESIS.md)). To be created via
+`agent-architect` / `/new-agent` (written to `.claude/agents/`, protected zone → convergence).
+Proposed spec: **read-only** adversary, hunts look-ahead / overfitting / data-snooping /
+unrealistic costs; rejects any Sharpe that's "too good" without a **deflated Sharpe**
+(with a real `n_trials`) + **walk-forward**; requires MLflow reproducibility.
+
+---
+
+## 4. `references/` (owned by `feature/research`) — via `literature-scout`
+
+Distill for the institutional tier (3b), P09's theoretical foundation:
+- **López de Prado**, *Advances in Financial Machine Learning*: purged k-fold + embargo,
+  **Deflated Sharpe Ratio**, backtest overfitting (PBO), robust feature importance (MDA/MDI).
 - **Bailey & López de Prado (2014)**, *The Deflated Sharpe Ratio*.
-- Séquentiel : LSTM / **Temporal Fusion Transformer** (Lim et al.) pour le palier supérieur.
+- Sequential: LSTM / **Temporal Fusion Transformer** (Lim et al.) for the upper tier.
 
 ---
 
-## 5. Note d'intégration (pas un patch, un rappel)
+## 5. Integration note (not a patch, a reminder)
 
-`core/models/` dépend en lecture de `core.pricing` (P01), `core.features` (P07), `core.backtest` (P08)
-— tous supposés présents dans `integration`. `core.models.strategy` importe volontairement
-`core.backtest.protocols` (et non le package `core.backtest`) là où c'est possible, mais l'`__init__`
-de `core.backtest` reste tiré dès qu'on touche le moteur → **noyau Rust requis** au runtime du backtest.
+`core/models/` has a read dependency on `core.pricing` (P01), `core.features` (P07),
+`core.backtest` (P08) — all assumed present in `integration`. `core.models.strategy`
+deliberately imports `core.backtest.protocols` (not the `core.backtest` package) where
+possible, but `core.backtest`'s `__init__` still gets pulled in as soon as the engine is
+touched → **Rust core required** at backtest runtime.

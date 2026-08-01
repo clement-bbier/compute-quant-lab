@@ -1,18 +1,19 @@
-"""Run headline P09 : features point-in-time → purged-CV OOS → ensemble → backtest P08.
+"""P09 headline run: point-in-time features → purged-CV OOS → ensemble → P08 backtest.
 
-Pipeline reproductible et HONNÊTE sur données **simulées** (provenance ``simulated=True``) :
+Reproducible and HONEST pipeline on **simulated** data (provenance ``simulated=True``):
 
-1. features point-in-time (spread P01 + exogènes P07 lagués) et cible directionnelle ;
-2. prédictions **hors-échantillon** par purged k-fold + embargo (jamais de shuffle), avec un
-   ensemble de graines XGBoost (réduction de variance) ;
-3. signal OOS → `PrecomputedSignalStrategy` → moteur de backtest P08 ;
-4. métriques de risque + **Sharpe dégonflé** (Probabilistic Sharpe Ratio, tenant compte du
-   nombre d'essais, de la taille d'échantillon et de la non-normalité) ;
-5. run MLflow (params + n_trials + seed + fenêtres + SHA + DVC + figure PnL).
+1. point-in-time features (P01 spread + lagged P07 exogenous variables) and directional target;
+2. **out-of-sample** predictions via purged k-fold + embargo (never shuffled), with an
+   XGBoost seed ensemble (variance reduction);
+3. OOS signal → `PrecomputedSignalStrategy` → P08 backtest engine;
+4. risk metrics + **deflated Sharpe** (Probabilistic Sharpe Ratio, accounting for the
+   number of trials, sample size, and non-normality);
+5. MLflow run (params + n_trials + seed + windows + SHA + DVC + PnL figure).
 
     uv run python projects/09_ml_signal_ensemble/src/run_train.py
 
-⚠️ Le Sharpe sur synthétique n'est PAS un alpha : voir results/SYNTHESIS.md (verdict adversarial).
+Warning: the Sharpe on synthetic data is NOT an alpha claim: see results/SYNTHESIS.md
+(adversarial verdict).
 """
 
 from __future__ import annotations
@@ -42,26 +43,28 @@ from core.models import (
     deflated_sharpe_ratio,
     oos_predict,
 )
+from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
-from synthetic import SyntheticDataset, generate  # noqa: E402  (src ajouté au sys.path)
+from synthetic import SyntheticDataset, generate  # noqa: E402  (src added to sys.path)
 
 RESULTS_DIR = _HERE.parent / "results"
 EXPERIMENT = "p09_ml_signal_ensemble"
+log = get_logger("run_train")
 SEED = 42
-PERIODS_PER_YEAR = 365.0  # grille journalière
+PERIODS_PER_YEAR = 365.0  # daily grid
 
-# --- Hyperparamètres fixés *a priori* (AUCUNE recherche) → n_trials = 1 -------------------
-HORIZON = 1  # on prédit la direction du spread au pas suivant
+# --- Hyperparameters fixed *a priori* (NO search) -> n_trials = 1 -------------------------
+HORIZON = 1  # predict the spread direction at the next step
 N_SPLITS, EMBARGO = 5, 5
-NEUTRAL_BAND = 0.05  # politique proba→position choisie par le directeur de recherche
+NEUTRAL_BAND = 0.05  # proba->position policy chosen by the research lead
 ENSEMBLE_SEEDS = (11, 22, 33)
 N_ESTIMATORS, MAX_DEPTH, LEARNING_RATE = 150, 3, 0.05
 FEES_BPS, SLIPPAGE_BPS = 10.0, 5.0
-N_TRIALS = 1  # config figée a priori : pas de multiple-testing (à incrémenter si on tune)
+N_TRIALS = 1  # config fixed a priori: no multiple-testing (increment if tuning)
 
-# Features dérivées du spread (causales) et des exogènes P07 (point-in-time, lag de publication).
+# Features derived from the spread (causal) and from the P07 exogenous variables (point-in-time, publication lag).
 _SPREAD_SPEC = SpreadFeatureSpec(lags=(1, 2, 3), rolling_means=(5, 10), momentums=(3, 5))
 _EXOG_SPECS = {
     "gas_price": FeatureSpec(lags=(0, 1), rolling_means=(5,), diffs=(1,)),
@@ -70,7 +73,7 @@ _EXOG_SPECS = {
 
 
 def build_features(dataset: SyntheticDataset) -> tuple[pd.DataFrame, pd.Series]:
-    """Matrice de features point-in-time (spread + exogènes P07) et cible directionnelle."""
+    """Point-in-time feature matrix (spread + P07 exogenous variables) and directional target."""
     exog_builder = PointInTimeFeatureBuilder(source=dataset.exog_source, specs=_EXOG_SPECS)
     pipeline = FeaturePipeline(spread_spec=_SPREAD_SPEC, exog_builder=exog_builder)
     features = pipeline.build_matrix(dataset.spread)
@@ -79,7 +82,7 @@ def build_features(dataset: SyntheticDataset) -> tuple[pd.DataFrame, pd.Series]:
 
 
 def _make_ensemble() -> SeedBaggingEnsemble:
-    """Fabrique un ensemble neuf (appelé par fold dans `oos_predict`)."""
+    """Build a fresh ensemble (called per fold inside `oos_predict`)."""
     return SeedBaggingEnsemble(
         make_model=lambda seed: XGBoostDirectionModel(
             random_state=seed,
@@ -92,10 +95,10 @@ def _make_ensemble() -> SeedBaggingEnsemble:
 
 
 def out_of_sample_proba(features: pd.DataFrame, labels: pd.Series) -> np.ndarray:
-    """Vecteur de probabilités OOS aligné sur l'index complet (NaN hors zone prédictible).
+    """OOS probability vector aligned on the full index (NaN outside the predictable zone).
 
-    On ne conserve que les lignes à features ET label valides (warm-up et queue exclus),
-    on prédit ces lignes en purged-CV, puis on ré-aligne sur la série complète.
+    We keep only rows with both valid features AND a valid label (warm-up and tail
+    excluded), predict those rows under purged-CV, then re-align onto the full series.
     """
     valid = features.notna().all(axis=1) & labels.notna()
     x_clean = features[valid].to_numpy(dtype=np.float64)
@@ -109,7 +112,7 @@ def out_of_sample_proba(features: pd.DataFrame, labels: pd.Series) -> np.ndarray
 
 
 def probabilistic_sharpe(returns: np.ndarray, *, n_trials: int) -> float:
-    """Probabilistic / Deflated Sharpe Ratio à partir de la série de rendements par période."""
+    """Probabilistic / Deflated Sharpe Ratio from the per-period returns series."""
     std = float(returns.std(ddof=1))
     if std == 0.0:
         return 0.0
@@ -118,7 +121,7 @@ def probabilistic_sharpe(returns: np.ndarray, *, n_trials: int) -> float:
         sr_per_period,
         n_obs=returns.size,
         n_trials=n_trials,
-        sr_variance=1.0,  # inutilisé à n_trials=1 (max attendu = 0) ; explicite pour la suite
+        sr_variance=1.0,  # unused at n_trials=1 (expected max = 0); explicit for later
         skew=float(scipy_skew(returns)),
         kurtosis=float(scipy_kurtosis(returns, fisher=False)),
     )
@@ -188,17 +191,24 @@ def main() -> None:
         json.dumps(snapshot, indent=2, default=str), encoding="utf-8"
     )
 
-    print(
-        f"run_id={run_id}  simulated={dataset.provenance.simulated}  source={dataset.provenance.source}"
+    log.info(
+        "run_id=%s  simulated=%s  source=%s",
+        run_id,
+        dataset.provenance.simulated,
+        dataset.provenance.source,
     )
-    print(
-        f"obs={params['n_obs']}  predicted={n_predicted}  features={params['n_features']}  n_trials={N_TRIALS}"
+    log.info(
+        "obs=%d  predicted=%d  features=%d  n_trials=%d",
+        params["n_obs"],
+        n_predicted,
+        params["n_features"],
+        N_TRIALS,
     )
     for name, value in metrics.items():
-        print(f"  {name:22s} = {value:.6f}")
-    print(
-        "\n[!] Sharpe sur SIMULE - non credible comme alpha. Le Sharpe degonfle (PSR) et le "
-        "verdict adversarial (results/SYNTHESIS.md) priment."
+        log.info("  %-22s = %.6f", name, value)
+    log.warning(
+        "Sharpe on SIMULATED data - not credible as alpha. The deflated Sharpe (PSR) and "
+        "the adversarial verdict (results/SYNTHESIS.md) take precedence."
     )
 
 

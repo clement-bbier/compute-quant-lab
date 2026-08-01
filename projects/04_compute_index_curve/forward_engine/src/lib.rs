@@ -1,9 +1,9 @@
-//! Moteur Monte-Carlo de la courbe forward compute (modèle de Schwartz un-facteur).
+//! Monte-Carlo engine for the compute forward curve (1-factor Schwartz model).
 //!
-//! Jambe perf (polyglotte) de P04 : simule de nombreux chemins du log-prix par
-//! transition OU **exacte** entre échéances consécutives, puis renvoie le prix forward
-//! (moyenne de `exp(x)`) à chaque échéance. L'oracle Python analytique sert de référence
-//! de parité. Reproductible : seed explicite.
+//! P04's performance leg (polyglot): simulates many log-price paths via an **exact**
+//! OU transition between consecutive maturities, then returns the forward price
+//! (mean of `exp(x)`) at each maturity. The analytical Python oracle serves as the
+//! parity reference. Reproducible: explicit seed.
 
 use pyo3::prelude::*;
 use rand::distributions::Distribution;
@@ -11,10 +11,10 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rand_distr::StandardNormal;
 
-/// Simule la courbe forward aux `maturities` (en jours).
+/// Simulates the forward curve at the given `maturities` (in days).
 ///
-/// Renvoie les prix forward dans le même ordre que `maturities`. Le prix à l'échéance 0
-/// vaut le spot (aucun pas simulé), garantissant la convergence.
+/// Returns the forward prices in the same order as `maturities`. The price at maturity 0
+/// equals the spot (no step simulated), guaranteeing convergence.
 #[pyfunction]
 #[pyo3(signature = (spot, kappa, theta, sigma, maturities, n_paths, seed))]
 fn simulate_forward(
@@ -27,16 +27,16 @@ fn simulate_forward(
     seed: u64,
 ) -> PyResult<Vec<f64>> {
     if n_paths == 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("n_paths doit être > 0"));
+        return Err(pyo3::exceptions::PyValueError::new_err("n_paths must be > 0"));
     }
 
     let ln_theta = theta.ln();
     let mut x = vec![spot.ln(); n_paths];
     let mut rng = StdRng::seed_from_u64(seed);
 
-    // Échéances triées/dédupliquées : on avance les chemins une seule fois dans le temps.
+    // Sorted/deduplicated maturities: paths are advanced through time only once.
     let mut sorted = maturities.clone();
-    sorted.sort_by(|a, b| a.partial_cmp(b).expect("échéance NaN interdite"));
+    sorted.sort_by(|a, b| a.partial_cmp(b).expect("NaN maturity not allowed"));
     sorted.dedup();
 
     let mut sorted_fwd: Vec<(f64, f64)> = Vec::with_capacity(sorted.len());
@@ -57,7 +57,7 @@ fn simulate_forward(
         prev = m;
     }
 
-    // Remappe vers l'ordre d'origine (les valeurs proviennent de la même liste source).
+    // Remap back to the original order (values come from the same source list).
     let result = maturities
         .iter()
         .map(|&m| {
@@ -65,7 +65,7 @@ fn simulate_forward(
                 .iter()
                 .find(|(mm, _)| *mm == m)
                 .map(|(_, f)| *f)
-                .expect("échéance absente du calcul")
+                .expect("maturity missing from computation")
         })
         .collect();
     Ok(result)

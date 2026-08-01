@@ -1,11 +1,11 @@
-"""Calcul du basis du spark spread entre régions (P05) — cœur PUR, aucune I/O.
+"""Spark spread basis calculation between regions (P05) — PURE core, no I/O.
 
-Le ``BasisCalculator`` consomme un ``SparkSpreadPricer`` (P01) **par région** (injecté,
-DIP) et produit le basis point-in-time : ``basis[r] = spread[r] − spread[reference]``.
+The ``BasisCalculator`` consumes a ``SparkSpreadPricer`` (P01) **per region** (injected,
+DIP) and produces the point-in-time basis: ``basis[r] = spread[r] − spread[reference]``.
 
-Anti look-ahead : chaque pricer aligne déjà le compte sur sa grille énergie par jointure
-as-of arrière ; ici, les spreads régionaux sont alignés entre eux par **jointure interne**
-(intersection d'index) — aucune valeur n'est fabriquée ni reportée depuis le futur.
+Anti look-ahead: each pricer already aligns compute on its energy grid via a backward
+as-of join; here, regional spreads are aligned against each other via an **inner join**
+(index intersection) — no value is fabricated or carried back from the future.
 """
 
 from __future__ import annotations
@@ -22,22 +22,22 @@ from core.pricing.protocols import PriceSource
 
 @dataclass(frozen=True)
 class BasisResult:
-    """Basis inter-régions + spreads régionaux alignés et métadonnées de traçabilité.
+    """Inter-region basis + aligned regional spreads and traceability metadata.
 
     Attributes
     ----------
     spreads
-        Région → spread €/GPU·h, sur la grille commune (UTC).
+        Region → spread €/GPU·h, on the common grid (UTC).
     basis
-        Région (≠ ``reference``) → ``spread[région] − spread[reference]`` (€/GPU·h).
+        Region (≠ ``reference``) → ``spread[region] − spread[reference]`` (€/GPU·h).
     reference
-        Région de référence du basis.
+        Reference region for the basis.
     regions
-        Toutes les régions pricées (ordre d'injection).
+        All priced regions (injection order).
     pue
-        Région → PUE retenu (hypothèse régionale, traçabilité).
+        Region → PUE used (regional assumption, traceability).
     window
-        (premier, dernier) timestamp UTC de la grille commune.
+        (first, last) UTC timestamp of the common grid.
     """
 
     spreads: Mapping[str, pd.Series]
@@ -49,30 +49,30 @@ class BasisResult:
 
 
 class BasisCalculator:
-    """Mesure le basis du spark spread entre régions à partir de pricers injectés.
+    """Measures the spark spread basis between regions from injected pricers.
 
     Parameters
     ----------
     pricers
-        Région → ``SparkSpreadPricer`` (un par région, portant son PUE/efficience).
+        Region → ``SparkSpreadPricer`` (one per region, carrying its PUE/efficiency).
     reference
-        Région de référence : le basis de chaque autre région est calculé contre elle.
+        Reference region: each other region's basis is computed against it.
     """
 
     def __init__(self, pricers: Mapping[str, SparkSpreadPricer], *, reference: str) -> None:
         if len(pricers) < 2:
-            raise ValueError("Le basis exige au moins deux régions.")
+            raise ValueError("The basis requires at least two regions.")
         if reference not in pricers:
-            raise ValueError(f"reference '{reference}' absente des pricers fournis.")
+            raise ValueError(f"reference '{reference}' not found among the supplied pricers.")
         self._pricers: dict[str, SparkSpreadPricer] = dict(pricers)
         self._reference = reference
 
     def compute(self, source: PriceSource, gpu: str) -> BasisResult:
-        """Price chaque région et calcule le basis sur la grille commune (point-in-time)."""
+        """Price each region and compute the basis on the common grid (point-in-time)."""
         results = {
             region: pricer.price(source, gpu, region) for region, pricer in self._pricers.items()
         }
-        # Jointure interne : ne garde que les instants co-observés par toutes les régions.
+        # Inner join: keep only instants co-observed across all regions.
         spread_frame = pd.concat(
             {region: res.spread for region, res in results.items()}, axis=1, join="inner"
         )
@@ -102,21 +102,21 @@ class BasisCalculator:
 
 @dataclass(frozen=True)
 class DislocationSummary:
-    """Synthèse des dislocations d'un basis : amplitude, fréquence, persistance.
+    """Summary of a basis's dislocations: amplitude, frequency, persistence.
 
     Attributes
     ----------
     threshold
-        Seuil de dislocation retenu (€/GPU·h).
+        Dislocation threshold used (€/GPU·h).
     fraction_dislocated
-        Part du temps où ``|basis| > threshold`` (∈ [0, 1]).
+        Fraction of time where ``|basis| > threshold`` (∈ [0, 1]).
     amplitude_p95
-        95ᵉ percentile de ``|basis|`` (ampleur typique des excursions, €/GPU·h).
+        95th percentile of ``|basis|`` (typical excursion magnitude, €/GPU·h).
     n_dislocations
-        Nombre d'épisodes contigus au-dessus du seuil.
+        Number of contiguous episodes above the threshold.
     half_life_hours
-        Demi-vie de retour à la moyenne (AR(1)) en heures ; ``None`` si la série
-        n'est pas mean-reverting (φ ∉ ]0, 1[).
+        Mean-reversion half-life (AR(1)) in hours; ``None`` if the series is
+        not mean-reverting (φ ∉ ]0, 1[).
     """
 
     threshold: float
@@ -127,9 +127,9 @@ class DislocationSummary:
 
 
 def _ar1_half_life_hours(basis: pd.Series) -> float | None:
-    """Demi-vie AR(1) en heures (grille horaire supposée) ; ``None`` si non mean-reverting.
+    """AR(1) half-life in hours (hourly grid assumed); ``None`` if not mean-reverting.
 
-    Régression OLS ``basis_t = c + φ·basis_{t-1}`` ; demi-vie = ln(2) / −ln(φ) si φ ∈ ]0, 1[.
+    OLS regression ``basis_t = c + φ·basis_{t-1}``; half-life = ln(2) / −ln(φ) if φ ∈ ]0, 1[.
     """
     values = basis.to_numpy(dtype=float)
     previous, current = values[:-1], values[1:]
@@ -142,20 +142,20 @@ def _ar1_half_life_hours(basis: pd.Series) -> float | None:
 def detect_dislocations(
     basis: pd.Series, *, z: float = 2.0, threshold: float | None = None
 ) -> DislocationSummary:
-    """Quantifie les dislocations d'un basis (amplitude + fréquence) et leur persistance.
+    """Quantifies a basis's dislocations (amplitude + frequency) and their persistence.
 
-    Méthodologie validée (§3c) : **seuil** pour l'amplitude/fréquence, **demi-vie AR(1)**
-    pour la persistance. La demi-vie est déléguée à :func:`_ar1_half_life_hours`.
+    Validated methodology (§3c): **threshold** for amplitude/frequency, **AR(1) half-life**
+    for persistence. The half-life is delegated to :func:`_ar1_half_life_hours`.
 
     Parameters
     ----------
     basis
-        Série du basis (€/GPU·h), index UTC horaire. Les NaN sont ignorés.
+        Basis series (€/GPU·h), hourly UTC index. NaNs are ignored.
     z
-        Facteur z-score pour le seuil automatique (``threshold = z · std``) si ``threshold``
-        n'est pas fourni.
+        Z-score factor for the automatic threshold (``threshold = z · std``) if
+        ``threshold`` is not supplied.
     threshold
-        Seuil de dislocation explicite en €/GPU·h (prioritaire sur ``z``).
+        Explicit dislocation threshold in €/GPU·h (takes priority over ``z``).
 
     Returns
     -------
@@ -168,7 +168,7 @@ def detect_dislocations(
     dislocated = abs_basis > used_threshold
     fraction = float(dislocated.mean())
     amplitude_p95 = float(abs_basis.quantile(0.95))
-    # Nombre d'épisodes contigus = transitions False→True, + le cas « disloqué dès t₀ ».
+    # Number of contiguous episodes = False→True transitions, + the "dislocated from t₀" case.
     starts = dislocated.astype(int).diff()
     n_dislocations = int((starts == 1).sum()) + int(bool(dislocated.iloc[0]))
 

@@ -1,14 +1,14 @@
-"""Dashboard public « GPU le moins cher maintenant » — la vitrine gratuite (free tier).
+"""Public "cheapest GPU right now" dashboard — the free tier showcase.
 
-Couche I/O isolée (Streamlit) : aucune logique métier ici, tout est délégué à ``src/``
-(``views`` pour la mesure, ``signal_iface``/``alerts`` pour la reco). Lit le **cold store
-versionné** (``core.storage``). Dégrade proprement quand l'historique est maigre.
+Isolated I/O layer (Streamlit): no business logic here, everything is delegated to ``src/``
+(``views`` for the measurement, ``signal_iface``/``alerts`` for the recommendation). Reads the
+**versioned cold store** (``core.storage``). Degrades gracefully when history is thin.
 
-Frontière edge : on n'affiche que la **mesure** (qui est le moins cher, à quel niveau,
-quelle tendance) et une **reco heuristique gratuite** explicitement étiquetée non-edge.
-Le **timing calibré** (premium) vit dans ``private/`` et n'apparaît jamais ici.
+Edge boundary: only the **measurement** is displayed (who is cheapest, at what level,
+what trend) plus a **free heuristic recommendation** explicitly labeled non-edge.
+The **calibrated timing** (premium) lives in ``private/`` and never appears here.
 
-Lancement : ``streamlit run projects/14_service/dashboard/app.py``.
+Launch: ``streamlit run projects/14_service/dashboard/app.py``.
 """
 
 from __future__ import annotations
@@ -25,17 +25,17 @@ from core.ingestion.compute_index import InsufficientDataError
 from core.storage import ParquetSnapshotStore
 from core.utils.config import SNAPSHOTS_DIR
 
-# Rend les modules produit (sous src/) importables hors pytest (après les imports stables).
+# Makes the product modules (under src/) importable outside pytest (after stable imports).
 _SRC = Path(__file__).resolve().parents[1] / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from signal_iface import Action, NaiveSignalSource  # noqa: E402  (après ajout sys.path)
+from signal_iface import Action, NaiveSignalSource  # noqa: E402  (after sys.path addition)
 from views import MarketView, price_curve, read_market  # noqa: E402
 
-#: Modèles proposés au sélecteur (présents ou non dans le lac — géré à l'affichage).
-CANDIDATE_MODELS: list[str] = ["H100", "H200", "B200", "A100", "L40S", "RTX4090"]
-#: Profondeur de la courbe de tendance (jours).
+#: Fallback if the lake is still empty (fresh clone) — no model present yet.
+_FALLBACK_MODELS: list[str] = ["H100", "H200", "B200"]
+#: Depth of the trend curve (days).
 CURVE_LOOKBACK_DAYS: int = 30
 
 
@@ -43,19 +43,25 @@ def _store() -> ParquetSnapshotStore:
     return ParquetSnapshotStore(SNAPSHOTS_DIR)
 
 
+def _available_models(store: ParquetSnapshotStore) -> list[str]:
+    """GPU models actually present in the lake (sorted), fallback if the lake is empty."""
+    models = sorted({s.gpu_model for s in store.load()})
+    return models or _FALLBACK_MODELS
+
+
 def _render_cheapest(market: MarketView) -> None:
     cheapest = market.cheapest
     col1, col2, col3 = st.columns(3)
-    col1.metric("Venue la moins chère", cheapest.source, f"{cheapest.rate:.2f} $/GPU·h")
-    col2.metric("Indice canonique", f"{market.index_price:.2f} $/GPU·h", help=market.method)
-    col3.metric("Venues retenues", str(len(market.venues)))
+    col1.metric("Cheapest venue", cheapest.source, f"{cheapest.rate:.2f} $/GPU·h")
+    col2.metric("Canonical index", f"{market.index_price:.2f} $/GPU·h", help=market.method)
+    col3.metric("Venues retained", str(len(market.venues)))
 
     naive = NaiveSignalSource().assess(market)
-    badge = "🟢 LOUER MAINTENANT" if naive.action is Action.RENT_NOW else "⏸️ ATTENDRE"
+    badge = "🟢 RENT NOW" if naive.action is Action.RENT_NOW else "⏸️ WAIT"
     st.info(
-        f"**Reco gratuite : {badge}** — {naive.rationale}\n\n"
-        "_Heuristique publique non calibrée. Le **timing calibré** (quand louer pour "
-        "minimiser le coût) est un service **premium**._"
+        f"**Free recommendation: {badge}** — {naive.rationale}\n\n"
+        "_Uncalibrated public heuristic. **Calibrated timing** (when to rent to "
+        "minimize cost) is a **premium** service._"
     )
 
 
@@ -65,12 +71,12 @@ def _render_dispersion(market: MarketView) -> None:
         {
             "venue": v.source,
             "$/GPU·h": round(v.rate, 4),
-            "écart vs moins chère": f"+{(v.rate / cheapest_rate - 1) * 100:.1f} %",
-            "dispo (GPU)": v.availability,
+            "gap vs cheapest": f"+{(v.rate / cheapest_rate - 1) * 100:.1f} %",
+            "availability (GPU)": v.availability,
         }
         for v in market.venues
     ]
-    st.subheader("Dispersion inter-venues")
+    st.subheader("Cross-venue dispersion")
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
 
@@ -79,11 +85,11 @@ def _render_curve(store: ParquetSnapshotStore, model: str) -> None:
     timestamps = list(pd.date_range(end=now, periods=CURVE_LOOKBACK_DAYS, freq="D").to_pydatetime())
     curve = price_curve(store, model, timestamps)
     if curve["index_price"].isna().all():
-        st.caption("Pas encore assez d'historique pour tracer la tendance.")
+        st.caption("Not enough history yet to plot the trend.")
         return
     fig = go.Figure(go.Scatter(x=curve["as_of"], y=curve["index_price"], mode="lines+markers"))
     fig.update_layout(
-        title=f"Indice spot {model} — {CURVE_LOOKBACK_DAYS} derniers jours",
+        title=f"{model} spot index — last {CURVE_LOOKBACK_DAYS} days",
         xaxis_title="date (UTC)",
         yaxis_title="$/GPU·h",
         height=380,
@@ -92,42 +98,42 @@ def _render_curve(store: ParquetSnapshotStore, model: str) -> None:
 
 
 def _render_about() -> None:
-    with st.expander("À propos · méthodologie"):
+    with st.expander("About · methodology"):
         st.markdown(
             """
-            **Quoi.** Le prix de référence d'une heure-GPU, par modèle, agrégé sur
-            plusieurs marketplaces, avec la dispersion inter-venues et la tendance.
+            **What.** The reference price of a GPU-hour, per model, aggregated across
+            multiple marketplaces, with cross-venue dispersion and trend.
 
-            **Comment.** Indice canonique = *trimmed mean* 20 % + rejet d'outliers (MAD),
-            fenêtre 24 h **sans carry-forward**, hyperscalers exclus, types de bail séparés
-            (standard Silicon Data / settlement futures compute). Tout est **point-in-time** :
-            chaque valeur n'utilise que la donnée connue à cet instant (anti look-ahead).
+            **How.** Canonical index = 20% *trimmed mean* + outlier rejection (MAD),
+            24 h window **with no carry-forward**, hyperscalers excluded, lease types kept separate
+            (Silicon Data standard / compute futures settlement). Everything is **point-in-time**:
+            each value only uses data known at that instant (anti look-ahead).
 
-            **Données.** Snapshots réels accumulés en continu, stockés dans un lac Parquet
-            versionné (reproductible). L'historique compute n'existe pas ailleurs : il se
-            fabrique jour après jour.
+            **Data.** Real snapshots accumulated continuously, stored in a versioned Parquet
+            lake (reproducible). Compute history doesn't exist anywhere else: it is
+            built day by day.
 
-            **Gratuit vs premium.** Ce tableau de bord (la *mesure*) est gratuit. Le *timing*
-            calibré (« louer maintenant sur telle venue pour minimiser le coût ») est premium.
+            **Free vs. premium.** This dashboard (the *measurement*) is free. Calibrated
+            *timing* ("rent now on venue X to minimize cost") is premium.
             """
         )
 
 
 def render() -> None:
-    st.set_page_config(page_title="Compute — GPU le moins cher", page_icon="💸", layout="wide")
-    st.title("💸 GPU le moins cher, maintenant")
-    st.caption("Benchmark multi-venues point-in-time · free tier public")
+    st.set_page_config(page_title="Compute — Cheapest GPU", page_icon="💸", layout="wide")
+    st.title("💸 Cheapest GPU, right now")
+    st.caption("Point-in-time multi-venue benchmark · public free tier")
 
     store = _store()
-    model = st.selectbox("Modèle GPU", CANDIDATE_MODELS, index=0)
+    model = st.selectbox("GPU model", _available_models(store), index=0)
     as_of = dt.datetime.now(tz=dt.timezone.utc)
 
     try:
         market = read_market(store, as_of, model)
     except InsufficientDataError:
         st.warning(
-            f"Pas encore de relevé exploitable pour **{model}**. "
-            "L'historique s'accumule en continu — revenez bientôt."
+            f"No usable reading yet for **{model}**. "
+            "History accumulates continuously — check back soon."
         )
         _render_about()
         return
@@ -138,4 +144,5 @@ def render() -> None:
     _render_about()
 
 
-render()
+if __name__ == "__main__":
+    render()

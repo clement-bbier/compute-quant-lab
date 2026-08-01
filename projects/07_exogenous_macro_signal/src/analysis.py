@@ -1,14 +1,14 @@
-"""Mesure du *lead* d'une feature exogène sur la cible spread (anti-overfit).
+"""Measures the *lead* of an exogenous feature over the spread target (anti-overfit).
 
-Deux outils complémentaires, volontairement simples (le prompt impose « sans
-sur-fitter ») :
+Two complementary tools, deliberately simple (the brief requires "no
+overfitting"):
 
-* `cross_correlations` — corrélation feature(t) vs cible(t+k) pour k = 0..K.
-  Transparente, robuste, sans modèle. Donne le lag optimal.
-* `confirm_ols` — régression de confirmation au lag optimal, **split temporel
-  strict** (pas de shuffle, cf. rule no-look-ahead) et R² out-of-sample.
+* `cross_correlations` — correlation of feature(t) vs target(t+k) for k = 0..K.
+  Transparent, robust, model-free. Gives the optimal lag.
+* `confirm_ols` — confirmation regression at the optimal lag, **strict temporal
+  split** (no shuffling, cf. rule no-look-ahead) and out-of-sample R².
 
-Fonctions pures (aucune I/O) : testables sur fixtures connues.
+Pure functions (no I/O): testable on known fixtures.
 """
 
 from __future__ import annotations
@@ -25,10 +25,10 @@ def cross_correlations(
     max_lag: int,
     method: str = "pearson",
 ) -> pd.Series:
-    """Corrélation de ``feature(t)`` avec ``target(t + k)`` pour ``k = 0..max_lag``.
+    """Correlation of ``feature(t)`` with ``target(t + k)`` for ``k = 0..max_lag``.
 
-    Un ``k`` positif où la corrélation culmine signifie que la feature **précède**
-    la cible de ``k`` pas (pouvoir prédictif / lead).
+    A positive ``k`` where the correlation peaks means the feature **leads**
+    the target by ``k`` steps (predictive power / lead).
     """
     correlations: dict[int, float] = {}
     for k in range(max_lag + 1):
@@ -42,7 +42,7 @@ def cross_correlations(
 
 
 def best_lag(corr: pd.Series) -> int:
-    """Lag de corrélation absolue maximale (le lead le plus marqué)."""
+    """Lag of maximum absolute correlation (the strongest lead)."""
     return int(corr.abs().idxmax())
 
 
@@ -52,11 +52,11 @@ def confirm_ols(
     lag: int,
     train_frac: float = 0.7,
 ) -> dict[str, Any]:
-    """OLS de confirmation ``target(t+lag) ~ feature(t)`` avec split temporel strict.
+    """Confirmation OLS ``target(t+lag) ~ feature(t)`` with a strict temporal split.
 
-    Le split est chronologique (les ``train_frac`` premières observations servent
-    d'entraînement, le reste de test) : aucune fuite train→test sur la série
-    temporelle. Renvoie coefficient, p-value et R² in-sample / out-of-sample.
+    The split is chronological (the first ``train_frac`` observations are used
+    for training, the rest for testing): no train->test leakage on the time
+    series. Returns coefficient, p-value, and in-sample / out-of-sample R².
     """
     aligned = pd.concat([feature.rename("x"), target.shift(-lag).rename("y")], axis=1).dropna()
     n_train = int(len(aligned) * train_frac)

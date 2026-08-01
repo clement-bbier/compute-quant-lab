@@ -1,4 +1,4 @@
-"""Tests de la frontière public/edge : contrat de signal + impl naïve publique."""
+"""Tests for the public/edge boundary: signal contract + naive public impl."""
 
 from __future__ import annotations
 
@@ -40,13 +40,13 @@ def test_naive_rent_now_when_cheapest_below_median():
     source = NaiveSignalSource()
     signal = source.assess(_market([2.00, 2.20, 2.30]))
     assert signal.action is Action.RENT_NOW
-    assert signal.venue == "venue0"  # la moins chère (2.00)
+    assert signal.venue == "venue0"  # the cheapest (2.00)
     assert signal.reference_price == pytest.approx(2.00)
 
 
 def test_naive_waits_when_no_spread_single_venue():
     source = NaiveSignalSource()
-    signal = source.assess(_market([2.00]))  # cheapest == median -> aucun écart
+    signal = source.assess(_market([2.00]))  # cheapest == median -> no gap
     assert signal.action is Action.WAIT
 
 
@@ -57,14 +57,14 @@ def test_naive_waits_when_all_venues_equal():
 
 
 def test_naive_signal_is_flagged_non_edge():
-    # Le free tier public n'est JAMAIS un signal calibré : simulated=True.
+    # The public free tier is NEVER a calibrated signal: simulated=True.
     signal = NaiveSignalSource().assess(_market([2.00, 2.20]))
     assert signal.provenance.simulated is True
     assert signal.provenance.name == "naive_public"
 
 
 def test_provenance_flag_is_mandatory():
-    # Rule forward-real-simulated : le drapeau n'a pas de défaut (un test échoue sinon).
+    # Rule forward-real-simulated: the flag has no default (a test fails otherwise).
     with pytest.raises(TypeError):
         SignalProvenance("orphan")  # type: ignore[call-arg]
 

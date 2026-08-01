@@ -1,39 +1,39 @@
-# P10 — Patches pour la session de convergence
+# P10 — Patches for the convergence session
 
-> P10 n'écrit que dans `projects/10_portfolio_execution/`. Les modifications de la **zone
-> protégée** (`pyproject.toml`, `.claude/`, `CLAUDE.md` racine, `.mcp.json`, `core/`) sont
-> listées ici et appliquées **uniquement** par la session qui pilote `integration`.
+> P10 only writes to `projects/10_portfolio_execution/`. Changes to the **protected
+> zone** (`pyproject.toml`, `.claude/`, root `CLAUDE.md`, `.mcp.json`, `core/`) are
+> listed here and applied **only** by the session driving `integration`.
 
-## 1. `pyproject.toml` — collecte des tests P10
-Les tests projet ne sont pas collectés par défaut (`testpaths = ["tests"]`). Ajouter un job CI
-isolé pour `projects/10_portfolio_execution/tests` (même schéma que les autres projets : chaque
-dossier lancé séparément à cause des `conftest` à import nu). Exemple de commande CI :
+## 1. `pyproject.toml` — collect P10 tests
+Project tests are not collected by default (`testpaths = ["tests"]`). Add an isolated CI
+job for `projects/10_portfolio_execution/tests` (same pattern as other projects: each
+directory run separately because of bare-import `conftest` files). Example CI command:
 ```bash
 uv run pytest projects/10_portfolio_execution/tests
 ```
 
-## 2. Brancher les vrais signaux P02/P06/P09
-Remplacer les mocks (`signals.py`) par des adaptateurs derrière le **même** Protocol
-`SignalProducer` (`name`, `provenance`, `signal(view) -> float ∈ [-1, 1]`) :
-- **P02** (mean-reversion) → adaptateur du z-score à hystérésis (déjà un `Strategy` P08).
-- **P06** (futures/dérivés) → vue directionnelle du carry/yield implicite.
-- **P09** (ML) → sortie du modèle normalisée dans [-1, 1].
-Aucun changement attendu dans `desk.py`/`portfolio.py`/`execution.py` (c'est le but du découplage).
-Mettre à jour `provenance.simulated=False` quand le signal est réel et que ses données le sont.
+## 2. Wire in the real P02/P06/P09 signals
+Replace the mocks (`signals.py`) with adapters behind the **same** `SignalProducer`
+Protocol (`name`, `provenance`, `signal(view) -> float ∈ [-1, 1]`):
+- **P02** (mean-reversion) → adapter for the hysteresis z-score (already a P08 `Strategy`).
+- **P06** (futures/derivatives) → directional view of the implied carry/yield.
+- **P09** (ML) → model output normalized to [-1, 1].
+No changes expected in `desk.py`/`portfolio.py`/`execution.py` (that's the point of the decoupling).
+Update `provenance.simulated=False` when the signal is real and its underlying data is real.
 
-## 3. Agent `risk-validator` (absent du roster)
-Le labo prévoit cet **adversaire** (CLAUDE.md §6) mais l'agent n'existe pas encore dans
-`.claude/agents/` (constat partagé avec P02). À créer en convergence via `agent-architect`. Son
-mandat sur P10 : **attaquer le PnL net agrégé** (pas le brut) — corrélations entre signaux
-ignorées par l'inverse-vol, coûts sous-estimés, sur-confiance composite (cf. RISK_REVIEW.md §5).
+## 3. `risk-validator` agent (missing from the roster)
+The lab plans for this **adversary** (root CLAUDE.md §6) but the agent doesn't exist yet in
+`.claude/agents/` (a gap shared with P02). To be created during convergence via `agent-architect`. Its
+mandate on P10: **attack the aggregated net PnL** (not the gross) — correlations between signals
+ignored by inverse-vol, underestimated costs, composite overconfidence (see RISK_REVIEW.md §5).
 
-## 4. Palier institutionnel (backlog, pas PoC)
-- `WeightScheme` → implémenter `ERCScheme` (risk-parity corrélation-aware, covariance
-  point-in-time). Le seam est déjà en place (`portfolio.py::ERCScheme` lève `NotImplementedError`).
-- Si l'optimiseur devient générique et réutilisable → le remonter dans `core/` (principe
-  PoC → fondation), via la convergence.
-- Capacité / limites desk / exécution live ; deflated Sharpe et walk-forward sur signaux réels.
+## 4. Institutional tier (backlog, not PoC)
+- `WeightScheme` → implement `ERCScheme` (correlation-aware risk-parity, point-in-time
+  covariance). The seam is already in place (`portfolio.py::ERCScheme` raises `NotImplementedError`).
+- If the optimizer becomes generic and reusable → promote it into `core/` (PoC → foundation
+  principle), via convergence.
+- Capacity / desk limits / live execution; deflated Sharpe and walk-forward on real signals.
 
-## 5. Référence (optionnel)
-Déléguer à `literature-scout` une revue (risk parity / ERC, modèles d'impact Almgren-Chriss,
-construction de portefeuille robuste) → `references/` (module possédé par `feature/research`).
+## 5. Reference (optional)
+Delegate to `literature-scout` a review (risk parity / ERC, Almgren-Chriss impact models,
+robust portfolio construction) → `references/` (module owned by `feature/research`).

@@ -1,13 +1,13 @@
-# Handoff convergence — serveur MCP gpu-price
+# Convergence handoff — gpu-price MCP server
 
-Le module a été écrit **sans toucher la zone protégée** (parallel-ops §7). À appliquer en convergence :
+The module was written **without touching the protected zone** (parallel-ops §7). To apply during convergence:
 
-1. **`pyproject.toml`** : ajouter `"mcp>=1.2"` aux `[project].dependencies`.
-   (En dev, `mcp` est installé ad-hoc via `uv pip install mcp`.)
-2. **`.github/workflows/ci.yml`** : ajouter un job de matrice sur
-   `infra/mcp-servers/gpu-price-server/tests`, comme la convergence W1 l'a fait pour
-   `core/ingestion/providers/tests`. **Ne pas modifier `testpaths`** (reste `["tests"]`).
-3. **`.mcp.json`** : déjà câblé (`gpu-price` → `python … server.py`), aucun changement.
+1. **`pyproject.toml`**: add `"mcp>=1.2"` to `[project].dependencies`.
+   (In dev, `mcp` is installed ad hoc via `uv pip install mcp`.)
+2. **`.github/workflows/ci.yml`**: add a matrix job for
+   `infra/mcp-servers/gpu-price-server/tests`, the way the W1 convergence did for
+   `core/ingestion/providers/tests`. **Do not modify `testpaths`** (stays `["tests"]`).
+3. **`.mcp.json`**: already wired (`gpu-price` -> `python … server.py`), no change needed.
 
-Indépendance : le serveur lit la couche storage et n'appelle jamais `fetch_live_gpu_prices`
-ni la couche providers W1 — aucune coordination de code requise.
+Independence: the server reads the storage layer and never calls `fetch_live_gpu_prices`
+or the W1 providers layer — no code coordination is required.

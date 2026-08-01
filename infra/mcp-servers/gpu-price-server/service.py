@@ -1,8 +1,9 @@
-"""Logique pure du serveur MCP gpu-price (sans dépendance MCP).
+"""Pure logic for the gpu-price MCP server (no MCP dependency).
 
-Chaque fonction reçoit un :class:`~core.storage.protocols.PriceStore` injecté et renvoie un
-dict/list JSON-sérialisable. Le point-in-time passe par ``as_of`` (ISO 8601 UTC, naïf rejeté).
-Les prix servis sont **réels** (spot observé) : chaque réponse porte ``provenance="real"``.
+Each function receives an injected :class:`~core.storage.protocols.PriceStore` and returns a
+JSON-serializable dict/list. Point-in-time filtering goes through ``as_of`` (ISO 8601 UTC,
+naive instants rejected). The prices served are **real** (observed spot): every response
+carries ``provenance="real"``.
 """
 
 from __future__ import annotations
@@ -17,17 +18,17 @@ from core.storage import query as duckdb_query
 from core.storage.parquet_store import ParquetPriceStore
 from core.storage.protocols import PriceStore
 
-#: Étiquette réel/simulé (règle forward-real-simulated.md) — ce serveur ne sert que du réel.
+#: Real/simulated label (forward-real-simulated.md rule) — this server only ever serves real data.
 PROVENANCE = "real"
 
 
 def _parse_instant(value: str | None) -> dt.datetime | None:
-    """Parse un instant ISO 8601 en datetime UTC tz-aware ; ``None`` reste ``None``.
+    """Parse an ISO 8601 instant into a tz-aware UTC datetime; ``None`` stays ``None``.
 
     Raises
     ------
     ValueError
-        Si ``value`` n'est pas un ISO 8601 valide, ou s'il est naïf (sans fuseau).
+        If ``value`` is not a valid ISO 8601 string, or if it is naive (no timezone).
     """
     if value is None:
         return None
@@ -35,18 +36,18 @@ def _parse_instant(value: str | None) -> dt.datetime | None:
         parsed = dt.datetime.fromisoformat(value)
     except ValueError as exc:
         raise ValueError(
-            f"Instant ISO 8601 invalide : {value!r}. Exemple : '2026-06-21T00:00:00+00:00'."
+            f"Invalid ISO 8601 instant: {value!r}. Example: '2026-06-21T00:00:00+00:00'."
         ) from exc
     if parsed.tzinfo is None:
         raise ValueError(
-            f"Instant naïf interdit : {value!r}. Fournir un instant tz-aware UTC "
-            "(ex. '2026-06-21T00:00:00+00:00')."
+            f"Naive instant not allowed: {value!r}. Provide a tz-aware UTC instant "
+            "(e.g. '2026-06-21T00:00:00+00:00')."
         )
     return parsed.astimezone(dt.timezone.utc)
 
 
 def list_gpu_models(store: PriceStore, *, as_of: str | None = None) -> list[str]:
-    """Liste triée des modèles GPU présents dans le lac (bornée à ``snapshotted_at <= as_of``)."""
+    """Sorted list of GPU models present in the lake (bounded to ``snapshotted_at <= as_of``)."""
     frame = store.read(as_of=_parse_instant(as_of))
     if frame.empty:
         return []
@@ -54,7 +55,7 @@ def list_gpu_models(store: PriceStore, *, as_of: str | None = None) -> list[str]
 
 
 def _latest_row_per_source(subset: pd.DataFrame) -> pd.DataFrame:
-    """Par source : l'instant le plus récent, puis l'offre la moins chère à cet instant."""
+    """Per source: the most recent instant, then the cheapest offer at that instant."""
     freshest_per_source = subset.groupby("source")["snapshotted_at"].transform("max")
     freshest = subset[subset["snapshotted_at"] == freshest_per_source]
     cheapest_idx = freshest.groupby("source")["price_usd_per_hour"].idxmin()
@@ -68,7 +69,7 @@ def latest_price(
     lease_type: str = "on_demand",
     as_of: str | None = None,
 ) -> dict[str, Any]:
-    """Dernier prix par source pour ``gpu_model``/``lease_type`` (réel) + résumé min/médian/max."""
+    """Latest price per source for ``gpu_model``/``lease_type`` (real) + min/median/max summary."""
     cutoff = _parse_instant(as_of)
     frame = store.read(as_of=cutoff)
     subset = frame[(frame["gpu_model"] == gpu_model) & (frame["lease_type"] == lease_type)]
@@ -79,7 +80,7 @@ def latest_price(
             "lease_type": lease_type,
             "found": False,
             "provenance": PROVENANCE,
-            "message": f"Aucun relevé pour gpu_model={gpu_model!r}, lease_type={lease_type!r}.",
+            "message": f"No readings for gpu_model={gpu_model!r}, lease_type={lease_type!r}.",
             "available_models": available,
         }
     latest = _latest_row_per_source(subset)
@@ -106,7 +107,7 @@ def latest_price(
             "min": min(prices),
             "median": round(
                 statistics.median(prices), 10
-            ),  # round : la médiane flottante de 2 prix (ex. 1.95) évite l'artefact IEEE-754
+            ),  # round: avoids IEEE-754 artifacts in the float median of 2 prices (e.g. 1.95)
             "max": max(prices),
             "n_sources": len(prices),
         },
@@ -122,7 +123,7 @@ def price_history(
     source: str | None = None,
     lease_type: str | None = None,
 ) -> dict[str, Any]:
-    """Série temporelle ordonnée des relevés (réel) de ``gpu_model`` dans ``[start, as_of]``."""
+    """Ordered time series of readings (real) for ``gpu_model`` within ``[start, as_of]``."""
     cutoff = _parse_instant(as_of)
     start_dt = _parse_instant(start)
     frame = store.read(as_of=cutoff, source=source)
@@ -161,7 +162,7 @@ def summary_stats(
     lease_type: str | None = None,
     as_of: str | None = None,
 ) -> dict[str, Any]:
-    """Stats descriptives (réel) des prix de ``gpu_model``, bornées au point-in-time ``as_of``."""
+    """Descriptive stats (real) for ``gpu_model`` prices, bounded to the point-in-time ``as_of``."""
     cutoff = _parse_instant(as_of)
     frame = store.read(as_of=cutoff)
     subset = frame[frame["gpu_model"] == gpu_model]
@@ -173,7 +174,7 @@ def summary_stats(
             "found": False,
             "provenance": PROVENANCE,
             "n": 0,
-            "message": f"Aucun relevé pour gpu_model={gpu_model!r}.",
+            "message": f"No readings for gpu_model={gpu_model!r}.",
         }
     prices = subset["price_usd_per_hour"]
     overall = {
@@ -182,7 +183,7 @@ def summary_stats(
         "max": float(prices.max()),
         "mean": float(prices.mean()),
         "median": float(prices.median()),
-        "std": float(prices.std(ddof=0)),  # population : défini même pour n=1
+        "std": float(prices.std(ddof=0)),  # population: well-defined even for n=1
     }
     by_source = [
         {
@@ -211,10 +212,10 @@ def summary_stats(
 
 
 def _jsonable(value: Any) -> Any:
-    """Rend une valeur DuckDB/pandas sérialisable JSON (Timestamp→ISO UTC, NaN→None, numpy→python).
+    """Make a DuckDB/pandas value JSON-serializable (Timestamp->ISO UTC, NaN->None, numpy->python).
 
-    DuckDB rend les colonnes ``TIMESTAMP WITH TIME ZONE`` dans le fuseau local du process ;
-    on renormalise en UTC pour rester cohérent avec les outils structurés (règle UTC du labo).
+    DuckDB renders ``TIMESTAMP WITH TIME ZONE`` columns in the process's local timezone;
+    we renormalize to UTC to stay consistent with the structured tools (lab UTC rule).
     """
     if isinstance(value, pd.Timestamp):
         if value.tzinfo is not None:
@@ -225,16 +226,16 @@ def _jsonable(value: Any) -> Any:
             return None
     except (TypeError, ValueError):
         pass
-    if hasattr(value, "item"):  # scalaires numpy
+    if hasattr(value, "item"):  # numpy scalars
         return value.item()
     return value
 
 
 def run_query(store: ParquetPriceStore, sql: str) -> dict[str, Any]:
-    """Exécute ``sql`` (DuckDB **brut**) sur la vue ``prices`` du lac. Aucun garde point-in-time.
+    """Run ``sql`` (**raw** DuckDB) against the lake's ``prices`` view. No point-in-time guard.
 
-    Requiert un ``ParquetPriceStore`` concret (DuckDB a besoin de ``store.root``) ;
-    les autres fonctions acceptent n'importe quel ``PriceStore``.
+    Requires a concrete ``ParquetPriceStore`` (DuckDB needs ``store.root``);
+    the other functions accept any ``PriceStore``.
     """
     frame = duckdb_query(sql, store)
     rows = [
@@ -244,5 +245,5 @@ def run_query(store: ParquetPriceStore, sql: str) -> dict[str, Any]:
         "columns": list(frame.columns),
         "rows": rows,
         "n": len(rows),
-        "note": "SQL DuckDB brut — AUCUN garde point-in-time ; le filtrage as_of est à la charge de la requête.",
+        "note": "Raw DuckDB SQL — NO point-in-time guard; as_of filtering is the caller's responsibility.",
     }

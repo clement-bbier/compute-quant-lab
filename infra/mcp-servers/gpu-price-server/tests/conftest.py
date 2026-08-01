@@ -1,4 +1,4 @@
-"""Fixtures du serveur MCP gpu-price : un cold store Parquet peuplé de données connues."""
+"""Fixtures for the gpu-price MCP server: a Parquet cold store seeded with known data."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-# server.py et service.py vivent dans le dossier parent (exécutés hors package).
+# server.py and service.py live in the parent folder (run outside the package).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.ingestion.protocols import Snapshot  # noqa: E402
@@ -21,7 +21,7 @@ T1 = dt.datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
 
 @pytest.fixture
 def snapshots() -> list[Snapshot]:
-    """7 relevés déterministes : 2 sources, 3 modèles, 2 instants ; vastai a 2 offres H100 à T1."""
+    """7 deterministic readings: 2 sources, 3 models, 2 instants; vastai has 2 H100 offers at T1."""
     return [
         Snapshot(T0, "vastai", "H100", 2.00, "on_demand", 5),
         Snapshot(T0, "runpod", "H100", 2.20, "on_demand", 3),
@@ -35,7 +35,7 @@ def snapshots() -> list[Snapshot]:
 
 @pytest.fixture
 def store(tmp_path: Path, snapshots: list[Snapshot]) -> ParquetPriceStore:
-    """Cold store Parquet temporaire peuplé des `snapshots`."""
+    """Temporary Parquet cold store seeded with `snapshots`."""
     lake = ParquetPriceStore(tmp_path / "lake")
     lake.write(snapshots_to_frame(snapshots))
     return lake

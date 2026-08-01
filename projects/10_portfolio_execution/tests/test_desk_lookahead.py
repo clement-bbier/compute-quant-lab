@@ -1,8 +1,8 @@
-"""Anti look-ahead du desk composite (test §6-c).
+"""Anti look-ahead for the composite desk (test §6-c).
 
-La pondération à t ne doit dépendre que de signaux ≤ t. On le prouve de deux façons : muter
-le futur ne change pas le passé (point-in-time), et un producteur tricheur (qui lit ``t+1``)
-fait échouer le run via le garde-fou ``GuardedView`` de P08.
+The weighting at t must only depend on signals ≤ t. We prove this two ways: mutating
+the future doesn't change the past (point-in-time), and a cheating producer (which reads
+``t+1``) fails the run via P08's ``GuardedView`` guard.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from signals import MeanReversionMock, MomentumMock
 
 
 def _positions_over(prices: np.ndarray) -> np.ndarray:
-    """Génère la série de positions du desk (desk neuf, reset à t==0) via des GuardedView."""
+    """Generates the desk's position series (fresh desk, reset at t==0) via GuardedViews."""
     desk = DeskStrategy(
         producers=[MeanReversionMock(lookback=10), MomentumMock(lookback=15)],
         constructor=PortfolioConstructor(vol_floor=1e-4, gross_cap=1.0),
@@ -30,12 +30,12 @@ def _positions_over(prices: np.ndarray) -> np.ndarray:
 
 
 def test_future_mutation_does_not_change_past_positions() -> None:
-    """Muter les prix après l'instant k laisse inchangées toutes les positions ≤ k (point-in-time)."""
+    """Mutating prices after instant k leaves all positions ≤ k unchanged (point-in-time)."""
     rng = np.random.default_rng(3)
     n, k = 120, 60
     prices = np.clip(100.0 + np.cumsum(rng.standard_normal(n)), 1.0, None).astype(np.float64)
     mutated = prices.copy()
-    mutated[k:] += 25.0  # on déforme franchement le futur
+    mutated[k:] += 25.0  # deliberately distort the future
 
     pos_orig = _positions_over(prices)
     pos_mut = _positions_over(mutated)
@@ -43,17 +43,17 @@ def test_future_mutation_does_not_change_past_positions() -> None:
 
 
 class _CheatingMock:
-    """Producteur tricheur : lit délibérément la valeur future ``t+1`` (interdit)."""
+    """Cheating producer: deliberately reads the future value ``t+1`` (forbidden)."""
 
     name = "cheater"
     provenance = SignalProvenance(name="cheater", simulated=True)
 
     def signal(self, view: PointInTimeView) -> float:
-        return view.at(view.t + 1)  # accès futur → doit lever LookAheadError
+        return view.at(view.t + 1)  # future access → must raise LookAheadError
 
 
 def test_cheating_producer_triggers_lookahead_error() -> None:
-    """Un producteur qui lit le futur fait échouer le desk via le garde-fou P08."""
+    """A producer that reads the future fails the desk via the P08 guard."""
     prices = np.array([100.0, 101.0, 102.0, 103.0], dtype=np.float64)
     desk = DeskStrategy(
         producers=[_CheatingMock()],

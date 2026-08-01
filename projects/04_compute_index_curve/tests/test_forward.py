@@ -1,8 +1,8 @@
-"""Tests de la courbe forward simulée (Schwartz un-facteur).
+"""Tests of the simulated forward curve (1-factor Schwartz).
 
-Couvre les invariants attendus (§6 du cadrage P04) : convergence vers le spot à
-l'échéance 0, monotonie contango/backwardation, flag ``simulated`` obligatoire, et
-parité moteur Rust ↔ oracle Python (skippée si la crate n'est pas buildée).
+Covers the expected invariants (P04 spec §6): convergence to spot at
+maturity 0, contango/backwardation monotonicity, required ``simulated`` flag, and
+Rust engine ↔ Python oracle parity (skipped if the crate is not built).
 """
 
 from __future__ import annotations
@@ -12,15 +12,15 @@ import pytest
 from forward.models import Curve, SchwartzParams
 from forward.oracle import PythonMonteCarloForward, SchwartzAnalyticForward, forward_price
 
-# spot < theta -> contango (courbe croissante)
+# spot < theta -> contango (upward-sloping curve)
 PARAMS_CONTANGO = SchwartzParams(kappa=0.05, theta=3.0, sigma=0.2)
-# spot > theta, faible vol -> backwardation (courbe décroissante)
+# spot > theta, low vol -> backwardation (downward-sloping curve)
 PARAMS_BACKWARD = SchwartzParams(kappa=0.05, theta=1.0, sigma=0.01)
 MATURITIES = [0.0, 30.0, 90.0, 180.0, 360.0]
 
 
 def test_curve_requires_simulated_flag() -> None:
-    # `simulated` n'a pas de valeur par défaut : l'omettre est une erreur de type.
+    # `simulated` has no default value: omitting it is a type error.
     with pytest.raises(TypeError):
         Curve(spot=2.0, points=(), model_name="x", params=PARAMS_CONTANGO)  # type: ignore[call-arg]
 
@@ -42,33 +42,37 @@ def test_forward_price_helper_is_spot_at_zero() -> None:
 
 def test_forward_monotone_increasing_in_contango() -> None:
     prices = SchwartzAnalyticForward().simulate(2.0, PARAMS_CONTANGO, MATURITIES).prices
-    assert all(b > a for a, b in zip(prices, prices[1:]))  # strictement croissante
-    assert prices[-1] < PARAMS_CONTANGO.long_run_forward  # tend vers le niveau de long terme
+    assert all(b > a for a, b in zip(prices, prices[1:]))  # strictly increasing
+    assert prices[-1] < PARAMS_CONTANGO.long_run_forward  # trends toward the long-run level
 
 
 def test_forward_monotone_decreasing_in_backwardation() -> None:
     prices = SchwartzAnalyticForward().simulate(2.0, PARAMS_BACKWARD, MATURITIES).prices
-    assert all(b < a for a, b in zip(prices, prices[1:]))  # strictement décroissante
+    assert all(b < a for a, b in zip(prices, prices[1:]))  # strictly decreasing
 
 
 def test_python_mc_matches_analytic() -> None:
     spot, maturities = 2.0, [0.0, 30.0, 90.0]
     analytic = SchwartzAnalyticForward().simulate(spot, PARAMS_CONTANGO, maturities)
-    mc = PythonMonteCarloForward(n_paths=200_000, seed=7).simulate(spot, PARAMS_CONTANGO, maturities)
+    mc = PythonMonteCarloForward(n_paths=200_000, seed=7).simulate(
+        spot, PARAMS_CONTANGO, maturities
+    )
     for f_analytic, f_mc in zip(analytic.prices, mc.prices):
         assert f_mc == pytest.approx(f_analytic, rel=0.02)
     assert mc.simulated is True
 
 
 def test_rust_python_parity() -> None:
-    # Skippé tant que la crate Rust n'est pas buildée (maturin develop).
+    # Skipped as long as the Rust crate is not built (maturin develop).
     pytest.importorskip("forward_engine")
     from forward.engine import RustMonteCarloForward
 
     spot = 2.0
     maturities = [0.0, 30.0, 90.0, 180.0]
     analytic = SchwartzAnalyticForward().simulate(spot, PARAMS_CONTANGO, maturities)
-    rust = RustMonteCarloForward(n_paths=200_000, seed=42).simulate(spot, PARAMS_CONTANGO, maturities)
+    rust = RustMonteCarloForward(n_paths=200_000, seed=42).simulate(
+        spot, PARAMS_CONTANGO, maturities
+    )
 
     for f_analytic, f_rust in zip(analytic.prices, rust.prices):
         assert f_rust == pytest.approx(f_analytic, rel=0.02)

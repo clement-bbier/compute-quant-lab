@@ -1,11 +1,11 @@
-"""Provenance d'un signal : réel vs simulé (frontière non négociable).
+"""Signal provenance: real vs simulated (non-negotiable boundary).
 
-P12 a **promu** la provenance canonique dans ``core.signals`` (fondation réutilisable). Ce module
-la **ré-exporte** pour rester rétro-compatible (``from provenance import SignalProvenance``) : un
-seul type partagé entre les mocks du PoC et les vrais producteurs (P02/P06/P09), sans duplication.
+P12 **promoted** the canonical provenance into ``core.signals`` (reusable foundation). This module
+**re-exports** it to stay backward-compatible (``from provenance import SignalProvenance``): a
+single type shared between the PoC mocks and the real producers (P02/P06/P09), no duplication.
 
-Le flag ``simulated`` reste **sans défaut** : impossible d'oublier d'étiqueter un signal (rule
-``forward-real-simulated``). On ne vend jamais un PnL mock comme de l'alpha.
+The ``simulated`` flag has **no default**: it's impossible to forget to label a signal (rule
+``forward-real-simulated``). A mock PnL is never sold as alpha.
 """
 
 from __future__ import annotations

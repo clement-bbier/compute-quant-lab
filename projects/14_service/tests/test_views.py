@@ -1,4 +1,4 @@
-"""Tests de la couche vue (mesure publique : lecture du cold store)."""
+"""Tests for the view layer (public measurement: cold store read)."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from views import MarketView, price_curve, read_market
 
 def test_read_market_designates_cheapest_kept_venue(store, as_of):
     market = read_market(store, as_of, "H100")
-    # La venue scam (0.05) est un outlier rejeté : la moins chère RETENUE est vastai.
+    # The scam venue (0.05) is a rejected outlier: the cheapest RETAINED venue is vastai.
     assert market.cheapest.source == "vastai"
     assert market.cheapest.rate == pytest.approx(2.00)
 
 
 def test_read_market_canonical_index_price(store, as_of):
     market = read_market(store, as_of, "H100")
-    # Indice canonique (trimmed mean 20 % + MAD 2.5) sur les 4 venues retenues.
+    # Canonical index (20% trimmed mean + 2.5 MAD) on the 4 retained venues.
     assert market.index_price == pytest.approx(2.15)
 
 
@@ -27,7 +27,7 @@ def test_read_market_ranks_venues_ascending(store, as_of):
     market = read_market(store, as_of, "H100")
     rates = [v.rate for v in market.venues]
     assert rates == sorted(rates)
-    # scam/old/aws/future écartés : seules les 4 venues fraîches valides restent.
+    # scam/old/aws/future excluded: only the 4 valid fresh venues remain.
     assert {v.source for v in market.venues} == {"vastai", "lambda", "runpod", "coreweave"}
 
 

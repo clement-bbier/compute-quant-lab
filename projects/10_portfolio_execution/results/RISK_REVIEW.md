@@ -1,55 +1,57 @@
-# P10 — Revue adversariale (travail du risk-validator, fait inline)
+# P10 — Adversarial review (risk-validator work, done inline)
 
-> L'agent `risk-validator` n'existe pas encore dans `.claude/agents/` (zone protégée, à créer en
-> convergence — CONVERGENCE.md §3). En attendant, on applique sa discipline ici : **attaquer le
-> PnL net**, traquer look-ahead / overfitting / coûts sous-estimés (skill `/backtest-pitfalls`).
+> The `risk-validator` agent doesn't exist yet in `.claude/agents/` (protected zone, to be
+> created during convergence — CONVERGENCE.md §3). In the meantime, its discipline is applied
+> here: **attack the net PnL**, hunt for look-ahead / overfitting / underestimated costs
+> (skill `/backtest-pitfalls`).
 
-## Mise à jour P12 (2026-06-22) — signaux **réels** branchés (P02/P06/P09)
-Le desk tourne maintenant sur les vrais producteurs de `core.signals` (run `cfcd48b6…`). La revue
-ci-dessous (rédigée à l'ère des mocks) **tient toujours**, avec trois aggravations à acter :
-- **Brut positif mais artefactuel** : +0.506 (Sharpe 1.24) sur série synthétique mean-reverting —
-  les signaux épousent le générateur OU. **Ne pas confondre avec de l'alpha** (même piège que P02).
-- **Net bien pire** : **−4.47** (vs −0.54 mocks), turnover **455** (vs 86.5). Les vrais signaux
-  churnent ×5 → les coûts dominent encore plus. Le point 5 ci-dessous est **renforcé**.
-- **Point 3 désormais ACTIF** : le ML est *fitté*. La proba P09 est OOS purged-CV (anti-overfit)
-  mais **non strictement walk-forward causale** (un pli futur entraîne le modèle d'une ligne passée).
-  Au runtime le garde-fou est propre ; la *construction* de la proba ne l'est pas → **à attaquer**.
+## P12 update (2026-06-22) — **real** signals wired in (P02/P06/P09)
+The desk now runs on the real producers from `core.signals` (run `cfcd48b6…`). The review
+below (written in the mock era) **still holds**, with three aggravating factors to record:
+- **Gross positive but artifactual**: +0.506 (Sharpe 1.24) on a mean-reverting synthetic
+  series — the signals track the OU generator. **Don't mistake this for alpha** (same trap as P02).
+- **Net much worse**: **−4.47** (vs −0.54 for mocks), turnover **455** (vs 86.5). The real signals
+  churn ×5 → costs dominate even more. Point 5 below is **reinforced**.
+- **Point 3 now ACTIVE**: the ML is *fitted*. P09's probability is OOS purged-CV (anti-overfit)
+  but **not strictly walk-forward causal** (a future fold can train the model that predicts a past row).
+  At runtime the guard is clean; the *construction* of the probability is not → **to be attacked**.
 
-**Action convergence** : créer l'agent `risk-validator` et lui faire attaquer le **net agrégé**
-(turnover, causalité ML, corrélation P06/P09) sur données réelles. Tant que c'est synthétique : **alpha = 0**.
+**Convergence action**: create the `risk-validator` agent and have it attack the **aggregated
+net** (turnover, ML causality, P06/P09 correlation) on real data. As long as it's synthetic: **alpha = 0**.
 
-## Verdict (ère mocks — conservé pour historique)
-**Aucun alpha n'est revendiqué.** Le PoC valide une *mécanique de desk*, pas une stratégie. Le
-PnL net (−0.54) est négatif et c'est le résultat **attendu et honnête** : les producteurs sont
-des mocks sans edge. Publier ce chiffre comme performance serait une faute — il ne mesure que la
-correction du pipeline.
+## Verdict (mock era — kept for history)
+**No alpha is claimed.** The PoC validates a *desk mechanism*, not a strategy. The
+net PnL (−0.54) is negative and that's the **expected and honest** result: the producers are
+mocks with no edge. Publishing this number as performance would be a mistake — it only measures
+the correctness of the pipeline.
 
-## Checklist `/backtest-pitfalls`
-1. **Look-ahead** — ✅ Neutralisé par construction : la décision à `t` passe par la `GuardedView`
-   (≤ t) de P08 ; un producteur tricheur lève `LookAheadError` (`test_desk_lookahead`). La vol de
-   pondération n'utilise que des rendements réalisés laggés.
-2. **Overfitting / multiple testing** — ✅ Au PoC : `n_trials=1`, paramètres fixés *a priori*,
-   aucune optimisation. ⚠️ Dès que de vrais signaux et un tuning entrent → deflated Sharpe obligatoire.
-3. **Découpe temporelle** — ✅ Pas de shuffle (moteur séquentiel). N/A ici (rien n'est *fitté*) ;
-   à réinstaurer (walk-forward, embargo) quand P09/ML alimentera le desk.
-4. **Survivorship / univers** — ⚠️ Non couvert : une seule série synthétique. L'univers GPU réel
-   change (hôtes qui entrent/sortent) → à traiter au branchement des vrais signaux.
-5. **Coûts réalistes** — ✅ Cœur du projet : coûts linéaires + impact convexe, **PnL jugé au net**.
-   La sensibilité montre que le turnover élevé (86.5) rend la stratégie fragile aux coûts.
-6. **Stationnarité de régime** — ⚠️ Un seul régime simulé. Tester multi-régime avant toute conclusion.
-7. **Reproductibilité** — ✅ Seed fixe, run MLflow (params + SHA + DVC), snapshot `last_run.json`.
+## `/backtest-pitfalls` checklist
+1. **Look-ahead** — done. Neutralized by construction: the decision at `t` goes through P08's
+   `GuardedView` (≤ t); a cheating producer raises `LookAheadError` (`test_desk_lookahead`). The
+   weighting vol only uses lagged realized returns.
+2. **Overfitting / multiple testing** — done, at the PoC stage: `n_trials=1`, parameters fixed
+   *a priori*, no optimization. Warning: once real signals and tuning are introduced → deflated Sharpe mandatory.
+3. **Temporal splitting** — done. No shuffle (sequential engine). N/A here (nothing is *fitted*);
+   to be reinstated (walk-forward, embargo) once P09/ML feeds the desk.
+4. **Survivorship / universe** — warning: not covered — a single synthetic series. The real GPU
+   universe changes (hosts entering/leaving) → to be addressed once real signals are wired in.
+5. **Realistic costs** — done. Core of the project: linear costs + convex impact, **PnL judged on net**.
+   The sensitivity analysis shows the high turnover (86.5) makes the strategy fragile to costs.
+6. **Regime stationarity** — warning: a single simulated regime. Test multi-regime before any conclusion.
+7. **Reproducibility** — done. Fixed seed, MLflow run (params + SHA + DVC), `last_run.json` snapshot.
 
-## Angles morts spécifiques à l'agrégation (§10)
-- **Corrélations ignorées** : l'inverse-vol pondère par vol marginale, pas par contribution au
-  risque conjointe. Deux signaux fortement corrélés (ex. P06 et P09 sur le même facteur) seraient
-  sur-alloués → faux sentiment de diversification. **Action** : `ERCScheme` (risk-parity) au
-  palier institutionnel ; le seam existe déjà.
-- **Sur-confiance composite** : agréger des signaux chacun overfitté produit un PnL net flatteur
-  *in-sample*. **Action** : attaquer le net agrégé sur données out-of-sample, pas chaque signal isolé.
-- **Coûts sous-estimés** : κ et bps sont des hypothèses. **Action** : calibrer sur exécutions
-  réelles ; la capacité (impact dépendant du notionnel/liquidité) n'est pas encore modélisée.
+## Blind spots specific to aggregation (§10)
+- **Ignored correlations**: inverse-vol weights by marginal vol, not by joint risk contribution.
+  Two strongly correlated signals (e.g. P06 and P09 on the same factor) would be
+  over-allocated → false sense of diversification. **Action**: `ERCScheme` (risk-parity) at the
+  institutional tier; the seam already exists.
+- **Composite overconfidence**: aggregating signals that are each individually overfitted produces
+  a flattering net PnL *in-sample*. **Action**: attack the aggregated net on out-of-sample data,
+  not each signal in isolation.
+- **Underestimated costs**: κ and bps are assumptions. **Action**: calibrate against real
+  executions; capacity (impact depending on notional/liquidity) isn't modeled yet.
 
-## Ce qu'il faudrait pour croire un futur résultat positif
-Vrais signaux (P02/P06/P09), out-of-sample multi-régime, coûts calibrés, deflated Sharpe, et une
-pondération corrélation-aware. Tant que ces conditions ne sont pas réunies : **pipeline OK,
+## What it would take to believe a future positive result
+Real signals (P02/P06/P09), out-of-sample multi-regime testing, calibrated costs, deflated Sharpe,
+and correlation-aware weighting. Until these conditions are met: **pipeline OK,
 alpha = 0**.

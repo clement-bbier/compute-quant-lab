@@ -1,13 +1,13 @@
-"""Dataset de calibration L0 ERCOT depuis le cold store (point-in-time strict).
+"""ERCOT L0 calibration dataset from the cold store (strict point-in-time).
 
-Pour chaque jour cible J, reconstruit les deux prédicteurs gelés de L0 — **marge de
-réserve** (capacité STSA − net-load, cf. L0-v2) et **gradient net-load** — tels que connus à la
-décision ``as_of ≈ 18h CPT J-1`` (≈ 23h UTC en CDT), puis les aligne sur le **label
-spike RTM** réalisé des heures de J.
+For each target day D, rebuilds the two frozen L0 predictors — **reserve
+margin** (STSA capacity minus net-load, cf. L0-v2) and **net-load gradient** — as known at the
+``as_of ≈ 6pm CPT D-1`` decision point (≈ 11pm UTC in CDT), then aligns them with the
+realized **RTM spike label** for the hours of D.
 
-Lit le **Parquet versionné** (rule training-cold-store), jamais le live. Le garde-fou
-look-ahead vit dans :func:`_latest_per_interval_long` (``publish_time <= as_of``) — une
-prévision révisée après le cutoff n'entre jamais dans le prédicteur du jour.
+Reads the **versioned Parquet** (rule training-cold-store), never the live feed. The
+look-ahead guard lives in :func:`_latest_per_interval_long` (``publish_time <= as_of``) — a
+forecast revised after the cutoff never enters that day's predictor.
 """
 
 from __future__ import annotations
@@ -22,12 +22,12 @@ from ercot_labels import (
     to_hourly_integrated,
 )
 
-#: Heure UTC du cutoff de décision (~18h CPT J-1 = 23h UTC en CDT été).
+#: UTC hour of the decision cutoff (~6pm CPT D-1 = 11pm UTC in summer CDT).
 DEFAULT_AS_OF_UTC_HOUR = 23
 
 
 def _latest_per_interval_long(df: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
-    """``interval_start`` → dernière valeur publiée ``<= as_of`` (garde-fou look-ahead)."""
+    """``interval_start`` -> latest value published ``<= as_of`` (look-ahead guard)."""
     known = df[df[PUBLISH_TIME] <= as_of]
     if known.empty:
         return pd.Series(dtype=float)
@@ -47,10 +47,10 @@ def build_calibration_dataset(
     min_obs_per_hour: int = 20,
     threshold_usd_mwh: float = 1500.0,
 ) -> tuple[np.ndarray, np.ndarray, pd.DatetimeIndex]:
-    """Construit ``(X[reserve_margin, net_load_gradient], y[spike], index)`` aligné point-in-time.
+    """Builds ``(X[reserve_margin, net_load_gradient], y[spike], index)`` aligned point-in-time.
 
-    ``label`` : ``"hod"`` (99e pct conditionnel heure-de-jour) ou ``"abs"`` (> seuil $/MWh).
-    Ne garde que les lignes où **les deux prédicteurs** sont disponibles.
+    ``label``: ``"hod"`` (hour-of-day conditional 99th pct) or ``"abs"`` (> $/MWh threshold).
+    Keeps only rows where **both predictors** are available.
     """
     rtm = store.read(series="rtm_spp")
     cap = store.read(series="available_capacity")
@@ -67,9 +67,9 @@ def build_calibration_dataset(
     target = pd.Series(y_all.to_numpy(), index=y_all.index)
     for day, grp in target.groupby(target.index.normalize()):
         as_of = pd.Timestamp(day) - pd.Timedelta(days=1) + pd.Timedelta(hours=as_of_utc_hour)
-        day_idx = grp.index  # intervalles cibles (horaires) du jour J
-        # Alignement VECTORISÉ par reindex (robuste sur grilles mixtes). L0-v2 : la marge
-        # est capacité − net-load (la charge brute 7 j est indisponible à l'horizon 18h J-1).
+        day_idx = grp.index  # target (hourly) intervals for day D
+        # VECTORIZED alignment via reindex (robust across mixed grids). L0-v2: the margin
+        # is capacity minus net-load (raw 7-day load is unavailable at the 6pm D-1 horizon).
         nl_known = _latest_per_interval_long(nl, as_of)
         cap_k = _latest_per_interval_long(cap, as_of).reindex(day_idx)
         net_k = nl_known.reindex(day_idx)

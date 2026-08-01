@@ -1,19 +1,19 @@
-"""Entrée exécutable P03 : vol réalisée/EWMA + term structure de la forward SIMULÉE.
+"""Executable entry point for P03: realized/EWMA vol + term structure of the SIMULATED forward.
 
-Usage :
+Usage:
     uv run python projects/03_gpu_vol_term_structure/src/run_analysis.py
 
-Pipeline (modèle d'honnêteté de P01/P04) :
-1. série spot via l'indice sur snapshots réels (``data/snapshots/``) si présents, sinon
-   **historique synthétique déterministe étiqueté démo** (seed fixe) ;
-2. volatilité **réalisée** + **EWMA** sur les log-returns → régime de vol courant ;
-3. courbe forward **SIMULÉE** de P04 (Schwartz 1-facteur) calibrée sur le log-spot ;
-4. **term structure** (pente/courbure/forme) + **signal** directionnel (roll-yield) ;
-5. **run MLflow** loggué (params + métriques + SHA git + DVC) ;
-6. synthèse écrite dans ``results/`` (``SYNTHESIS.md`` + ``run_summary.json``).
+Pipeline (honesty model shared with P01/P04):
+1. spot series via the index on real snapshots (``data/snapshots/``) if present, else
+   **deterministic synthetic history labeled demo** (fixed seed);
+2. **realized** + **EWMA** volatility on log-returns → current vol regime;
+3. **SIMULATED** forward curve from P04 (1-factor Schwartz) calibrated on the log-spot;
+4. **term structure** (slope/curvature/shape) + directional (roll-yield) **signal**;
+5. logged **MLflow run** (params + metrics + git SHA);
+6. synthesis written to ``results/`` (``SYNTHESIS.md`` + ``run_summary.json``).
 
-⚠️ La term structure dérive d'une forward **SIMULÉE** (futures CME non listés) : tout
-résultat est conditionnel au modèle, jamais présenté comme observé.
+Warning: the term structure derives from a **SIMULATED** forward (CME futures not listed): any
+result is conditional on the model, never presented as observed.
 """
 
 from __future__ import annotations
@@ -28,12 +28,12 @@ from pathlib import Path
 
 import numpy as np
 
-# Convention labo : tracking MLflow fichier local (opt-in requis par MLflow 2026).
+# Lab convention: local file-based MLflow tracking (opt-in required by MLflow 2026).
 os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 _ROOT = Path(__file__).resolve().parents[3]
 os.environ.setdefault("MLFLOW_TRACKING_URI", (_ROOT / "experiments" / "mlruns").as_uri())
 
-# Rend importables : les modules P03 (ce dossier) et le paquet `forward` de P04 (lecture).
+# Makes importable: the P03 modules (this folder) and the P04 `forward` package (read-only).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(_ROOT / "projects" / "04_compute_index_curve" / "src"))
 
@@ -59,17 +59,17 @@ VOL_WINDOW = 20
 LAMBDA_EWMA = 0.94
 PERIODS_PER_YEAR = 365.0
 SEED = 7
-MIN_SERIES_POINTS = VOL_WINDOW + 5  # assez de points pour une vol réalisée non triviale
+MIN_SERIES_POINTS = VOL_WINDOW + 5  # enough points for a non-trivial realized vol
 
 
 def _last_finite(series: np.ndarray) -> float:
-    """Dernière valeur finie d'une série (vol courante), NaN si aucune."""
+    """Last finite value of a series (current vol), NaN if none."""
     finite = series[np.isfinite(series)]
     return float(finite[-1]) if finite.size else float("nan")
 
 
 def _demo_prices(n: int = 180, spot: float = 2.30) -> np.ndarray:
-    """Série de prix spot synthétique mean-reverting (placeholder étiqueté démo)."""
+    """Synthetic mean-reverting spot price series (demo-labeled placeholder)."""
     rng = np.random.default_rng(SEED)
     kappa, sigma, dt_days = 0.05, 0.06, 1.0
     ln_theta = math.log(spot)
@@ -83,20 +83,20 @@ def _demo_prices(n: int = 180, spot: float = 2.30) -> np.ndarray:
 
 
 def _daily_grid(snaps: list) -> list[dt.datetime]:
-    """Grille quotidienne de fix (00:30 UTC) couvrant l'amplitude des snapshots."""
+    """Daily fix grid (00:30 UTC) covering the span of the snapshots."""
     days = sorted({s.snapshotted_at.date() for s in snaps})
     return [dt.datetime(d.year, d.month, d.day, 0, 30, tzinfo=dt.timezone.utc) for d in days]
 
 
 def _spot_prices() -> tuple[np.ndarray, bool]:
-    """Série spot réelle (snapshots) si exploitable, sinon repli synthétique démo."""
+    """Real spot series (snapshots) if usable, else demo synthetic fallback."""
     snaps = CsvSnapshotStore(SNAPSHOT_DIR).load() if SNAPSHOT_DIR.exists() else []
     if snaps:
         _, prices = build_spot_series(snaps, _daily_grid(snaps), GPU_MODEL)
         if prices.size >= MIN_SERIES_POINTS:
-            logger.info("Série spot RÉELLE de l'indice : %d points.", prices.size)
+            logger.info("REAL index spot series: %d points.", prices.size)
             return prices, True
-        logger.warning("Snapshots présents mais série trop courte : repli synthétique démo.")
+        logger.warning("Snapshots present but series too short: falling back to demo synthetic.")
     return _demo_prices(), False
 
 
@@ -111,7 +111,7 @@ def main() -> None:
     spot = float(prices[-1])
     log_history = list(np.log(prices))
 
-    # Forward SIMULÉE de P04 (logue son propre run MLflow ; appelée hors de notre run).
+    # SIMULATED forward from P04 (logs its own MLflow run; called outside our run).
     curve = build_forward_curve(log_history, spot=spot, maturities_days=MATURITIES)
 
     as_of = dt.datetime.now(dt.timezone.utc)
@@ -130,7 +130,7 @@ def main() -> None:
         "periods_per_year": PERIODS_PER_YEAR,
         "seed": SEED,
         "spot_source": "real_index" if real_spot else "synthetic_demo",
-        "forward_simulated": ts.simulated,  # toujours True : frontière réel/simulé
+        "forward_simulated": ts.simulated,  # always True: real/simulated boundary
         "curve_model": curve.model_name,
     }
     with tracking.run("gpu_vol_term_structure", params):
@@ -164,69 +164,69 @@ def main() -> None:
     _write_results(summary)
 
     logger.info(
-        "Vol réalisée %.1f%% | EWMA %.1f%% (annualisées).", rv_current * 100, ev_current * 100
+        "Realized vol %.1f%% | EWMA %.1f%% (annualized).", rv_current * 100, ev_current * 100
     )
     logger.info(
-        "Term structure SIMULÉE : %s (pente=%.4g) -> signal=%+d.", ts.shape, ts.slope, sig.value
+        "SIMULATED term structure: %s (slope=%.4g) -> signal=%+d.", ts.shape, ts.slope, sig.value
     )
-    logger.info("Run MLflow %s loggué ; synthèse écrite dans %s.", run_id, RESULTS_DIR)
+    logger.info("MLflow run %s logged; synthesis written to %s.", run_id, RESULTS_DIR)
 
 
 def _write_results(summary: dict) -> None:
-    """Écrit ``run_summary.json`` + ``SYNTHESIS.md`` dans ``results/``."""
+    """Writes ``run_summary.json`` + ``SYNTHESIS.md`` to ``results/``."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "run_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     ts = summary["term_structure"]
     note_real = (
-        "indice spot **réel**"
+        "**real** spot index"
         if summary["spot_source"] == "real_index"
-        else "spot **synthétique de démo** (seed fixe)"
+        else "**demo synthetic** spot (fixed seed)"
     )
-    md = f"""# P03 — Synthèse vol & term structure
+    md = f"""# P03 — Vol & term structure synthesis
 
-> Run de démonstration. Reproductible : `src/run_analysis.py` (MLflow). Chiffres bruts :
+> Demonstration run. Reproducible: `src/run_analysis.py` (MLflow). Raw figures:
 > [`run_summary.json`](run_summary.json). MLflow run `{summary["mlflow_run_id"]}`.
 
-## 1. Couverture du run
+## 1. Run coverage
 
-| Élément | Valeur |
+| Item | Value |
 |---|---|
 | GPU / fix | {summary["gpu_model"]} |
-| Jambe spot | {note_real}, {summary["spot_usd_per_gpu_h"]:.4f} $/GPU·h |
-| Jambe forward | **SIMULÉE** (Schwartz 1-facteur, modèle `{summary["curve_model"]}`) |
+| Spot leg | {note_real}, {summary["spot_usd_per_gpu_h"]:.4f} $/GPU·h |
+| Forward leg | **SIMULATED** (1-factor Schwartz, `{summary["curve_model"]}` model) |
 
-**Note d'honnêteté** : l'historique compute est court (snapshots récents). Tant que la
-série réelle est mince, le run tourne sur un spot synthétique étiqueté démo ; il bascule
-sur l'indice réel dès que `data/snapshots/` est assez profond, sans autre changement.
+**Honesty note**: the compute history is short (recent snapshots). While the
+real series remains thin, the run uses a demo-labeled synthetic spot; it switches
+to the real index once `data/snapshots/` is deep enough, with no other change.
 
-## 2. Volatilité (annualisée)
+## 2. Volatility (annualized)
 
-| Estimateur | Vol |
+| Estimator | Vol |
 |---|---|
-| Réalisée (fenêtre {VOL_WINDOW}) | **{summary["realized_vol_annualized"] * 100:.1f} %** |
+| Realized (window {VOL_WINDOW}) | **{summary["realized_vol_annualized"] * 100:.1f} %** |
 | EWMA (λ={LAMBDA_EWMA}) | **{summary["ewma_vol_annualized"] * 100:.1f} %** |
 
-## 3. Structure par terme (SIMULÉE) & signal
+## 3. Term structure (SIMULATED) & signal
 
-| Descripteur | Valeur |
+| Descriptor | Value |
 |---|---|
-| Forme | **{ts["shape"]}** |
-| Pente ($/GPU·h/j) | {ts["slope"]:.4g} |
-| Courbure (butterfly) | {ts["curvature"]:.4g} |
-| Signal directionnel | **{summary["signal"]["value"]:+d}** ({summary["signal"]["rationale"]}) |
+| Shape | **{ts["shape"]}** |
+| Slope ($/GPU·h/day) | {ts["slope"]:.4g} |
+| Curvature (butterfly) | {ts["curvature"]:.4g} |
+| Directional signal | **{summary["signal"]["value"]:+d}** ({summary["signal"]["rationale"]}) |
 
-> ⚠️ **Frontière réel/simulé** : la term structure et le signal dérivent d'une courbe
-> forward **simulée** (`simulated={ts["simulated"]}`). Conditionnels au modèle, jamais
-> servis comme un prix de marché observé.
+> Warning: **Real/simulated boundary**: the term structure and signal derive from a
+> **simulated** forward curve (`simulated={ts["simulated"]}`). Conditional on the model, never
+> served as an observed market price.
 
-## 4. Limites
+## 4. Limitations
 
-- Historique compute court → vol et calibration peu robustes (intervalle large).
-- Forward simulée → la forme de la courbe reflète le modèle (mean-reversion Schwartz),
-  pas une anticipation de marché observée.
-- Signal roll-yield = convention (backwardation→long) : à valider sur données réelles
-  une fois les futures compute listés / la série spot accumulée.
+- Short compute history → vol and calibration not very robust (wide interval).
+- Simulated forward → the curve's shape reflects the model (Schwartz mean-reversion),
+  not an observed market anticipation.
+- Roll-yield signal = convention (backwardation→long): to be validated on real data
+  once compute futures are listed / the spot series has accumulated.
 """
     (RESULTS_DIR / "SYNTHESIS.md").write_text(md, encoding="utf-8")
 

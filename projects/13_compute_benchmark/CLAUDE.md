@@ -1,48 +1,48 @@
-# Projet 13 — Compute Spot Benchmark (indice public, data-product)
+# Project 13 — Compute Spot Benchmark (public index, data-product)
 
-> Contexte LOCAL. Glossaire et conventions globales : CLAUDE.md racine. Méthodo détaillée
-> et état : [README.md](README.md). Couche **vitrine** (data-product + portfolio).
+> LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
+> and status: [README.md](README.md). **Showcase** layer (data-product + portfolio).
 
-## Thèse spécifique
-Packager l'**indice spot compute multi-venues** comme un **benchmark public propre** : le
-« prix de référence d'une GPU-heure » par modèle, avec la **dispersion inter-venues**.
-Personne n'a d'historique compute propre et point-in-time → c'est à la fois un data-product
-et une pièce de portfolio qui démontre le pipeline de bout en bout. Réutilise tout l'existant.
+## Specific thesis
+Package the **multi-venue compute spot index** as a **clean public benchmark**: the
+"reference price of a GPU-hour" per model, with **cross-venue dispersion**.
+Nobody has a clean, point-in-time compute price history → this is both a data-product
+and a portfolio piece that demonstrates the end-to-end pipeline. Reuses everything existing.
 
-## Modules possédés
-- `projects/13_compute_benchmark/` **uniquement**.
-- Lecture seule (consommation, jamais réécriture) : `core.storage`, `core.ingestion`, `core.utils`.
-- Zone protégée intouchée (`CLAUDE.md` racine, `.claude/`, `.mcp.json`, `pyproject.toml`, `core/`).
+## Owned modules
+- `projects/13_compute_benchmark/` **only**.
+- Read-only (consumption, never rewrite): `core.storage`, `core.ingestion`, `core.utils`.
+- Protected zone untouched (`CLAUDE.md` root, `.claude/`, `.mcp.json`, `pyproject.toml`, `core/`).
 
 ## Architecture (SOLID / DI)
-- **Lecture lac** : `core.storage.ParquetSnapshotStore` (cold store Parquet versionné).
-- **Agrégation canonique** : `core.ingestion.build_spot_index` (P04, distribution intra-venue déjà corrigée).
-- **Couche pure (ici)** : `src/benchmark/` — `index_series` (série point-in-time), `dispersion`
-  (stats inter-venues + niveaux nommés), `report` (assemblage + état honnête de l'historique).
-- **I/O isolé** : `run_build_benchmark.py` (MLflow + `results/`), `dashboard/app.py` (Streamlit).
+- **Lake read**: `core.storage.ParquetSnapshotStore` (versioned Parquet cold store).
+- **Canonical aggregation**: `core.ingestion.build_spot_index` (P04, intra-venue distribution already corrected).
+- **Pure layer (here)**: `src/benchmark/` — `index_series` (point-in-time series), `dispersion`
+  (cross-venue stats + named levels), `report` (assembly + honest history state).
+- **Isolated I/O**: `run_build_benchmark.py` (MLflow + `results/`), `dashboard/app.py` (Streamlit).
 
-## Frontière edge (vitrine PUBLIQUE — non négociable)
-- On publie la **MESURE** : prix de référence (fix **quotidien** canonique 00:30 UTC) +
-  dispersion descriptive (spread, %, CV) + niveau **moyen** par venue nommée sur la fenêtre.
-- On ne publie PAS la **DÉCISION** : aucun signal de timing live « louer sur X maintenant »
-  (edge privé → WP). La granularité reste « benchmark », pas « signal ».
+## Edge boundary (PUBLIC showcase — non-negotiable)
+- We publish the **MEASUREMENT**: reference price (canonical **daily** fix at 00:30 UTC) +
+  descriptive dispersion (spread, %, CV) + **average** level per named venue over the window.
+- We do NOT publish the **DECISION**: no live timing signal "rent on X now"
+  (private edge → WP). Granularity stays "benchmark", not "signal".
 
-## Réel / point-in-time
-Spot **réel** (provenance `real_spot`, jamais simulé). Tout UTC tz-aware. Anti look-ahead
-hérité de `build_spot_index` (aucune obs `> as_of`) ; un fix sans venue fraîche est **sauté**,
-jamais comblé par carry-forward. Historique court au début (assumé) — il grossit.
+## Real / point-in-time
+**Real** spot (provenance `real_spot`, never simulated). Everything UTC tz-aware. Anti look-ahead
+inherited from `build_spot_index` (no observation `> as_of`); a fix without a fresh venue is **skipped**,
+never filled by carry-forward. Short history at the start (accepted) — it grows.
 
-## État d'avancement (PoC-now)
-- [x] `index_series` : série d'indice point-in-time (grille quotidienne + cadence démo), tests verts
-- [x] `dispersion` : spread/%/CV + niveaux nommés ; invariant anti-dérive vs `build_spot_index`
-- [x] `report` : assemblage multi-modèles + `HistoryState` honnête
-- [x] `run_build_benchmark.py` : run MLflow réel (`real_spot`) + `results/benchmark_summary.md`
-- [x] `dashboard/app.py` : démo Streamlit (indice + dispersion + niveaux)
-- [ ] Convergence : `pyproject` testpaths `projects/13…/tests` (zone protégée, hors périmètre WD)
+## Progress status (PoC-now)
+- [x] `index_series`: point-in-time index series (daily grid + demo cadence), tests green
+- [x] `dispersion`: spread/%/CV + named levels; anti-drift invariant vs `build_spot_index`
+- [x] `report`: multi-model assembly + honest `HistoryState`
+- [x] `run_build_benchmark.py`: real MLflow run (`real_spot`) + `results/benchmark_summary.md`
+- [x] `dashboard/app.py`: Streamlit demo (index + dispersion + levels)
+- [ ] Convergence: `pyproject` testpaths `projects/13…/tests` (protected zone, out of WD scope)
 
-## Lancement
+## Launch
 ```bash
 uv run pytest -q projects/13_compute_benchmark/tests
-uv run python projects/13_compute_benchmark/run_build_benchmark.py   # lit data/snapshots
+uv run python projects/13_compute_benchmark/run_build_benchmark.py   # reads data/snapshots
 uv run streamlit run projects/13_compute_benchmark/dashboard/app.py
 ```

@@ -1,36 +1,36 @@
-# P03 → Handoff convergence
+# P03 → Convergence handoff
 
-Éléments touchant la **zone protégée** (interdite au worktree périphérique). À traiter par
-la session de convergence lors du merge `feature/P03-gpu_vol_term_structure` → `integration`.
+Items touching the **protected zone** (off-limits to the peripheral worktree). To be
+handled by the convergence session when merging `feature/P03-gpu_vol_term_structure` → `integration`.
 
-## 1. `pyproject.toml` — `testpaths` (requis)
-`[tool.pytest.ini_options].testpaths` n'inclut pas `projects/03`. Ajouter l'entrée pour que
-la CI ramasse la suite P03 (comme déjà fait pour P04) :
+## 1. `pyproject.toml` — `testpaths` (required)
+`[tool.pytest.ini_options].testpaths` does not include `projects/03`. Add the entry so
+CI picks up the P03 suite (as already done for P04):
 
 ```toml
 testpaths = [
     "tests",
     "core/backtest/tests",
     "projects/04_compute_index_curve/tests",
-    "projects/03_gpu_vol_term_structure/tests",  # <- ajout P03
+    "projects/03_gpu_vol_term_structure/tests",  # <- P03 addition
 ]
 ```
 
-En attendant : gate local via chemin explicite — `pytest -q projects/03_gpu_vol_term_structure`.
+In the meantime: local gate via explicit path — `pytest -q projects/03_gpu_vol_term_structure`.
 
-## 2. Promotion éventuelle vers `core/` (à décider)
-`VolEstimator` (Protocol) + `RealizedVol`/`EwmaVol` sont **génériques** (aucune dépendance
-au compute) : candidats à une promotion `core/features/volatility.py` (réutilisables par
-P02/P05). Garder dans `projects/03` tant qu'un second consommateur n'est pas avéré (PoC →
-fondation). Décision = convergence.
+## 2. Possible promotion to `core/` (to be decided)
+`VolEstimator` (Protocol) + `RealizedVol`/`EwmaVol` are **generic** (no compute
+dependency): candidates for promotion to `core/features/volatility.py` (reusable by
+P02/P05). Keep in `projects/03` until a second consumer is confirmed (PoC →
+foundation). Decision = convergence.
 
-## 3. Dépendance `arch` (GARCH) — NON ajoutée
-Le palier institutionnel (GARCH) nécessiterait `arch` dans `pyproject.toml` (zone protégée).
-Volontairement différé (conforme à l'instruction « éviter une dép neuve sans convergence ») ;
-le `VolEstimator` (Protocol) est prêt à l'accueillir sans toucher aux consommateurs.
+## 3. `arch` dependency (GARCH) — NOT added
+The institutional tier (GARCH) would require `arch` in `pyproject.toml` (protected zone).
+Deliberately deferred (per the instruction to "avoid a new dependency without convergence");
+the `VolEstimator` (Protocol) is ready to accommodate it without touching consumers.
 
-## 4. Consommation cross-projet de la forward P04
-`run_analysis.py` importe le paquet `forward` de P04 via insertion `sys.path` de
-`projects/04_compute_index_curve/src` (la logique testée, elle, reste pure et n'en dépend
-pas). Si la forward est promue vers `core/pricing/curve/` (handoff P04), remplacer cet
-import par l'import `core` — sans changement de la logique d'analyse.
+## 4. Cross-project consumption of the P04 forward
+`run_analysis.py` imports the P04 `forward` package via `sys.path` insertion of
+`projects/04_compute_index_curve/src` (the tested logic itself stays pure and does not
+depend on it). If the forward is promoted to `core/pricing/curve/` (P04 handoff), replace this
+import with the `core` import — with no change to the analysis logic.

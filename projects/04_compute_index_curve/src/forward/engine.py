@@ -1,8 +1,8 @@
-"""Moteur forward Monte-Carlo adossé à la crate Rust ``forward_engine``.
+"""Monte-Carlo forward engine backed by the Rust ``forward_engine`` crate.
 
-Implémente :class:`~forward.protocols.ForwardCurveModel` en déléguant la simulation
-(nombreux chemins) au code Rust pour la performance, tout en restant interchangeable
-avec l'oracle Python (même interface). La crate s'installe via
+Implements :class:`~forward.protocols.ForwardCurveModel` by delegating the simulation
+(many paths) to Rust code for performance, while remaining interchangeable
+with the Python oracle (same interface). The crate is installed via
 ``maturin develop -m projects/04_compute_index_curve/forward_engine/Cargo.toml``.
 """
 
@@ -16,7 +16,7 @@ from forward.models import Curve, CurvePoint, SchwartzParams
 
 @dataclass(frozen=True)
 class RustMonteCarloForward:
-    """Courbe forward par Monte-Carlo Rust (Schwartz un-facteur, transition OU exacte)."""
+    """Forward curve via Rust Monte-Carlo (1-factor Schwartz, exact OU transition)."""
 
     n_paths: int = 100_000
     seed: int = 0
@@ -31,7 +31,7 @@ class RustMonteCarloForward:
         params: SchwartzParams,
         maturities_days: Sequence[float],
     ) -> Curve:
-        import forward_engine  # import différé : la crate peut ne pas être buildée
+        import forward_engine  # deferred import: the crate may not be built
 
         maturities = [float(m) for m in maturities_days]
         prices = forward_engine.simulate_forward(

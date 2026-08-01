@@ -1,9 +1,9 @@
-"""Tests des estimateurs de volatilité (réalisée glissante + EWMA).
+"""Tests of the volatility estimators (rolling realized + EWMA).
 
-Deux exigences clés du palier PoC :
-- exactitude analytique sur une série à **vol connue** (returns ±a alternés) ;
-- **anti look-ahead** : la vol à l'instant t ne dépend que des returns d'indice ≤ t
-  (invariance par troncature de la série).
+Two key requirements for the PoC tier:
+- analytical accuracy on a series with **known vol** (alternating ±a returns);
+- **anti look-ahead**: vol at instant t depends only on index returns ≤ t
+  (invariance under series truncation).
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def test_realized_vol_recovers_known_vol(alternating_returns: np.ndarray) -> Non
     window = 10
     est = RealizedVol(window=window, periods_per_year=365.0)
     vol = est.estimate(alternating_returns)
-    # Fenêtre alternée ±a (longueur paire) : std ddof=1 = a*sqrt(w/(w-1)).
+    # Alternating ±a window (even length): std ddof=1 = a*sqrt(w/(w-1)).
     expected = annualized(KNOWN_RETURN_AMPLITUDE * math.sqrt(window / (window - 1)))
     assert vol[-1] == pytest.approx(expected, rel=1e-9)
 
@@ -44,7 +44,7 @@ def test_realized_vol_warmup_is_nan(alternating_returns: np.ndarray) -> None:
 def test_ewma_vol_converges_to_known_vol(alternating_returns: np.ndarray) -> None:
     est = EwmaVol(lam=0.94, periods_per_year=365.0)
     vol = est.estimate(alternating_returns)
-    # r² constant = a² -> variance EWMA -> a² ; vol annualisée -> a*sqrt(ppy).
+    # constant r² = a² -> EWMA variance -> a² ; annualized vol -> a*sqrt(ppy).
     expected = annualized(KNOWN_RETURN_AMPLITUDE)
     assert vol[-1] == pytest.approx(expected, rel=1e-6)
 
@@ -55,7 +55,7 @@ def test_ewma_vol_converges_to_known_vol(alternating_returns: np.ndarray) -> Non
     ids=["realized", "ewma"],
 )
 def test_vol_is_causal_under_truncation(est: VolEstimator, alternating_returns: np.ndarray) -> None:
-    """Anti look-ahead : vol[t] identique sur la série complète et sur la série[:t+1]."""
+    """Anti look-ahead: vol[t] identical on the full series and on series[:t+1]."""
     full = est.estimate(alternating_returns)
     for t in (15, 40, 90):
         truncated = est.estimate(alternating_returns[: t + 1])

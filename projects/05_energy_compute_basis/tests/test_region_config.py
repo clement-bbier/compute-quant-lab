@@ -1,4 +1,4 @@
-"""Tests de la config régionale et de la factory de pricer (P05)."""
+"""Tests for the regional config and pricer factory (P05)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from region_config import RegionConfig, build_regional_pricer
 
 
 def test_region_config_rejects_pue_below_one() -> None:
-    """Un PUE < 1.0 est physiquement impossible (conso totale ≥ conso IT)."""
+    """A PUE < 1.0 is physically impossible (total draw ≥ IT draw)."""
     with pytest.raises(ValueError, match="pue"):
         RegionConfig(code="FR", pue=0.9, tdp_w=700.0, n_gpus=8, fx_eur_per_usd=1.0)
 
@@ -27,9 +27,9 @@ def test_region_config_rejects_nonpositive_n_gpus() -> None:
 
 
 def test_build_regional_pricer_cost_matches_formula(utc_index: pd.DatetimeIndex) -> None:
-    """Le coût du pricer construit = power_kw·pue·energy/1000 (formule canonique P01).
+    """The built pricer's cost = power_kw·pue·energy/1000 (canonical P01 formula).
 
-    tdp_w=700 → power_kw=0.7 ; pue=1.5 ; energy=100 €/MWh → coût attendu = 0.105 €/GPU·h.
+    tdp_w=700 → power_kw=0.7; pue=1.5; energy=100 €/MWh → expected cost = 0.105 €/GPU·h.
     revenue = compute_usd · fx = 2.0 · 1.0 = 2.0 → spread = 1.895.
     """
     from core.pricing import DataFramePriceSource

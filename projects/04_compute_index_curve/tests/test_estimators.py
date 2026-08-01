@@ -1,7 +1,7 @@
-"""Tests unitaires des stratégies d'agrégation (filtres + estimateurs).
+"""Unit tests of the aggregation strategies (filters + estimators).
 
-Chaque stratégie est testée en isolation : c'est l'intérêt du pattern Strategy —
-les briques d'agrégation sont vérifiables indépendamment du pipeline d'indice.
+Each strategy is tested in isolation: that's the point of the Strategy pattern —
+the aggregation building blocks are verifiable independently of the index pipeline.
 """
 
 from __future__ import annotations
@@ -54,14 +54,14 @@ def test_no_outlier_filter_keeps_everything() -> None:
 
 
 def test_trimmed_mean_trims_extremes() -> None:
-    # sorted [1,1,1,1,100], trim 20% -> k=1 -> coeur [1,1,1] -> moyenne 1.0
+    # sorted [1,1,1,1,100], trim 20% -> k=1 -> core [1,1,1] -> mean 1.0
     rates = [_vr(1), _vr(1), _vr(1), _vr(1), _vr(100)]
     assert TrimmedMean(0.20).estimate(rates) == pytest.approx(1.0)
     assert TrimmedMean(0.20).name == "trimmed_mean20"
 
 
 def test_trimmed_mean_no_trim_when_few_points() -> None:
-    # n=4, trim 0.20 -> k=0 -> moyenne simple
+    # n=4, trim 0.20 -> k=0 -> simple mean
     rates = [_vr(2.00), _vr(2.10), _vr(2.20), _vr(2.30)]
     assert TrimmedMean(0.20).estimate(rates) == pytest.approx(2.15)
 
@@ -80,6 +80,6 @@ def test_availability_weighted_mean() -> None:
 
 
 def test_availability_weighted_falls_back_to_equal_weight() -> None:
-    # availabilities nulles -> moyenne équipondérée
+    # zero availabilities -> equally weighted mean
     rates = [_vr(2.0, availability=0), _vr(4.0, availability=0)]
     assert AvailabilityWeightedMean().estimate(rates) == pytest.approx(3.0)

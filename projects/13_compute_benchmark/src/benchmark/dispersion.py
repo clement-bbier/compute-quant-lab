@@ -1,14 +1,14 @@
-"""Statistiques de dispersion inter-venues — la **mesure**, jamais le signal de timing.
+"""Cross-venue dispersion statistics — the **measurement**, never the timing signal.
 
-Ce que publie la vitrine : à quel point les marketplaces s'écartent du prix de référence
-(spread, %, coefficient de variation) et, en descriptif sur la fenêtre, **quelle venue
-est en moyenne moins chère** (``venue_levels``). Ce qu'elle ne publie PAS : un signal live
-« louer sur X maintenant » (edge privé, cf. ``CLAUDE.md`` §frontière edge).
+What the showcase publishes: how far marketplaces deviate from the reference price
+(spread, %, coefficient of variation) and, descriptively over the window, **which venue
+is cheaper on average** (``venue_levels``). What it does NOT publish: a live signal
+"rent on X now" (private edge, cf. ``CLAUDE.md`` §edge boundary).
 
-:func:`venue_rates_at` **reproduit volontairement** la réduction par-venue de
-:func:`core.ingestion.build_spot_index` (mêmes staleness, type de bail, exclusions,
-point-in-time, médiane de la cohorte la plus fraîche). ``core`` étant en lecture seule
-pour cette couche, l'invariant anti-dérive est garanti par un test dédié :
+:func:`venue_rates_at` **deliberately reproduces** the per-venue reduction of
+:func:`core.ingestion.build_spot_index` (same staleness, lease type, exclusions,
+point-in-time, median of the freshest cohort). Since ``core`` is read-only
+for this layer, the anti-drift invariant is guaranteed by a dedicated test:
 ``estimator(filter(venue_rates_at(...))) == build_spot_index(...).price``.
 """
 
@@ -36,12 +36,12 @@ def venue_rates_at(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> list[VenueRate]:
-    """Taux par-venue entrant dans l'indice à ``as_of`` (miroir de ``build_spot_index``).
+    """Per-venue rates entering the index at ``as_of`` (mirrors ``build_spot_index``).
 
-    Applique les mêmes filtres (staleness, ``lease_type``, sources exclues, point-in-time)
-    puis réduit, par source, la cohorte la plus fraîche à sa médiane (disponibilité sommée).
-    Le rejet d'outliers (``config.outlier_filter``) n'est **pas** appliqué ici : il l'est
-    par l'appelant, comme dans le cœur, pour pouvoir décrire aussi les venues écartées.
+    Applies the same filters (staleness, ``lease_type``, excluded sources, point-in-time)
+    then reduces, per source, the freshest cohort to its median (availability summed).
+    Outlier rejection (``config.outlier_filter``) is **not** applied here: it is applied
+    by the caller, as in the core, so that excluded venues can also be described.
     """
     as_of = ensure_utc(as_of)
     cutoff = as_of - config.staleness
@@ -74,11 +74,11 @@ def venue_rates_at(
 
 @dataclass(frozen=True)
 class DispersionPoint:
-    """Dispersion inter-venues à un instant pour un modèle (réel, point-in-time).
+    """Cross-venue dispersion at an instant for a model (real, point-in-time).
 
-    Mesure descriptive de l'écart entre marketplaces autour du prix de référence.
-    ``n_venues < 2`` → dispersion **indéfinie** (champs d'écart à ``None``, ``is_defined``
-    faux) : un benchmark mono-venue n'a pas de dispersion, on l'assume plutôt que l'inventer.
+    Descriptive measurement of the gap between marketplaces around the reference price.
+    ``n_venues < 2`` → dispersion **undefined** (spread fields set to ``None``, ``is_defined``
+    false): a single-venue benchmark has no dispersion, we acknowledge that rather than invent it.
     """
 
     as_of: dt.datetime
@@ -96,7 +96,7 @@ class DispersionPoint:
 
     @property
     def is_defined(self) -> bool:
-        """Vrai ssi au moins deux venues constituent l'indice (dispersion calculable)."""
+        """True iff at least two venues make up the index (dispersion computable)."""
         return self.n_venues >= 2
 
 
@@ -107,16 +107,16 @@ def dispersion_at(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> DispersionPoint:
-    """Dispersion des venues constituant l'indice de ``gpu_model`` à ``as_of``.
+    """Dispersion of the venues making up the index for ``gpu_model`` at ``as_of``.
 
-    Calculée sur les venues **retenues** par l'indice (après rejet d'outliers), pour
-    décrire l'écart vu par le prix publié. ``spread_pct`` est relatif au prix de l'indice ;
-    ``cv`` est le coefficient de variation population (écart-type / moyenne).
+    Computed on the venues **retained** by the index (after outlier rejection), to
+    describe the gap seen by the published price. ``spread_pct`` is relative to the index price;
+    ``cv`` is the population coefficient of variation (standard deviation / mean).
 
     Raises
     ------
     InsufficientDataError
-        Si aucun fix n'est calculable à ``as_of`` (propagé depuis ``build_spot_index``).
+        If no fix is computable at ``as_of`` (propagated from ``build_spot_index``).
     """
     as_of = ensure_utc(as_of)
     kept = config.outlier_filter.filter(venue_rates_at(snapshots, as_of, gpu_model, config=config))
@@ -152,10 +152,10 @@ def dispersion_at(
 
 @dataclass(frozen=True)
 class VenueLevel:
-    """Niveau moyen d'une venue nommée sur une fenêtre (mesure « qui est moins cher »).
+    """Average level of a named venue over a window (measurement of "who is cheaper").
 
-    Descriptif et fenêtré — ce n'est **pas** un signal de timing live : il dit « vastai a
-    coté ~X % sous l'indice en moyenne », pas « louer sur vastai à l'instant t ».
+    Descriptive and windowed — this is **not** a live timing signal: it says "vastai
+    quoted ~X% below the index on average", not "rent on vastai at instant t".
     """
 
     source: str
@@ -171,11 +171,11 @@ def venue_levels(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> list[VenueLevel]:
-    """Niveau moyen et escompte moyen vs indice, par venue nommée, sur ``as_of_grid``.
+    """Average level and average discount vs. index, per named venue, over ``as_of_grid``.
 
-    Pour chaque fix calculable, accumule (taux de la venue retenue, prix de l'indice) puis
-    moyenne par venue. ``mean_discount_vs_index`` est la moyenne des escomptes par-fix
-    ``(taux − indice) / indice`` (négatif = moins cher que la référence).
+    For each computable fix, accumulates (retained venue's rate, index price) then
+    averages per venue. ``mean_discount_vs_index`` is the mean of the per-fix discounts
+    ``(rate − index) / index`` (negative = cheaper than the reference).
     """
     acc: dict[str, list[tuple[float, float]]] = defaultdict(list)
     for as_of in as_of_grid:

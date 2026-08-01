@@ -1,66 +1,67 @@
 # P05 — Energy ↔ Compute Basis
 
-Mesure le **basis** du spark spread entre régions (FR/DE) : différence point-in-time des
-spreads régionaux, chaque spread ajusté par le **PUE** local. Objectif PoC : quantifier
-l'amplitude du basis, sa sensibilité au PUE, ses dislocations et leur persistance — et exposer
-honnêtement pourquoi ce n'est pas (encore) un arbitrage exécutable.
+Measures the spark spread **basis** between regions (FR/DE): the point-in-time difference
+of regional spreads, each spread adjusted by local **PUE**. PoC objective: quantify the
+basis amplitude, its sensitivity to PUE, its dislocations and their persistence — and
+honestly expose why this is not (yet) an executable arbitrage.
 
-## Idée
+## Idea
 
-À FX et prix compute égaux entre régions, le revenu compute s'annule et
+At equal FX and compute price between regions, compute revenue cancels out and
 
 ```
 basis[r] = spread[r] − spread[ref] = power_kw·(pue_ref·energy_ref − pue_r·energy_r) / 1000
 ```
 
-Le basis est donc, au PoC, un **spread de prix d'électricité pondéré par le PUE**. C'est
-volontaire et assumé : le prix du compute n'a pas (encore) de granularité régionale.
+The basis is therefore, at PoC stage, a **PUE-weighted electricity price spread**. This is
+intentional and acknowledged: compute pricing does not (yet) have regional granularity.
 
 ## Architecture (SOLID / DI)
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `src/region_config.py` | `RegionConfig` (PUE, TDP, n_gpus, FX) + `build_regional_pricer` → un `SparkSpreadPricer` (P01) **par région** |
-| `src/basis.py` | `BasisCalculator` **pur** (jointure interne point-in-time) + `detect_dislocations` (seuil + demi-vie AR(1)) |
-| `src/data.py` | I/O : énergie ENTSO-E FR/DE (repli synthétique étiqueté) + indice compute P04 (repli étiqueté) |
-| `src/run_basis.py` | Orchestration → run MLflow → `results/SYNTHESIS.md` |
+| `src/region_config.py` | `RegionConfig` (PUE, TDP, n_gpus, FX) + `build_regional_pricer` → a `SparkSpreadPricer` (P01) **per region** |
+| `src/basis.py` | **pure** `BasisCalculator` (point-in-time inner join) + `detect_dislocations` (threshold + AR(1) half-life) |
+| `src/data.py` | I/O: ENTSO-E FR/DE energy (labeled synthetic fallback) + P04 compute index (labeled fallback) |
+| `src/run_basis.py` | Orchestration → MLflow run → `results/SYNTHESIS.md` |
 
-Réutilise en lecture seule : `core.pricing` (P01), `core.ingestion` (P04),
-`core.utils.config` / `core.utils.tracking`. Aucune écriture hors `projects/05_…`.
+Reused read-only: `core.pricing` (P01), `core.ingestion` (P04),
+`core.utils.config` / `core.utils.tracking`. No writes outside `projects/05_…`.
 
-## Méthodologie
+## Methodology
 
-- **Point-in-time** : le pricer aligne le compute sur la grille énergie par as-of arrière ;
-  le basis aligne les spreads régionaux par **jointure interne** (aucune valeur fabriquée).
-- **PUE injecté** par région (config, pas de nombre magique). Sensibilité testée (monotone).
-- **Dislocations** : `|basis| > z·std` → amplitude p95 + fraction du temps disloqué.
-  **Persistance** : demi-vie AR(1) `ln(2)/−ln(φ)` (`None` si non mean-reverting).
-- **Frontière réel/synthétique** : `energy_source` / `compute_source` loggués dans MLflow.
+- **Point-in-time**: the pricer aligns compute on the energy grid via backward as-of join;
+  the basis aligns regional spreads via an **inner join** (no fabricated value).
+- **PUE injected** per region (config, no magic number). Sensitivity tested (monotone).
+- **Dislocations**: `|basis| > z·std` → p95 amplitude + fraction of time dislocated.
+  **Persistence**: AR(1) half-life `ln(2)/−ln(φ)` (`None` if not mean-reverting).
+- **Real/synthetic boundary**: `energy_source` / `compute_source` logged in MLflow.
 
-## Lancer
+## Run
 
 ```bash
-# tests P05 (jusqu'au patch testpaths de convergence, lancer explicitement)
+# P05 tests (until the convergence testpaths patch lands, run explicitly)
 uv run pytest projects/05_energy_compute_basis -q
 uv run ruff check . && uv run mypy core
 
-# pipeline complet + run MLflow + results/SYNTHESIS.md
+# full pipeline + MLflow run + results/SYNTHESIS.md
 uv run python projects/05_energy_compute_basis/src/run_basis.py
-mlflow ui   # tableau de bord (experiment p05_energy_compute_basis)
+mlflow ui   # dashboard (experiment p05_energy_compute_basis)
 ```
 
-> Données réelles : définir `ENTSOE_API_TOKEN` (énergie) ; sans token, repli synthétique
-> déterministe **clairement étiqueté**. Le compute réel vient des snapshots P04 si accumulés.
+> Real data: set `ENTSOE_API_TOKEN` (energy); without a token, a **clearly labeled**
+> deterministic synthetic fallback is used. Real compute comes from P04 snapshots if
+> accumulated.
 
-## Résultats
+## Results
 
-- `results/SYNTHESIS.md` — amplitude du basis, sensibilité PUE, limites d'exécution (régénéré
-  à chaque run).
-- `results/RISK_REVIEW.md` — revue adversariale (look-ahead, faux arbitrage, hypothèse PUE,
-  persistance, overfitting) + garde-fous avant tout signal tradable.
+- `results/SYNTHESIS.md` — basis amplitude, PUE sensitivity, execution limitations
+  (regenerated on every run).
+- `results/RISK_REVIEW.md` — adversarial review (look-ahead, false arbitrage, PUE
+  assumption, persistence, overfitting) + guardrails before any tradable signal.
 
-## Limites (PoC) & suite
+## Limitations (PoC) & next steps
 
-PUE régional = hypothèse forte peu observable ; compute global → basis porté par l'énergie ;
-coûts/latence de transfert ignorés. Palier institutionnel : routing de charge optimisé,
-contraintes de capacité, données réelles, signal tradable hors-échantillon (cf. `RISK_REVIEW.md`).
+Regional PUE = a strong, poorly observable assumption; global compute → basis driven by
+energy; transfer costs/latency ignored. Institutional tier: optimized load routing,
+capacity constraints, real data, out-of-sample tradable signal (see `RISK_REVIEW.md`).

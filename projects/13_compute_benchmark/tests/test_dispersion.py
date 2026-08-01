@@ -1,4 +1,4 @@
-"""Tests des statistiques de dispersion inter-venues (mesure, pas signal de timing)."""
+"""Tests for cross-venue dispersion statistics (measurement, not a timing signal)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from core.ingestion.protocols import Snapshot
 
 
 def test_dispersion_matches_known_spread(two_day_snapshots, fix_day2) -> None:
-    # Fix J : venues {vastai 2.10, runpod 2.30}, indice 2.20.
+    # Fix D: venues {vastai 2.10, runpod 2.30}, index 2.20.
     d = dispersion_at(two_day_snapshots, fix_day2, "H100")
     assert d.n_venues == 2
     assert d.index_price == pytest.approx(2.20)
@@ -24,13 +24,13 @@ def test_dispersion_matches_known_spread(two_day_snapshots, fix_day2) -> None:
 
 
 def test_dispersion_cv_is_population_coefficient_of_variation(two_day_snapshots, fix_day2) -> None:
-    # CV descriptif (écart-type population / moyenne) : std([2.10,2.30])=0.10, moyenne 2.20.
+    # Descriptive CV (population standard deviation / mean): std([2.10,2.30])=0.10, mean 2.20.
     d = dispersion_at(two_day_snapshots, fix_day2, "H100")
     assert d.cv == pytest.approx(0.10 / 2.20)
 
 
 def test_single_venue_dispersion_is_undefined_but_priced(fix_day2) -> None:
-    # Robustesse mono-venue (ex. H100 sur une seule marketplace) : pas de dispersion, flaggée.
+    # Single-venue robustness (e.g. H100 on a single marketplace): no dispersion, flagged.
     solo = [Snapshot(fix_day2 - dt.timedelta(hours=1), "vastai", "H100", 2.0)]
     d = dispersion_at(solo, fix_day2, "H100")
     assert d.n_venues == 1
@@ -51,7 +51,7 @@ def test_no_lookahead_future_snapshot_does_not_change_dispersion(
 
 
 def test_venue_rates_estimator_reproduces_index_price(two_day_snapshots, fix_day2) -> None:
-    # Invariant anti-dérive : l'agrégation de mes venue_rates == prix de l'indice canonique.
+    # Anti-drift invariant: aggregating my venue_rates == canonical index price.
     cfg = DEFAULT_INDEX_CONFIG
     rates = venue_rates_at(two_day_snapshots, fix_day2, "H100", config=cfg)
     kept = cfg.outlier_filter.filter(rates)
@@ -60,13 +60,13 @@ def test_venue_rates_estimator_reproduces_index_price(two_day_snapshots, fix_day
 
 
 def test_venue_levels_report_named_average_discount(two_day_snapshots, fix_day1, fix_day2) -> None:
-    # Mesure descriptive « qui est moins cher » sur la fenêtre (PAS un signal de timing live).
+    # Descriptive "who is cheaper" measurement over the window (NOT a live timing signal).
     levels = {lv.source: lv for lv in venue_levels(two_day_snapshots, [fix_day1, fix_day2], "H100")}
     assert set(levels) == {"vastai", "runpod"}
-    # vastai : rates 2.00 (fix J-1), 2.10 (fix J) → moyenne 2.05.
+    # vastai: rates 2.00 (fix D-1), 2.10 (fix D) → mean 2.05.
     assert levels["vastai"].mean_rate == pytest.approx(2.05)
     assert levels["runpod"].mean_rate == pytest.approx(2.25)
-    # Escompte moyen par-fix vs indice : vastai sous l'indice, runpod au-dessus.
+    # Mean per-fix discount vs. index: vastai below the index, runpod above.
     expected_vastai = ((2.00 - 2.10) / 2.10 + (2.10 - 2.20) / 2.20) / 2
     assert levels["vastai"].mean_discount_vs_index == pytest.approx(expected_vastai)
     assert levels["vastai"].mean_discount_vs_index < 0 < levels["runpod"].mean_discount_vs_index

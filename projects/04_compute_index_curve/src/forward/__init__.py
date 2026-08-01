@@ -1,6 +1,6 @@
-"""Jambe forward de P04 : courbe forward compute SIMULÉE (Schwartz un-facteur).
+"""P04 forward leg: SIMULATED compute forward curve (1-factor Schwartz).
 
-Sous-modules : ``models`` (types), ``protocols`` (Strategy/DI), ``oracle`` (analytique +
-MC Python), ``engine`` (MC Rust), ``calibrators`` (estimation des params), ``build_curve``
-(orchestration MLflow/DVC). Toute courbe produite ici est ``simulated=True``.
+Submodules: ``models`` (types), ``protocols`` (Strategy/DI), ``oracle`` (analytical +
+Python MC), ``engine`` (Rust MC), ``calibrators`` (parameter estimation), ``build_curve``
+(MLflow orchestration). Every curve produced here is ``simulated=True``.
 """

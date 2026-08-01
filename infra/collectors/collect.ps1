@@ -6,7 +6,7 @@
 # = code de sortie Python (0 = OK), reporte au Planificateur via 'exit $code'.
 
 $ErrorActionPreference = "Continue"
-$repo = "C:\Users\cleme\Documents\04_Projets_Personnels\compute-quant-lab"
+$repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $log  = Join-Path $repo "infra\collectors\snapshot.log"
 
 function Write-Log([string]$msg) {

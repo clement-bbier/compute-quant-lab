@@ -1,9 +1,9 @@
-"""Évaluation L0 §7 — PR-AUC threshold-free + « bat-il la baseline ? » + Benjamini-Hochberg.
+"""L0 §7 evaluation — threshold-free PR-AUC + "does it beat the baseline?" + Benjamini-Hochberg.
 
-Métrique *policy-free* (la qualité de signal se mesure sans seuil ni coût ; l'asymétrie
-de coût est une décision aval, hors L0). Décision L0 : le signal est retenu si sa PR-AUC
-dépasse la baseline climatologique au sens d'un IC bootstrap, après correction de
-multiplicité Benjamini-Hochberg sur le budget de specs.
+*Policy-free* metric (signal quality is measured without a threshold or cost; cost
+asymmetry is a downstream decision, out of scope for L0). L0 decision: the signal is
+kept if its PR-AUC beats the climatology baseline in the sense of a bootstrap CI,
+after Benjamini-Hochberg multiplicity correction over the spec budget.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from sklearn.metrics import average_precision_score
 
 
 def pr_auc(y_true: np.ndarray, score: np.ndarray) -> float:
-    """PR-AUC (average precision) threshold-free."""
+    """Threshold-free PR-AUC (average precision)."""
     return float(average_precision_score(y_true, score))
 
 
@@ -25,10 +25,10 @@ def beats_baseline(
     n_boot: int = 1000,
     seed: int = 0,
 ) -> dict[str, float | bool]:
-    """Le modèle bat-il la baseline ? PR-AUC + IC bootstrap + p-value de la différence.
+    """Does the model beat the baseline? PR-AUC + bootstrap CI + p-value of the difference.
 
-    Rééchantillonne (avec remise) la différence de PR-AUC modèle − baseline. Décision
-    L0 : ``beats`` vrai si la borne basse de l'IC 95 % de la différence est > 0.
+    Resamples (with replacement) the model-minus-baseline PR-AUC difference. L0
+    decision: ``beats`` is true if the lower bound of the 95% CI of the difference is > 0.
     """
     y_true = np.asarray(y_true)
     score_model = np.asarray(score_model, dtype=float)
@@ -40,7 +40,7 @@ def beats_baseline(
     for _ in range(n_boot):
         idx = rng.integers(0, n, n)
         yb = y_true[idx]
-        if yb.sum() == 0 or yb.sum() == len(yb):  # resample dégénéré (une classe)
+        if yb.sum() == 0 or yb.sum() == len(yb):  # degenerate resample (single class)
             continue
         diffs.append(
             average_precision_score(yb, score_model[idx])
@@ -48,7 +48,7 @@ def beats_baseline(
         )
     arr = np.asarray(diffs, dtype=float)
     lo, hi = (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
-    p_value = float((arr <= 0.0).mean())  # H0 : modèle ne bat pas la baseline
+    p_value = float((arr <= 0.0).mean())  # H0: model does not beat the baseline
     return {
         "pr_auc_model": pr_auc(y_true, score_model),
         "pr_auc_baseline": pr_auc(y_true, score_baseline),
@@ -60,10 +60,10 @@ def beats_baseline(
 
 
 def benjamini_hochberg(pvalues: list[float], alpha: float = 0.05) -> list[bool]:
-    """Rejet Benjamini-Hochberg (FDR ``alpha``) ; masque de rejet dans l'ordre d'entrée.
+    """Benjamini-Hochberg rejection (FDR ``alpha``); rejection mask in input order.
 
-    Contrôle le taux de fausses découvertes sur le budget de specs L0 (correction de
-    multiplicité). Renvoie ``True`` pour chaque spec rejetée (= significative).
+    Controls the false discovery rate over the L0 spec budget (multiplicity
+    correction). Returns ``True`` for each rejected (= significant) spec.
     """
     p = np.asarray(pvalues, dtype=float)
     m = p.size

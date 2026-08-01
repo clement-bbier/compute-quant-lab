@@ -1,14 +1,14 @@
-"""Chargement des données du spread énergie↔compute, point-in-time, avec provenance explicite.
+"""Loading of energy<->compute spread data, point-in-time, with explicit provenance.
 
-Trois responsabilités, toutes branchées sur du **réel** :
+Three responsibilities, all wired to **real** data:
 
-- ``load_energy_entsoe`` : prix day-ahead réels ENTSO-E (€/MWh), via ``entsoe-py`` (token-gated).
-- ``compute_index_series`` : série $/GPU·h de l'indice spot compute reconstruite des snapshots
-  marketplace **réels** accumulés (`core.ingestion.build_spot_index`, point-in-time, no carry-forward).
-- ``build_spread`` : assemble les deux jambes via le pricer P01 (`core.pricing.SparkSpreadPricer`).
+- ``load_energy_entsoe``: real ENTSO-E day-ahead prices (EUR/MWh), via ``entsoe-py`` (token-gated).
+- ``compute_index_series``: $/GPU·h series for the compute spot index reconstructed from accumulated
+  **real** marketplace snapshots (`core.ingestion.build_spot_index`, point-in-time, no carry-forward).
+- ``build_spread``: assembles both legs via the P01 pricer (`core.pricing.SparkSpreadPricer`).
 
-Toute série porte une :class:`DataProvenance` dont le drapeau ``simulated`` est **obligatoire**
-(rule ``forward-real-simulated``) : on ne sert jamais du simulé comme du réel.
+Every series carries a :class:`DataProvenance` whose ``simulated`` flag is **mandatory**
+(rule ``forward-real-simulated``): simulated data is never served as if it were real.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from core.pricing import (
     SpreadResult,
 )
 
-# Hypothèses énergétiques de la thèse : 8x H100 @ 700 W TDP, PUE 1.82 (≈ 10.2 kW serveur).
+# Energy assumptions from the thesis: 8x H100 @ 700 W TDP, PUE 1.82 (≈ 10.2 kW per server).
 _THESIS_TDP_W = 700.0
 _THESIS_PUE = 1.82
 _THESIS_N_GPUS = 8
@@ -44,17 +44,17 @@ _THESIS_N_GPUS = 8
 
 @dataclass(frozen=True)
 class DataProvenance:
-    """Origine d'une série, avec frontière réel/simulé **non optionnelle**.
+    """Origin of a series, with a **non-optional** real/simulated boundary.
 
     Parameters
     ----------
     source : str
-        Étiquette auditable de la source (ex. ``"entsoe+vastai"``, ``"synthetic_ou"``).
+        Auditable label for the source (e.g. ``"entsoe+vastai"``, ``"synthetic_ou"``).
     simulated : bool
-        ``True`` si la série est issue d'un modèle/simulation, ``False`` si elle est réelle.
-        Sans valeur par défaut : déclarer l'origine est obligatoire (rule ``forward-real-simulated``).
+        ``True`` if the series comes from a model/simulation, ``False`` if it is real.
+        No default value: declaring the origin is mandatory (rule ``forward-real-simulated``).
     units : str
-        Unité de la série (par défaut ``"EUR/GPU/h"``).
+        Unit of the series (default ``"EUR/GPU/h"``).
     """
 
     source: str
@@ -64,7 +64,7 @@ class DataProvenance:
 
 @dataclass(frozen=True)
 class SpreadDataset:
-    """Spread à trader + décomposition P01 + provenance (réel/simulé tracé)."""
+    """Spread to trade + P01 decomposition + provenance (real/simulated tracked)."""
 
     spread: pd.Series
     provenance: DataProvenance
@@ -81,11 +81,11 @@ def build_spread(
     power_model: PowerModel | None = None,
     fx: FxConverter | None = None,
 ) -> SpreadDataset:
-    """Price le spark spread €/GPU·h via P01 à partir des deux jambes alignées.
+    """Prices the spark spread EUR/GPU·h via P01 from the two aligned legs.
 
-    ``energy`` (€/MWh, colonnes = régions) et ``compute`` ($/GPU·h, colonnes = GPU) doivent être
-    indexés UTC tz-aware. Le pricer aligne le compute sur la grille énergie par jointure as-of
-    arrière (anti look-ahead, garanti par P01).
+    ``energy`` (EUR/MWh, columns = regions) and ``compute`` ($/GPU·h, columns = GPU) must be
+    indexed UTC tz-aware. The pricer aligns compute onto the energy grid via a backward as-of
+    join (anti look-ahead, guaranteed by P01).
     """
     pricer = SparkSpreadPricer(
         power_model
@@ -103,10 +103,10 @@ def compute_index_series(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> pd.Series:
-    """Série temporelle $/GPU·h de l'indice spot compute, **point-in-time** sur ``grid``.
+    """Time series of $/GPU·h for the compute spot index, **point-in-time** on ``grid``.
 
-    Chaque point = ``build_spot_index(as_of)`` sur les snapshots réels (≤ as_of, no carry-forward).
-    Les instants sans venue fraîche sont omis (``InsufficientDataError``) plutôt que comblés.
+    Each point = ``build_spot_index(as_of)`` on the real snapshots (≤ as_of, no carry-forward).
+    Instants with no fresh arrival are omitted (``InsufficientDataError``) rather than filled.
     """
     rows = list(snapshots)
     prices: dict[pd.Timestamp, float] = {}
@@ -126,21 +126,21 @@ def load_energy_entsoe(
     *,
     token: str | None = None,
 ) -> pd.Series:
-    """Prix day-ahead **réels** ENTSO-E (€/MWh, index UTC). Réseau ; token via ``ENTSOE_API_TOKEN``.
+    """**Real** ENTSO-E day-ahead prices (EUR/MWh, UTC index). Network call; token via ``ENTSOE_API_TOKEN``.
 
-    Non testé en unitaire (I/O token-gated, comme les connecteurs marketplace de P04).
+    Not unit-tested (I/O token-gated, like P04's marketplace connectors).
 
     Raises
     ------
     RuntimeError
-        Si aucun token n'est fourni ni présent dans l'environnement.
+        If no token is supplied and none is present in the environment.
     """
     from entsoe import EntsoePandasClient
 
     api_token = token or os.environ.get("ENTSOE_API_TOKEN")
     if not api_token:
         raise RuntimeError(
-            "ENTSOE_API_TOKEN absent : énergie réelle indisponible (cf. .env.example)."
+            "ENTSOE_API_TOKEN missing: real energy data unavailable (cf. .env.example)."
         )
     client = EntsoePandasClient(api_key=api_token)
     series = client.query_day_ahead_prices(region, start=start, end=end)

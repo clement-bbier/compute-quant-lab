@@ -1,20 +1,20 @@
-"""Estimateurs de volatilité de l'indice spot compute (point-in-time, purs).
+"""Compute spot index volatility estimators (point-in-time, pure).
 
-La volatilité des prix GPU est traitée comme un actif : ce module en fournit deux
-estimateurs **causals** et interchangeables (pattern Strategy / DI), opérant sur une
-série de log-returns et renvoyant une série de vol **annualisée** :
+GPU price volatility is treated as an asset: this module provides two
+**causal** and interchangeable estimators (Strategy / DI pattern), operating on a
+series of log-returns and returning an **annualized** vol series:
 
-- :class:`RealizedVol` — écart-type glissant sur fenêtre trailing (vol réalisée) ;
-- :class:`EwmaVol` — récursion RiskMetrics (poids exponentiels, réactive).
+- :class:`RealizedVol` — rolling standard deviation over a trailing window (realized vol);
+- :class:`EwmaVol` — RiskMetrics recursion (exponential weights, reactive).
 
-Garantie anti look-ahead (rule ``quant-no-lookahead``) : ``vol[t]`` ne dépend que des
-returns d'indice ≤ t — vérifié par invariance à la troncature de la série.
+Anti look-ahead guarantee (rule ``quant-no-lookahead``): ``vol[t]`` depends only on
+index returns ≤ t — verified by invariance to series truncation.
 
-Le :class:`VolEstimator` (Protocol) ouvre l'extension à un futur ``GarchVol`` sans
-toucher aux consommateurs (Open/Closed). On reste en numpy pur (aucune dépendance neuve).
+The :class:`VolEstimator` (Protocol) opens the extension to a future ``GarchVol`` without
+touching consumers (Open/Closed). We stay in pure numpy (no new dependency).
 
-Unités : ``periods_per_year`` est nommé (pas de nombre magique). Le compute se traite en
-continu (24/7) → défaut 365 jours.
+Units: ``periods_per_year`` is named (no magic number). Compute trades
+continuously (24/7) → default 365 days.
 """
 
 from __future__ import annotations
@@ -24,55 +24,55 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-#: Facteur d'annualisation par défaut : compute tradé en continu (jours calendaires).
+#: Default annualization factor: compute traded continuously (calendar days).
 DEFAULT_PERIODS_PER_YEAR = 365.0
 
 
 def log_returns(prices: np.ndarray) -> np.ndarray:
-    """Log-returns d'une série de prix strictement positifs.
+    """Log-returns of a strictly positive price series.
 
     Parameters
     ----------
     prices
-        Série de prix (1D), strictement positive.
+        Price series (1D), strictly positive.
 
     Returns
     -------
     numpy.ndarray
-        ``log(P[t] / P[t-1])`` ; longueur ``len(prices) - 1``.
+        ``log(P[t] / P[t-1])``; length ``len(prices) - 1``.
     """
     prices = np.asarray(prices, dtype=float)
     if prices.ndim != 1 or prices.size < 2:
-        raise ValueError("log_returns attend une série 1D d'au moins 2 prix.")
+        raise ValueError("log_returns expects a 1D series of at least 2 prices.")
     if np.any(prices <= 0.0):
-        raise ValueError("log_returns exige des prix strictement positifs.")
+        raise ValueError("log_returns requires strictly positive prices.")
     return np.diff(np.log(prices))
 
 
 @runtime_checkable
 class VolEstimator(Protocol):
-    """Estimateur de volatilité injectable (Strategy).
+    """Injectable volatility estimator (Strategy).
 
-    Toute implémentation renvoie une série de vol annualisée **causale**, alignée sur
-    les returns en entrée. Point d'extension pour un ``GarchVol`` (palier institutionnel).
+    Any implementation returns a **causal** annualized vol series, aligned with
+    the input returns. Extension point for a ``GarchVol`` (institutional tier).
     """
 
     @property
     def name(self) -> str:
-        """Identifiant court tracé dans MLflow (ex. ``ewma0.94``)."""
+        """Short identifier logged in MLflow (e.g. ``ewma0.94``)."""
         ...
 
     def estimate(self, returns: np.ndarray) -> np.ndarray:
-        """Série de vol annualisée ; ``vol[t]`` n'utilise que ``returns[≤ t]``."""
+        """Annualized vol series; ``vol[t]`` uses only ``returns[≤ t]``."""
         ...
 
 
 @dataclass(frozen=True)
 class RealizedVol:
-    """Vol réalisée : écart-type glissant des returns sur une fenêtre trailing.
+    """Realized vol: rolling standard deviation of returns over a trailing window.
 
-    ``vol[t]`` agrège ``returns[t-window+1 .. t]`` (inclus), donc strictement
-    point-in-time. Le warmup (``t < window-1``) vaut ``NaN``.
+    ``vol[t]`` aggregates ``returns[t-window+1 .. t]`` (inclusive), so it is strictly
+    point-in-time. The warmup (``t < window-1``) is ``NaN``.
     """
 
     window: int
@@ -81,7 +81,7 @@ class RealizedVol:
 
     def __post_init__(self) -> None:
         if self.window < 2:
-            raise ValueError("window doit être >= 2 pour un écart-type.")
+            raise ValueError("window must be >= 2 for a standard deviation.")
 
     @property
     def name(self) -> str:
@@ -101,10 +101,10 @@ class RealizedVol:
 
 @dataclass(frozen=True)
 class EwmaVol:
-    """Vol EWMA (RiskMetrics) : variance à poids exponentiels, réactive.
+    """EWMA vol (RiskMetrics): exponentially weighted variance, reactive.
 
-    Récursion filtrée causale ``var[t] = λ·var[t-1] + (1-λ)·r[t]²`` (seed ``var[0]=r[0]²``).
-    ``vol[t]`` ne dépend que de ``returns[≤ t]`` ; ``vol[t] = sqrt(var[t]·periods_per_year)``.
+    Causal filtered recursion ``var[t] = λ·var[t-1] + (1-λ)·r[t]²`` (seeded with ``var[0]=r[0]²``).
+    ``vol[t]`` depends only on ``returns[≤ t]``; ``vol[t] = sqrt(var[t]·periods_per_year)``.
     """
 
     lam: float
@@ -112,7 +112,7 @@ class EwmaVol:
 
     def __post_init__(self) -> None:
         if not 0.0 < self.lam < 1.0:
-            raise ValueError("lam (λ) doit être dans (0, 1).")
+            raise ValueError("lam (λ) must be in (0, 1).")
 
     @property
     def name(self) -> str:

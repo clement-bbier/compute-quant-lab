@@ -1,36 +1,36 @@
 # P08 → Convergence
 
-Patchs touchant la **zone protégée** (`pyproject.toml`, `.claude/`, `core/utils/`) ou
-d'autres modules : préparés ici, **non appliqués** dans le worktree P08. À appliquer
-par la session de convergence (pilote `integration`).
+Patches touching the **protected zone** (`pyproject.toml`, `.claude/`, `core/utils/`) or
+other modules: prepared here, **not applied** in the P08 worktree. To be applied by the
+convergence session (pilot `integration`).
 
 ---
 
-## 1. `pyproject.toml` (racine)
+## 1. `pyproject.toml` (root)
 
-### 1a. Tests P08 découverts par pytest
-`core/backtest/tests/` n'est pas sous `tests/` (P08 n'écrit que dans son module).
+### 1a. P08 tests discovered by pytest
+`core/backtest/tests/` is not under `tests/` (P08 only writes inside its own module).
 ```toml
 [tool.pytest.ini_options]
 testpaths = ["tests", "core/backtest/tests"]
 ```
 
-### 1b. Build du noyau Rust (boucle OBLIGATOIRE)
-Le subcrate `core/backtest/_loop/` est autonome (maturin). Le moteur importe en dur
-le module compilé `backtest_loop` ; il doit donc être installé dans l'environnement.
+### 1b. Rust core build (MANDATORY loop)
+The `core/backtest/_loop/` subcrate is self-contained (maturin). The engine hard-imports
+the compiled `backtest_loop` module, so it must be installed in the environment.
 ```toml
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.10", "pre-commit>=3.7", "maturin>=1.7"]
 ```
-Étape d'install (dev + CI), après `uv sync --extra dev` :
+Install step (dev + CI), after `uv sync --extra dev`:
 ```bash
 uv run maturin develop -m core/backtest/_loop/Cargo.toml
 ```
-> CI : ajouter une étape « install Rust toolchain (stable) + maturin develop » **avant**
-> `pytest`/`mypy`, sinon l'import du moteur échoue. `core/backtest/_loop/target/` est
-> gitignoré (artefacts), `Cargo.lock` est versionné (build reproductible).
+> CI: add an "install Rust toolchain (stable) + maturin develop" step **before**
+> `pytest`/`mypy`, otherwise the engine import fails. `core/backtest/_loop/target/` is
+> gitignored (build artifacts), `Cargo.lock` is committed (reproducible build).
 
-### 1c. (optionnel) exclusions outillage
+### 1c. (optional) tooling exclusions
 ```toml
 [tool.ruff]
 extend-exclude = ["core/backtest/_loop/target"]
@@ -39,43 +39,44 @@ extend-exclude = ["core/backtest/_loop/target"]
 ---
 
 ## 2. Rule candidate `.claude/rules/backtest-mlflow-logging.md`
-Path-scopée `core/backtest/**` + `projects/**`. À créer via `agent-architect` / `/new-agent`.
+Path-scoped to `core/backtest/**` + `projects/**`. To be created via `agent-architect` / `/new-agent`.
 
-> # Reproductibilité des backtests
-> - Tout backtest DOIT logger un run MLflow contenant : params, métriques, **SHA git**
->   et **version DVC** des données. Utiliser `core.backtest.tracking.tracked_run`.
-> - Aucune métrique de stratégie publiée sans run MLflow rejouable (`run_id`).
-> - Tracer le nombre d'essais (`n_trials`) pour le multiple testing (deflated Sharpe au
->   palier institutionnel). S'articule avec `backtest-runner` (exécution) et
->   `risk-validator` (adversaire).
-
----
-
-## 3. `core/utils/tracking.py` (module voisin, non possédé)
-Remonter la logique de version DVC (aujourd'hui dans `core/backtest/tracking.py`) en
-amont, pour que **tout** le labo en hérite, et choisir un backend MLflow non-déprécié.
-- Ajouter le tag `dvc_version` dans `core.utils.tracking.run` (cf. `dvc_version()` P08).
-- **MLflow 3.14** met le file-store en *maintenance mode* : il lève sans
-  `MLFLOW_ALLOW_FILE_STORE=true` (workaround actuel de `run_demo.py`). Décider à l'échelle
-  du labo : opt-out file-store **ou** backend `sqlite:///…`. Aligner avec la convention
-  « experiments/ » du CLAUDE.md racine (relocaliser le tracking URI hors `projects/08`).
+> # Backtest reproducibility
+> - Every backtest MUST log an MLflow run containing: params, metrics, **git SHA**
+>   and **DVC version** of the data. Use `core.backtest.tracking.tracked_run`.
+> - No strategy metric gets published without a replayable MLflow run (`run_id`).
+> - Track the number of trials (`n_trials`) for multiple testing (deflated Sharpe at the
+>   institutional tier). Ties in with `backtest-runner` (execution) and
+>   `risk-validator` (adversary).
 
 ---
 
-## 4. `references/` (possédé par `feature/research`) — via `literature-scout`
-Distiller pour le palier institutionnel 3b :
+## 3. `core/utils/tracking.py` (neighboring module, not owned)
+Move the DVC versioning logic (currently in `core/backtest/tracking.py`) upstream, so
+that the **whole** lab inherits it, and pick a non-deprecated MLflow backend.
+- Add the `dvc_version` tag to `core.utils.tracking.run` (cf. `dvc_version()` in P08).
+- **MLflow 3.14** puts the file-store in *maintenance mode*: it raises without
+  `MLFLOW_ALLOW_FILE_STORE=true` (current workaround in `run_demo.py`). Decide at the
+  lab scale: file-store opt-out **or** `sqlite:///…` backend. Align with the root
+  CLAUDE.md's "experiments/" convention (relocate the tracking URI out of `projects/08`).
+
+---
+
+## 4. `references/` (owned by `feature/research`) — via `literature-scout`
+Distill for the institutional tier 3b:
 - Bailey & López de Prado — *Deflated Sharpe Ratio*, *The Probability of Backtest Overfitting*.
-- López de Prado — purged k-fold + embargo (anti-fuite train/test temporel).
+- López de Prado — purged k-fold + embargo (anti train/test temporal leakage).
 
 ---
 
-## 5. Divergence à harmoniser : intégration Rust P01 ↔ P08
-- **P01** : noyau Rust en **fallback** (`skipif(_kernel is None)`, oracle Python par défaut).
-- **P08** : noyau Rust **obligatoire** (import dur, pas de fallback runtime).
-Choisir une convention labo unique (probablement : obligatoire en CI, fallback en dev rapide).
+## 5. Divergence to reconcile: Rust integration P01 ↔ P08
+- **P01**: Rust core as **fallback** (`skipif(_kernel is None)`, Python oracle by default).
+- **P08**: Rust core **mandatory** (hard import, no runtime fallback).
+Pick a single lab-wide convention (probably: mandatory in CI, fallback for quick dev).
 
 ---
 
-## 6. Gap hérité (signalé par P01) : `core.utils`
-`core.utils.logging` et `core.utils.config` sont absents. P08 a contourné par DI (pas de
-`print`, pas de chemin en dur). À créer côté `core/utils/` pour standardiser logging/config.
+## 6. Inherited gap (flagged by P01): `core.utils`
+`core.utils.logging` and `core.utils.config` are missing. P08 worked around this via DI
+(no `print`, no hardcoded path). To be created under `core/utils/` to standardize
+logging/config.

@@ -1,10 +1,10 @@
-"""Tests TDD de la logique pure du serveur MCP gpu-price."""
+"""TDD tests for the gpu-price MCP server's pure logic."""
 
 from __future__ import annotations
 
 import pytest
 
-from conftest import T0, T1  # fixture module (sys.path injecté par conftest)
+from conftest import T0, T1  # fixture module (sys.path injected by conftest)
 from service import (
     latest_price,
     list_gpu_models,
@@ -19,18 +19,18 @@ def test_list_gpu_models_sorted(store):
 
 
 def test_list_gpu_models_point_in_time(store):
-    # B200 n'existe qu'à T1 → exclu si as_of = T0 (anti look-ahead)
+    # B200 only exists at T1 -> excluded when as_of = T0 (anti look-ahead)
     assert list_gpu_models(store, as_of=T0.isoformat()) == ["A100", "H100"]
 
 
 def test_naive_as_of_rejected(store):
-    with pytest.raises(ValueError, match="naïf"):
+    with pytest.raises(ValueError, match="Naive instant"):
         list_gpu_models(store, as_of="2026-06-01T12:00:00")
 
 
 def test_invalid_iso_as_of_rejected(store):
-    with pytest.raises(ValueError, match="ISO 8601 invalide"):
-        list_gpu_models(store, as_of="pas-une-date")
+    with pytest.raises(ValueError, match="Invalid ISO 8601"):
+        list_gpu_models(store, as_of="not-a-date")
 
 
 def test_empty_store_graceful(tmp_path):
@@ -45,7 +45,7 @@ def test_latest_price_freshest_per_source_cheapest(store):
     assert res["found"] is True
     assert res["provenance"] == "real"
     by = {d["source"]: d["price_usd_per_hour"] for d in res["by_source"]}
-    # vastai : instant le plus récent = T1, offre la moins chère = 1.80 ; runpod T1 = 2.10
+    # vastai: most recent instant = T1, cheapest offer = 1.80; runpod T1 = 2.10
     assert by == {"vastai": 1.80, "runpod": 2.10}
     assert res["summary"] == {"min": 1.80, "median": 1.95, "max": 2.10, "n_sources": 2}
 
@@ -53,7 +53,7 @@ def test_latest_price_freshest_per_source_cheapest(store):
 def test_latest_price_point_in_time(store):
     res = latest_price(store, "H100", as_of=T0.isoformat())
     by = {d["source"]: d["price_usd_per_hour"] for d in res["by_source"]}
-    # à T0 les relevés T1 sont exclus → anti look-ahead
+    # at T0 the T1 readings are excluded -> anti look-ahead
     assert by == {"vastai": 2.00, "runpod": 2.20}
 
 
@@ -66,9 +66,9 @@ def test_latest_price_unknown_model(store):
 
 def test_price_history_ordered_and_source_filter(store):
     res = price_history(store, "H100", source="vastai")
-    assert res["n"] == 3  # vastai H100 : T0(2.00), T1(1.80), T1(1.90)
+    assert res["n"] == 3  # vastai H100: T0(2.00), T1(1.80), T1(1.90)
     times = [o["snapshotted_at"] for o in res["observations"]]
-    assert times == sorted(times)  # ordre croissant
+    assert times == sorted(times)  # ascending order
     assert all(o["source"] == "vastai" for o in res["observations"])
 
 
@@ -86,7 +86,7 @@ def test_price_history_start_bound(store):
 
 def test_summary_stats_overall_and_by_source(store):
     res = summary_stats(store, "H100")
-    # prix H100 : 2.00, 2.20, 1.80, 1.90, 2.10  → 5 obs, mean 2.00, median 2.00
+    # H100 prices: 2.00, 2.20, 1.80, 1.90, 2.10  -> 5 obs, mean 2.00, median 2.00
     assert res["n"] == 5
     overall = res["overall"]
     assert overall["count"] == 5
@@ -100,7 +100,7 @@ def test_summary_stats_overall_and_by_source(store):
 
 def test_summary_stats_as_of(store):
     res = summary_stats(store, "H100", as_of=T0.isoformat())
-    assert res["n"] == 2  # T0 seulement : 2.00 (vastai), 2.20 (runpod)
+    assert res["n"] == 2  # T0 only: 2.00 (vastai), 2.20 (runpod)
     assert res["overall"]["min"] == 2.00
     assert res["overall"]["max"] == 2.20
 
@@ -122,26 +122,26 @@ def test_run_query_counts_by_model(store):
 
 
 def test_latest_price_echoes_user_cutoff(store):
-    # cutoff postérieur aux données : l'as_of renvoyé est le cutoff utilisateur, pas le max observé
+    # cutoff after the data: the returned as_of is the user's cutoff, not the observed max
     res = latest_price(store, "H100", as_of="2026-06-03T00:00:00+00:00")
     assert res["as_of"] == "2026-06-03T00:00:00+00:00"
 
 
 def test_price_history_as_of_defaults_to_observed_max(store):
-    # sans cutoff, as_of effectif = max(snapshotted_at) observé (auditable)
+    # without a cutoff, effective as_of = observed max(snapshotted_at) (auditable)
     res = price_history(store, "H100", source="vastai")
     assert res["as_of"] == T1.isoformat()
 
 
 def test_price_history_lease_type_filter(store):
-    # le fixture ne contient que du on_demand → filtrer 'spot' donne 0 relevé
+    # the fixture only has on_demand -> filtering by 'spot' yields 0 readings
     res = price_history(store, "H100", source="vastai", lease_type="spot")
     assert res["n"] == 0
 
 
 def test_run_query_timestamps_are_utc(store):
-    # DuckDB rend les timestamps en fuseau local ; run_query doit renormaliser en UTC
-    # (cohérence avec les outils structurés, indépendamment du fuseau machine)
+    # DuckDB renders timestamps in the local timezone; run_query must renormalize to UTC
+    # (consistency with the structured tools, independent of the machine's timezone)
     res = run_query(store, "SELECT snapshotted_at FROM prices ORDER BY snapshotted_at LIMIT 1")
     ts = res["rows"][0]["snapshotted_at"]
     assert ts.endswith("+00:00"), ts

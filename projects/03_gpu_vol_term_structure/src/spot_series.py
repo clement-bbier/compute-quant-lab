@@ -1,12 +1,12 @@
-"""Construction d'une série temporelle de l'indice spot compute (consommateur de core).
+"""Construction of a compute spot index time series (core consumer).
 
-P03 a besoin d'une **série** de prix spot pour estimer la volatilité, alors que
-``core.ingestion.build_spot_index`` produit un fix unique par ``as_of``. Ce module
-rejoue le constructeur d'indice sur une grille de fix, en restant strictement
-**point-in-time** (chaque fix n'utilise que ``snapshotted_at <= as_of``, garanti par
-``build_spot_index``) et en ignorant les instants sans données fraîches (no carry-forward).
+P03 needs a **series** of spot prices to estimate volatility, whereas
+``core.ingestion.build_spot_index`` produces a single fix per ``as_of``. This module
+replays the index builder over a fix grid, remaining strictly
+**point-in-time** (each fix uses only ``snapshotted_at <= as_of``, guaranteed by
+``build_spot_index``) and ignoring instants with no fresh data (no carry-forward).
 
-Pur consommateur de ``core/`` (lecture seule) : aucune logique d'agrégation dupliquée ici.
+Pure consumer of ``core/`` (read-only): no aggregation logic is duplicated here.
 """
 
 from __future__ import annotations
@@ -32,24 +32,24 @@ def build_spot_series(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> tuple[list[dt.datetime], np.ndarray]:
-    """Série de l'indice spot sur ``as_of_grid`` (instants non résolubles ignorés).
+    """Spot index series over ``as_of_grid`` (unresolvable instants are ignored).
 
     Parameters
     ----------
     snapshots
-        Relevés bruts (toutes sources/modèles confondus).
+        Raw readings (all sources/models combined).
     as_of_grid
-        Grille d'instants de fix (UTC), croissante de préférence.
+        Grid of fix instants (UTC), preferably increasing.
     gpu_model
-        Modèle agrégé (ex. ``"H100"``).
+        Aggregated model (e.g. ``"H100"``).
     config
-        Config d'agrégation injectable (défaut : standard marché).
+        Injectable aggregation config (default: market standard).
 
     Returns
     -------
     tuple[list[datetime], numpy.ndarray]
-        Les instants effectivement résolus et les prix $/GPU·h correspondants. Un
-        instant sans venue fraîche (``InsufficientDataError``) est **omis** (pas fabriqué).
+        The instants actually resolved and the corresponding $/GPU·h prices. An
+        instant with no fresh reading (``InsufficientDataError``) is **omitted** (not fabricated).
     """
     times: list[dt.datetime] = []
     prices: list[float] = []

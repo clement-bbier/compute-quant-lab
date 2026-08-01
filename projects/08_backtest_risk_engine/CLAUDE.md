@@ -1,43 +1,44 @@
-# Projet 08 — Backtest & Risk Engine
+# Project 08 — Backtest & Risk Engine
 
-> Contexte LOCAL. Le glossaire et les conventions globales sont dans le CLAUDE.md racine.
+> LOCAL context. The glossary and global conventions live in the root CLAUDE.md.
 
-## Thèse spécifique
-Fondation de confiance du labo : un moteur de backtest **point-in-time, reproductible,
-polyglotte** avec un **garde-fou anti look-ahead** qui *échoue* dès qu'un signal à t
-consomme une donnée > t. Tout projet de stratégie (P02, P09, P10…) s'y branche. Rend
-exécutable la convention « tout backtest loggué MLflow + SHA git + version DVC ».
+## Specific thesis
+The lab's trust foundation: a **point-in-time, reproducible, polyglot** backtest engine
+with an **anti-look-ahead guard** that *fails* as soon as a signal at t consumes data > t.
+Every strategy project (P02, P09, P10…) plugs into it. It makes the convention "every
+backtest logged to MLflow + git SHA + DVC version" executable.
 
-## Architecture (deux phases)
-1. **Phase 1 (Python, guardée)** : à chaque t, `GuardedView(data, t)` → `strategy.signal()`
-   → tableau de positions. Le garde-fou look-ahead vit ici (testé en rouge).
-2. **Phase 2 (Rust, obligatoire)** : `backtest_loop.accumulate(positions, prices, fees, slippage)`
-   → PnL / returns / turnover / trades sur l'historique long. Oracle Python pur =
-   `core/backtest/reference_loop.py` (parité bit-exacte).
+## Architecture (two phases)
+1. **Phase 1 (Python, guarded)**: at each t, `GuardedView(data, t)` → `strategy.signal()`
+   → position array. The look-ahead guard lives here (tested red).
+2. **Phase 2 (Rust, mandatory)**: `backtest_loop.accumulate(positions, prices, fees, slippage)`
+   → PnL / returns / turnover / trades over the long history. Pure Python oracle =
+   `core/backtest/reference_loop.py` (bit-exact parity).
 
-## Reproductibilité
-Chaque run logge MLflow : params + métriques (PnL, Sharpe, max DD, turnover, hit ratio)
-+ SHA git + version DVC + figure PnL. Déterminisme garanti (seed loggée, ordre fixe).
+## Reproducibility
+Every run logs to MLflow: params + metrics (PnL, Sharpe, max DD, turnover, hit ratio)
++ git SHA + DVC version + PnL figure. Determinism guaranteed (seed logged, fixed order).
 
-## État d'avancement (PoC-now ✅)
-- [x] Métriques de risque (Sharpe annualisé, max drawdown, turnover, hit ratio)
-- [x] Garde-fou look-ahead (test rouge : une strat trichant via `at(t+1)` fait lever le run)
-- [x] Modèle de coûts (frais + slippage) injecté
-- [x] Boucle d'accumulation Rust + parité bit-à-bit avec l'oracle Python
-- [x] Moteur deux phases + tracking MLflow (params + métriques + SHA + DVC + figure)
-- [x] Démo reproductible sur fixtures synthétiques
+## Progress status (PoC-now done)
+- [x] Risk metrics (annualized Sharpe, max drawdown, turnover, hit ratio)
+- [x] Look-ahead guard (red test: a strategy cheating via `at(t+1)` makes the run fail)
+- [x] Cost model (fees + slippage) injected
+- [x] Rust accumulation loop + bit-exact parity with the Python oracle
+- [x] Two-phase engine + MLflow tracking (params + metrics + SHA + DVC + figure)
+- [x] Reproducible demo on synthetic fixtures
 
-## Résultats clés
-Démo (`run_demo.py`, mean-reversion z-score sur série synthétique, 512 obs, frais 10 bps
-+ slippage 5 bps) — run MLflow reproductible :
-- PnL total ≈ 0.115 · **Sharpe ≈ 0.62** (réaliste, aucun drapeau overfitting) · max DD ≈ -4.7 %
+## Key results
+Demo (`run_demo.py`, mean-reversion z-score on a synthetic series, 512 obs, fees 10 bps
++ slippage 5 bps) — reproducible MLflow run, artifact committed in
+[results/SYNTHESIS.md](results/SYNTHESIS.md):
+- Total PnL ≈ 0.115 · **Sharpe ≈ 0.62** (realistic, no overfitting red flag) · max DD ≈ -4.7%
 - turnover ≈ 93.7 · hit ratio ≈ 0.47
-- 29 tests verts (métriques analytiques, garde-fou rouge, déterminisme, coûts, parité Rust/Python).
+- 29 passing tests (analytical metrics, red-guard, determinism, costs, Rust/Python parity).
 
-**Limites / pièges couverts** : look-ahead (garde-fou actif + test rouge), coûts explicites,
-déterminisme (graine + ordre de sommation fixes), reproductibilité (SHA git + version DVC).
-**Hors périmètre (3b)** : deflated Sharpe (seul `n_trials` est tracé), purged/embargoed CV,
-multi-actifs, modélisation fine d'exécution.
+**Limitations / pitfalls covered**: look-ahead (active guard + red test), explicit costs,
+determinism (fixed seed + summation order), reproducibility (git SHA + DVC version).
+**Out of scope (tier 3b)**: deflated Sharpe (only `n_trials` is tracked), purged/embargoed CV,
+multi-asset, fine-grained execution modeling.
 
 ## Convergence
-Patchs zone protégée + items croissance labo : voir [CONVERGENCE.md](CONVERGENCE.md).
+Protected-zone patches + lab growth items: see [CONVERGENCE.md](CONVERGENCE.md).

@@ -1,8 +1,8 @@
-"""Garde-fou de la frontière réel/simulé (rule ``forward-real-simulated``).
+"""Guardrail for the real/simulated boundary (rule ``forward-real-simulated``).
 
-Toute sortie dérivée de la forward DOIT porter un drapeau ``simulated`` explicite et
-**non optionnel** : un test échoue si le champ est absent. Ce module verrouille
-l'invariant au niveau du type (``TermStructure``) et de sa propagation (``DirectionalSignal``).
+Any output derived from the forward MUST carry an explicit and **non-optional**
+``simulated`` flag: a test fails if the field is absent. This module locks
+the invariant at the type level (``TermStructure``) and its propagation (``DirectionalSignal``).
 """
 
 from __future__ import annotations
@@ -17,16 +17,16 @@ from term_structure import TermStructure
 
 
 def test_term_structure_requires_simulated_flag() -> None:
-    """Construire un TermStructure sans `simulated` doit échouer (champ obligatoire)."""
+    """Constructing a TermStructure without `simulated` must fail (required field)."""
     fields = {f.name for f in dataclasses.fields(TermStructure)}
     assert "simulated" in fields
     simulated_field = next(f for f in dataclasses.fields(TermStructure) if f.name == "simulated")
-    # Aucun défaut : impossible de l'omettre.
+    # No default: impossible to omit it.
     assert simulated_field.default is dataclasses.MISSING
     assert simulated_field.default_factory is dataclasses.MISSING
 
     with pytest.raises(TypeError):
-        TermStructure(  # type: ignore[call-arg]  # `simulated` volontairement omis
+        TermStructure(  # type: ignore[call-arg]  # `simulated` deliberately omitted
             front_price=2.0,
             slope=-0.01,
             curvature=0.0,

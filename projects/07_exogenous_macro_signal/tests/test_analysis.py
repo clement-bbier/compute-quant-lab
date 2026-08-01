@@ -1,8 +1,8 @@
-"""Mesure du lead (cross-corrélation + OLS de confirmation) — fixtures connues.
+"""Lead measurement (cross-correlation + confirmation OLS) — known fixtures.
 
-On vérifie que la mécanique *retrouve* un lead injecté volontairement : si la cible
-dépend de la feature retardée de ``LEAD``, la cross-corrélation doit culminer en
-``k = LEAD`` et l'OLS de confirmation doit avoir un R² out-of-sample élevé.
+Verifies that the mechanism *recovers* a deliberately injected lead: if the target
+depends on the feature delayed by ``LEAD``, the cross-correlation must peak at
+``k = LEAD`` and the confirmation OLS must have a high out-of-sample R².
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def test_cross_correlation_recovers_injected_lead():
     n, lead = 200, 3
     idx = _index(n)
     feature = pd.Series(rng.normal(size=n), index=idx)
-    # cible(t) = 2 * feature(t - lead)  → feature MÈNE la cible de `lead`.
+    # target(t) = 2 * feature(t - lead)  -> feature LEADS the target by `lead`.
     target = 2.0 * feature.shift(lead)
 
     corr = analysis.cross_correlations(feature, target, max_lag=6)

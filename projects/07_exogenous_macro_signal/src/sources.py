@@ -1,13 +1,13 @@
-"""I/O des variables exogènes (gaz, météo HDD/CDD) + cible spread (P01).
+"""I/O for exogenous variables (gas, HDD/CDD weather) + spread target (P01).
 
-Réel si un token API est présent ; sinon **repli synthétique déterministe**
-(seed fixe), loggué — à la manière de P01. Le connecteur réel météo/gaz relève
-de `data-engineer` (cf. CONVERGENCE : registre sources CLAUDE.md §3).
+Real if an API token is present; otherwise a **deterministic synthetic
+fallback** (fixed seed), logged — in the same manner as P01. The real weather/gas
+connector falls to `data-engineer` (cf. CONVERGENCE: source registry CLAUDE.md §3).
 
-Le processus génératif synthétique injecte volontairement un **lead** : l'énergie
-(donc le spread) répond au gaz et au HDD *retardés* de ``LEAD_DAYS``. Le pipeline
-point-in-time doit retrouver ce lead — c'est la démonstration de méthode, pas une
-prétention de réalisme (cf. rule forward-real-simulated : tout est étiqueté SIMULÉ).
+The synthetic generative process deliberately injects a **lead**: energy
+(and thus the spread) responds to gas and HDD *delayed* by ``LEAD_DAYS``. The
+point-in-time pipeline must recover this lead — this is a demonstration of method, not
+a claim of realism (cf. rule forward-real-simulated: everything is flagged SIMULATED).
 """
 
 from __future__ import annotations
@@ -26,14 +26,14 @@ from core.utils.logging import get_logger
 logger = get_logger(__name__)
 
 DEMO_SEED = 7
-BALANCE_TEMP_C = 18.0  # température de référence pour HDD/CDD (°C)
-LEAD_DAYS = 3  # retard du DGP : l'exogène précède l'énergie de ce nombre de jours
-N_DAYS = 540  # ~18 mois quotidiens
-WARMUP_DAYS = 60  # amorçage (fenêtres glissantes) avant le 1er instant de décision
+BALANCE_TEMP_C = 18.0  # reference temperature for HDD/CDD (deg C)
+LEAD_DAYS = 3  # DGP lag: the exogenous variables lead energy by this many days
+N_DAYS = 540  # ~18 months of daily data
+WARMUP_DAYS = 60  # warmup (rolling windows) before the 1st decision instant
 
 
 class SyntheticExogenousSource:
-    """Source exogène en mémoire (implémente le protocole `ExogenousSource`)."""
+    """In-memory exogenous source (implements the `ExogenousSource` protocol)."""
 
     def __init__(self, frames: dict[str, pd.DataFrame]) -> None:
         self._frames = frames
@@ -47,11 +47,11 @@ class SyntheticExogenousSource:
 
 @dataclass(frozen=True)
 class ExogenousPanel:
-    """Tout ce dont `run_signal` a besoin, déjà aligné."""
+    """Everything `run_signal` needs, already aligned."""
 
     source: ExogenousSource
-    spread: pd.Series  # cible (€/GPU·h), indexée par date
-    raw: dict[str, pd.DataFrame]  # frames vintage bruts (versionnés DVC)
+    spread: pd.Series  # target (EUR/GPU-h), indexed by date
+    raw: dict[str, pd.DataFrame]  # raw vintage frames (local cache data/raw/)
     decision_index: pd.DatetimeIndex
     mode: str  # "synthetic" | "real"
 
@@ -59,10 +59,10 @@ class ExogenousPanel:
 def _synthetic_drivers(
     rng: np.random.Generator, idx: pd.DatetimeIndex
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Gaz (€/MWh), HDD, CDD synthétiques saisonniers et déterministes."""
+    """Seasonal, deterministic synthetic gas (EUR/MWh), HDD, CDD."""
     n = len(idx)
     t = np.arange(n)
-    season = 10.0 * np.cos(2.0 * np.pi * t / 365.25)  # froid en hiver
+    season = 10.0 * np.cos(2.0 * np.pi * t / 365.25)  # cold in winter
     temp = 12.0 + season + rng.normal(scale=2.0, size=n)
     hdd = np.clip(BALANCE_TEMP_C - temp, 0.0, None)
     cdd = np.clip(temp - BALANCE_TEMP_C, 0.0, None)
@@ -81,38 +81,38 @@ def _synthetic_drivers(
 
 
 def _spread_target(rng: np.random.Generator, gas: pd.Series, hdd: pd.Series) -> pd.Series:
-    """Spread cible (€/GPU·h) via `core.pricing`, mené par les exogènes retardés."""
+    """Target spread (EUR/GPU-h) via `core.pricing`, driven by the delayed exogenous variables."""
     n = len(gas)
-    # énergie (€/MWh) = base + gaz/HDD RETARDÉS de LEAD_DAYS + bruit → exogène mène.
+    # energy (EUR/MWh) = base + gas/HDD DELAYED by LEAD_DAYS + noise -> exogenous leads.
     energy = (
         40.0
         + 2.0 * gas.shift(LEAD_DAYS)
         + 0.6 * hdd.shift(LEAD_DAYS)
         + rng.normal(scale=1.5, size=n)
     ).bfill()
-    # Compute volontairement *peu* bruité au jour-le-jour : sinon son bruit noie la
-    # jambe énergie (cost ≈ 0.001275 €/GPU·h par €/MWh) et le lead exogène est invisible.
-    # Calibrage illustratif (données SIMULÉES) — pas une prétention de réalisme.
+    # Compute deliberately *lightly* noised day-to-day: otherwise its noise drowns out the
+    # energy leg (cost ~= 0.001275 EUR/GPU-h per EUR/MWh) and the exogenous lead becomes invisible.
+    # Illustrative calibration (SIMULATED data) — not a claim of realism.
     compute = pd.Series(2.5 + rng.normal(scale=0.005, size=n), index=gas.index)
     return spark_spread_per_gpu_hour(compute, energy).rename("spread")
 
 
 def _simulate_revision(values: pd.Series, lag: pd.Timedelta) -> pd.DataFrame:
-    """Republie un sous-ensemble révisé +1 mois plus tard (exerce le chemin §6c)."""
-    sample = values.iloc[WARMUP_DAYS : WARMUP_DAYS + 30] * 1.05  # +5 %, révision tardive
+    """Republishes a revised subset 1 month later (exercises the §6c path)."""
+    sample = values.iloc[WARMUP_DAYS : WARMUP_DAYS + 30] * 1.05  # +5%, late revision
     return from_lagged_series(sample, lag + pd.Timedelta("30D"))
 
 
 def load_panel(seed: int = DEMO_SEED) -> ExogenousPanel:
-    """Charge le panel exogène. Réel si token, sinon synthétique déterministe."""
+    """Loads the exogenous panel. Real if a token is present, otherwise deterministic synthetic."""
     token = get_env("EXOGENOUS_API_TOKEN")
     if token:
         logger.info(
-            "Token exogène présent mais connecteur réel non câblé (cf. CONVERGENCE) "
-            "→ repli synthétique."
+            "Exogenous token present but the real connector is not wired up (cf. CONVERGENCE) "
+            "-> falling back to synthetic."
         )
     mode = "synthetic"
-    logger.info("Source exogène : %s (seed=%d, lead injecté=%d j).", mode, seed, LEAD_DAYS)
+    logger.info("Exogenous source: %s (seed=%d, injected lead=%d d).", mode, seed, LEAD_DAYS)
 
     rng = np.random.default_rng(seed)
     idx = pd.date_range("2024-09-01", periods=N_DAYS, freq="D", tz="UTC")
@@ -131,7 +131,7 @@ def load_panel(seed: int = DEMO_SEED) -> ExogenousPanel:
         "hdd": from_lagged_series(hdd, lags["hdd"]),
         "cdd": from_lagged_series(cdd, lags["cdd"]),
     }
-    decision_index = idx[WARMUP_DAYS : N_DAYS - 10]  # marge pour la cible t+k
+    decision_index = idx[WARMUP_DAYS : N_DAYS - 10]  # margin for the t+k target
     return ExogenousPanel(
         source=SyntheticExogenousSource(frames),
         spread=spread,
