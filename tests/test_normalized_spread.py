@@ -1,4 +1,4 @@
-"""Tests du spread normalisé par TFLOP + bandes de sensibilité PUE (Task A4)."""
+"""Tests for the TFLOP-normalized spread + PUE sensitivity bands (Task A4)."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def test_pue_bands_bracket_central_spread() -> None:
     src = _toy_source()
     low, high = pricer.pue_sensitivity(src, gpu="H100", region="ERCOT")
     res = pricer.price(src, gpu="H100", region="ERCOT")
-    # PUE plus haut => coût énergie plus haut => spread plus bas (et inversement).
+    # Higher PUE => higher energy cost => lower spread (and vice versa).
     assert high.spread.iloc[0] <= res.spread.iloc[0] <= low.spread.iloc[0]
     assert low.pue == 1.2
     assert high.pue == 1.8

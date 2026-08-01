@@ -1,4 +1,4 @@
-"""Vérifie que le pricing reproduit les chiffres de référence de la thèse."""
+"""Checks that pricing reproduces the thesis's reference figures."""
 
 from core.pricing.spark_spread import (
     ServerSpec,
@@ -8,7 +8,7 @@ from core.pricing.spark_spread import (
 
 
 def test_energy_cost_matches_reference_figures():
-    # 8x H100 @ 10.2 kW, 150 €/MWh -> ~1.53 €/h serveur, ~0.19 €/h/GPU
+    # 8x H100 @ 10.2 kW, 150 €/MWh -> ~1.53 €/h per server, ~0.19 €/h/GPU
     cost_per_gpu = energy_cost_per_gpu_hour(150.0)
     assert round(cost_per_gpu, 2) == 0.19
 
@@ -18,13 +18,13 @@ def test_energy_cost_matches_reference_figures():
 
 
 def test_spark_spread_sign():
-    # Si le compute se vend 0.50 €/h/GPU et l'énergie coûte 0.19, marge positive.
+    # If compute sells for 0.50 €/h/GPU and energy costs 0.19, margin is positive.
     spread = spark_spread_per_gpu_hour(0.50, 150.0)
     assert spread > 0
     assert round(spread, 2) == 0.31
 
 
 def test_negative_spread_when_energy_expensive():
-    # Énergie chère -> produire du compute devient non rentable.
+    # Expensive energy -> producing compute becomes unprofitable.
     spread = spark_spread_per_gpu_hour(0.20, 600.0)
     assert spread < 0

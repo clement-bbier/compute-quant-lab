@@ -1,4 +1,4 @@
-"""Tests du référentiel d'efficacité GPU (Task A1, plan sprint pricing/énergie)."""
+"""Tests for the GPU efficiency reference table (Task A1, pricing/energy sprint plan)."""
 
 from __future__ import annotations
 

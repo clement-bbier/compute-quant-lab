@@ -1,13 +1,13 @@
-"""Tests-first du pricer vectoriel du digital spark spread (P01).
+"""Tests-first for the vectorised digital spark spread pricer (P01).
 
-Couvre les exigences du prompt P01 :
-- (a) maths du spread + reproduction des chiffres de référence de la thèse ;
-- (b) anti look-ahead : aucune donnée d'index > t n'entre dans le spread à t ;
-- (c) unités / fuseau : conversion €/MWh ↔ €/GPU·h, FX $/€ point-in-time, rejet du naïf ;
-- (e) DI : le pricer tourne sur des `PriceSource`/`FxConverter`/`SpreadKernel` mockés.
+Covers the P01 prompt's requirements:
+- (a) spread math + reproduction of the thesis's reference figures;
+- (b) anti look-ahead: no data with index > t enters the spread at t;
+- (c) units / timezone: €/MWh <-> €/GPU-h conversion, point-in-time $/€ FX, naive rejection;
+- (e) DI: the pricer runs on mocked `PriceSource`/`FxConverter`/`SpreadKernel`.
 
-Le test de parité Rust↔Python (d) vit dans ``test_pricer_parity.py`` (skipif).
-Tous les tests utilisent des fixtures déterministes en mémoire — zéro réseau.
+The Rust<->Python parity test (d) lives in ``test_pricer_parity.py`` (skipif).
+All tests use deterministic in-memory fixtures — zero network.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from core.pricing import (
     SpreadResult,
 )
 
-# --- Constantes de la thèse (8x H100) ------------------------------------------------
+# --- Thesis constants (8x H100) -------------------------------------------------------
 H100_TDP_W = 700.0
 SERVER_PUE = 1.82
 N_GPUS = 8
@@ -43,21 +43,21 @@ def _ref_power_model() -> ServerPowerModel:
 
 
 def _source(energy: pd.Series, compute: pd.Series) -> DataFramePriceSource:
-    """Source à une seule région ('FR') et un seul GPU ('H100')."""
+    """Single-region ('FR') and single-GPU ('H100') source."""
     return DataFramePriceSource(
         energy=pd.DataFrame({"FR": energy}),
         compute=pd.DataFrame({"H100": compute}),
     )
 
 
-# ============================ (a) Maths du spread ====================================
+# ============================ (a) Spread math =========================================
 
 
 def test_reference_figures_reproduced():
-    """Le pricer reproduit 0.19 €/h/GPU, 1.53 €/h serveur, 0.31 de spread."""
+    """The pricer reproduces 0.19 €/h/GPU, 1.53 €/h per server, spread of 0.31."""
     idx = _utc_index(3)
     energy = pd.Series(150.0, index=idx)  # €/MWh
-    compute = pd.Series(0.50, index=idx)  # $/GPU·h (1 USD = 1 EUR via ConstantFx(1.0))
+    compute = pd.Series(0.50, index=idx)  # $/GPU-h (1 USD = 1 EUR via ConstantFx(1.0))
 
     pricer = SparkSpreadPricer(_ref_power_model(), ConstantFx(1.0), kernel=PythonOracle())
     result = pricer.price(_source(energy, compute), gpu="H100", region="FR")
@@ -69,7 +69,7 @@ def test_reference_figures_reproduced():
 
 
 def test_spread_equals_revenue_minus_cost():
-    """Identité comptable spread == revenu − coût sur entrées arbitraires."""
+    """Accounting identity spread == revenue − cost on arbitrary inputs."""
     idx = _utc_index(5)
     rng = np.random.default_rng(0)
     energy = pd.Series(rng.uniform(50, 400, 5), index=idx)
@@ -82,7 +82,7 @@ def test_spread_equals_revenue_minus_cost():
 
 
 def test_result_is_frozen_with_metadata():
-    """SpreadResult expose la décomposition + métadonnées (gpu, region, pue, power)."""
+    """SpreadResult exposes the decomposition + metadata (gpu, region, pue, power)."""
     idx = _utc_index(2)
     pricer = SparkSpreadPricer(_ref_power_model(), ConstantFx(1.0))
     result = pricer.price(
@@ -103,7 +103,7 @@ def test_result_is_frozen_with_metadata():
 
 
 def test_future_rows_do_not_change_past_spreads():
-    """Ajouter des lignes d'index > t laisse le spread à t bit-identique."""
+    """Adding rows with index > t leaves the spread at t bit-identical."""
     idx = _utc_index(4)
     energy = pd.Series([100.0, 150.0, 200.0, 250.0], index=idx)
     compute = pd.Series([0.40, 0.50, 0.60, 0.70], index=idx)
@@ -120,27 +120,27 @@ def test_future_rows_do_not_change_past_spreads():
 
 
 def test_compute_alignment_is_backward_only():
-    """Sur grille compute grossière, le spread à t n'utilise jamais un prix futur."""
-    energy_idx = _utc_index(5)  # horaire
+    """On a coarse compute grid, the spread at t never uses a future price."""
+    energy_idx = _utc_index(5)  # hourly
     energy = pd.Series([150.0, 150.0, 150.0, 150.0, 150.0], index=energy_idx)
-    # compute connu seulement à t2 et t4
+    # compute known only at t2 and t4
     compute = pd.Series([0.50, 0.90], index=energy_idx[[2, 4]])
 
     pricer = SparkSpreadPricer(_ref_power_model(), ConstantFx(1.0))
     result = pricer.price(_source(energy, compute), gpu="H100", region="FR")
 
-    # t0, t1 : aucun prix compute connu → revenu/spread NaN (pas de fill depuis le futur)
+    # t0, t1: no compute price known yet -> revenue/spread NaN (no fill from the future)
     assert np.isnan(result.spread.iloc[0])
     assert np.isnan(result.spread.iloc[1])
-    # t3 : doit utiliser le dernier prix connu (0.50 à t2), surtout PAS 0.90 (futur t4)
+    # t3: must use the last known price (0.50 at t2), definitely NOT 0.90 (future t4)
     assert result.revenue.iloc[3] == 0.50
 
 
-# ============================ (c) Unités / fuseau ====================================
+# ============================ (c) Units / timezone ====================================
 
 
 def test_energy_unit_conversion_mwh_to_gpu_hour():
-    """Coût = power_kw · pue · (€/MWh) / 1000, calculé à la main."""
+    """Cost = power_kw * pue * (€/MWh) / 1000, computed by hand."""
     idx = _utc_index(1)
     pricer = SparkSpreadPricer(_ref_power_model(), ConstantFx(1.0))
     result = pricer.price(
@@ -160,20 +160,20 @@ def test_constant_fx_converts_usd_to_eur():
 
 
 def test_series_fx_is_point_in_time():
-    """SeriesFx utilise le taux connu à chaque t (backward), jamais un taux futur."""
+    """SeriesFx uses the rate known at each t (backward), never a future rate."""
     idx = _utc_index(3)
-    rates = pd.Series([0.90, 0.80], index=idx[[0, 2]])  # change connu à t0 puis t2
+    rates = pd.Series([0.90, 0.80], index=idx[[0, 2]])  # rate known at t0, then t2
     amount = pd.Series([1.0, 1.0, 1.0], index=idx)
     out = SeriesFx(rates).to_eur(amount)
-    # t1 doit garder 0.90 (dernier connu), pas anticiper 0.80
+    # t1 must keep 0.90 (last known), not anticipate 0.80
     assert out.iloc[0] == pytest.approx(0.90)
     assert out.iloc[1] == pytest.approx(0.90)
     assert out.iloc[2] == pytest.approx(0.80)
 
 
 def test_naive_datetime_rejected():
-    """Un index sans fuseau doit être refusé (UTC tz-aware obligatoire)."""
-    naive_idx = pd.date_range("2025-01-01", periods=3, freq="h")  # tz-naïf
+    """A timezone-naive index must be rejected (UTC tz-aware is mandatory)."""
+    naive_idx = pd.date_range("2025-01-01", periods=3, freq="h")  # tz-naive
     with pytest.raises(ValueError):
         DataFramePriceSource(
             energy=pd.DataFrame({"FR": pd.Series(150.0, index=naive_idx)}),
@@ -188,7 +188,7 @@ def test_series_fx_rejects_naive_datetime():
 
 
 def test_non_utc_timezone_normalised_to_utc():
-    """Un index tz-aware non-UTC est accepté et ramené en UTC."""
+    """A non-UTC tz-aware index is accepted and normalised to UTC."""
     paris_idx = pd.date_range("2025-01-01", periods=2, freq="h", tz="Europe/Paris")
     src = DataFramePriceSource(
         energy=pd.DataFrame({"FR": pd.Series([150.0, 150.0], index=paris_idx)}),
@@ -197,11 +197,11 @@ def test_non_utc_timezone_normalised_to_utc():
     assert str(src.energy_price("FR").index.tz) == "UTC"
 
 
-# ============================ (e) Injection de dépendances ===========================
+# ============================ (e) Dependency injection ===============================
 
 
 class _DictPriceSource:
-    """PriceSource mockée, purement en mémoire (prouve le découplage)."""
+    """Mocked PriceSource, purely in-memory (proves the decoupling)."""
 
     def __init__(self, energy: dict[str, pd.Series], compute: dict[str, pd.Series]) -> None:
         self._energy = energy
@@ -215,7 +215,7 @@ class _DictPriceSource:
 
 
 class _RecordingKernel:
-    """Décore l'oracle pour prouver que le kernel injecté est bien appelé."""
+    """Wraps the oracle to prove the injected kernel actually gets called."""
 
     def __init__(self) -> None:
         self._inner = PythonOracle()

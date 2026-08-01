@@ -1,11 +1,11 @@
 [project]
 name = "compute-quant-lab"
 version = "0.1.0"
-description = "Labo de recherche quant : le compute comme classe d'actifs (digital spark spread)."
+description = "Quant research lab: compute as an asset class (digital spark spread)."
 requires-python = ">=3.11"
 dependencies = [
-    # Bornes hautes majeures sur le socle numérique : une bascule 2.x -> 3.x de
-    # pandas ou numpy casserait les backtests en silence (dtypes, alignement).
+    # Major upper bounds on the numeric stack: a pandas or numpy 2.x -> 3.x
+    # bump would silently break backtests (dtypes, alignment).
     "pandas>=2.2,<3",
     "numpy>=1.26,<3",
     "scikit-learn>=1.4",
@@ -21,8 +21,8 @@ dependencies = [
     "plotly>=5.20",
     "duckdb>=1.0",
     "pyarrow>=16.0",
-    # Runtime, pas dev : infra/mcp-servers/gpu-price-server/server.py l'importe
-    # et .mcp.json le lance avec un `python` nu.
+    # Runtime, not dev: infra/mcp-servers/gpu-price-server/server.py imports it
+    # and .mcp.json launches it with a bare `python`.
     "mcp>=1.2",
 ]
 
@@ -50,10 +50,10 @@ python_version = "3.11"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-# Un seul process ne peut pas agréger plusieurs suites projet : chaque
-# projects/*/tests fait `from conftest import ...` (import nu) → collision de
-# module `conftest` entre projets. La CI lance donc chaque dossier en isolation
-# (voir .github/workflows/ci.yml). testpaths par défaut = la fondation P01.
+# A single process can't aggregate multiple project suites: each
+# projects/*/tests does `from conftest import ...` (bare import) -> `conftest`
+# module collision across projects. CI therefore runs each folder in isolation
+# (see .github/workflows/ci.yml). Default testpaths = the P01 foundation.
 testpaths = ["tests"]
 
 [build-system]

@@ -1,23 +1,23 @@
-# Secrets — JAMAIS committés
+# Secrets — NEVER committed
 .env
 .claude/settings.local.json
 **/.credentials.json
 
-# Worktrees Claude Code (checkouts locaux, jamais committés ; cf. docs/git-workflow.md §8)
+# Claude Code worktrees (local checkouts, never committed; cf. docs/git-workflow.md §8)
 .claude/worktrees/
 
-# Couches dérivées : régénérables depuis data/snapshots/, jamais committées.
+# Derived layers: regenerable from data/snapshots/, never committed.
 /data/raw/*
 /data/interim/*
 /data/processed/*
 /data/cold/*
 !/data/**/.gitkeep
 
-# data/snapshots/ EST versionné : c'est la donnée brute collectée heure par
-# heure, irremplaçable (le prix du compute n'a pas d'historique achetable).
-# CSV et Parquet sont tous les deux en git ordinaire (LFS retiré).
+# data/snapshots/ IS versioned: it's the raw data collected hour by hour,
+# irreplaceable (the price of compute has no purchasable history).
+# Both CSV and Parquet are plain git (LFS removed).
 
-# Expériences / artefacts
+# Experiments / artifacts
 /experiments/mlruns/
 **/results/*.png
 **/results/*.parquet
@@ -34,11 +34,11 @@ __pycache__/
 # Notebooks
 .ipynb_checkpoints/
 
-# Logs du collecteur planifié (runtime, jamais committés)
+# Scheduled collector logs (runtime, never committed)
 infra/collectors/*.log
 
-# Stratégies privées / à edge — JAMAIS versionnées (le repo est PUBLIC).
-# Tout ce qui génère de l'argent vit ici et ne part jamais en ligne.
+# Private / edge strategies — NEVER versioned (the repo is PUBLIC).
+# Anything that makes money lives here and never goes online.
 /private/*
 !/private/README.md
 !/private/.gitkeep

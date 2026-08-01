@@ -1,8 +1,8 @@
-"""(d) Parité Rust ↔ Python du noyau de spread.
+"""(d) Rust <-> Python parity of the spread kernel.
 
-Le noyau Rust (`core.pricing._kernel`) est un subcrate maturin optionnel. Tant
-qu'il n'est pas compilé (``maturin develop``), ce test est *skippé* : le PoC
-reste 100 % vert en pur Python, le Rust est additif.
+The Rust kernel (`core.pricing._kernel`) is an optional maturin subcrate. As
+long as it isn't compiled (``maturin develop``), this test is *skipped*: the PoC
+stays 100% green in pure Python, Rust is additive.
 """
 
 from __future__ import annotations
@@ -16,11 +16,11 @@ try:
     from core.pricing.pricer import RustKernel
 
     _rust = RustKernel()
-except Exception:  # pragma: no cover - dépend de la compilation du subcrate
+except Exception:  # pragma: no cover - depends on the subcrate being compiled
     _rust = None
 
 
-@pytest.mark.skipif(_rust is None, reason="noyau Rust non compilé (maturin develop)")
+@pytest.mark.skipif(_rust is None, reason="Rust kernel not compiled (maturin develop)")
 def test_rust_matches_python_oracle():
     rng = np.random.default_rng(42)
     n = 10_000

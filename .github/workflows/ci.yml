@@ -8,14 +8,14 @@ jobs:
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build des noyaux Rust (maturin develop)
+      - name: Build the Rust kernels (maturin develop)
         run: |
           uv run maturin develop -m core/pricing/_kernel/Cargo.toml
           uv run maturin develop -m core/backtest/_loop/Cargo.toml
           uv run maturin develop -m projects/04_compute_index_curve/forward_engine/Cargo.toml
       - run: uv run ruff check .
       - run: uv run mypy core
-      - name: Tests (chaque module en isolation — conftest non partagé entre projets)
+      - name: Tests (each module in isolation — conftest not shared across projects)
         run: |
           set -euo pipefail
           ran=0
@@ -31,14 +31,14 @@ jobs:
                    infra/collectors/tests \
                    infra/mcp-servers/*/tests \
                    projects/*/tests; do
-            # Un glob sans correspondance reste littéral : on le saute au lieu
-            # de le passer à pytest, qui échouerait sur un chemin inexistant.
+            # A glob with no match stays literal: skip it instead of passing
+            # it to pytest, which would fail on a nonexistent path.
             [ -d "$d" ] || continue
             echo "== pytest $d =="
             uv run pytest -q "$d"
             ran=$((ran + 1))
           done
-          echo "== $ran suites exécutées =="
-          # Garde-fou : si les globs cessent de matcher, la CI doit échouer
-          # bruyamment plutôt que passer au vert sans avoir rien testé.
-          [ "$ran" -ge 20 ] || { echo "Trop peu de suites ($ran < 20)" >&2; exit 1; }
+          echo "== $ran suites run =="
+          # Guardrail: if the globs stop matching, CI must fail loudly
+          # instead of going green having tested nothing.
+          [ "$ran" -ge 20 ] || { echo "Too few suites ($ran < 20)" >&2; exit 1; }

@@ -1,4 +1,4 @@
-"""Tests du prior PUE region-keyed (Task A2/A3, plan sprint pricing/énergie)."""
+"""Tests for the region-keyed PUE prior (Task A2/A3, pricing/energy sprint plan)."""
 
 from __future__ import annotations
 
@@ -23,14 +23,14 @@ def test_samples_respect_support_and_physics() -> None:
     xs = p.sample(10_000, seed=7)
     assert xs.min() >= 1.2
     assert xs.max() <= 1.8
-    assert (xs >= 1.0).all()  # PUE >= 1 par définition physique
+    assert (xs >= 1.0).all()  # PUE >= 1 by physical definition
 
 
 def test_samples_are_deterministic() -> None:
     p = PuePrior(mu=1.45, sigma=0.15, low=1.2, high=1.8)
     a = p.sample(100, seed=7)
     b = p.sample(100, seed=7)
-    assert (a == b).all()  # déterminisme exigé par le labo
+    assert (a == b).all()  # determinism required by the lab
 
 
 def test_low_below_one_rejected() -> None:
@@ -48,7 +48,7 @@ def test_texas_prior_matches_l0() -> None:
     assert ERCOT_TEXAS_PRIOR.sensitivity_bounds() == (1.2, 1.8)
 
 
-# --- Task A3 : ServerPowerModel accepte un PuePrior (rétro-compatible float) ---
+# --- Task A3: ServerPowerModel accepts a PuePrior (backward-compatible float) ---
 
 
 def test_power_model_accepts_prior() -> None:

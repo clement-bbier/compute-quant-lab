@@ -1,100 +1,100 @@
 # Compute Quant Lab
 
-> Index du labo. Garder ce fichier **< 200 lignes** : c'est une carte qui pointe
-> vers les rules / skills / agents, pas une encyclopédie.
+> Lab index. Keep this file **< 200 lines**: it's a map pointing to the
+> rules / skills / agents, not an encyclopedia.
 
-## 1. Thèse de recherche
+## 1. Research thesis
 
-Le **compute** (location de GPU : Nvidia H100/Hopper, Blackwell) est une nouvelle
-classe d'actifs dont la matière première est l'**électricité**. Le labo modélise,
-price et arbitre le spread entre les deux — le *digital spark spread* — pour
-produire des signaux exploitables par un desk type Global Markets.
+**Compute** (GPU rental: Nvidia H100/Hopper, Blackwell) is a new asset class
+whose raw material is **electricity**. The lab models, prices, and arbitrages
+the spread between the two — the *digital spark spread* — to produce signals
+tradable by a Global Markets-style desk.
 
-Principe directeur : **PoC → fondation**. Toute brique réutilisable d'un projet
-remonte dans `core/`. Le projet N+1 démarre avec l'infra du projet N déjà prête.
+Guiding principle: **PoC → foundation**. Any reusable building block from a
+project moves up into `core/`. Project N+1 starts with project N's infra
+already in place.
 
-## 2. Glossaire
+## 2. Glossary
 
-- **Spark spread** : marge = revenu compute − coût énergétique de production.
-- **PUE** (Power Usage Effectiveness) : ratio conso totale datacenter / conso IT.
-- **Point-in-time** : n'utiliser que la donnée *connue à l'instant t* (anti look-ahead).
-- **Alpha** : rendement excédentaire non expliqué par l'exposition au marché.
-- **Coût marginal du compute** : coût énergétique d'une heure-GPU.
+- **Spark spread**: margin = compute revenue − energy cost of production.
+- **PUE** (Power Usage Effectiveness): ratio of total datacenter draw / IT draw.
+- **Point-in-time**: only use data *known at instant t* (anti look-ahead).
+- **Alpha**: excess return unexplained by market exposure.
+- **Marginal cost of compute**: energy cost of one GPU-hour.
 
-## 3. Registre des sources de données
+## 3. Data source registry
 
-| Source | Flux | Accès | Statut |
+| Source | Flow | Access | Status |
 |---|---|---|---|
-| ENTSO-E Transparency | Prix spot élec FR/DE (€/MWh) | API token (`entsoe-py`) | à configurer |
-| EPEX Spot | Prix day-ahead | API payante / proxy | à étudier |
-| Vast.ai / RunPod | Prix location GPU (€/h) | API publique, historisée maison | à coder |
-| Marchés gaz/météo | Variables exogènes | API | backlog |
-| S&P Global / Kensho | Donnée financière de référence | MCP (connecté) | dispo |
-| Tavily | Recherche web (veille) | MCP (connecté) | dispo |
+| ENTSO-E Transparency | FR/DE electricity spot price (€/MWh) | API token (`entsoe-py`) | to configure |
+| EPEX Spot | Day-ahead price | Paid API / proxy | to investigate |
+| Vast.ai / RunPod | GPU rental price (€/h) | Public API, self-historized | to build |
+| Gas/weather markets | Exogenous variables | API | backlog |
+| S&P Global / Kensho | Reference financial data | MCP (connected) | available |
+| Tavily | Web research (scanning) | MCP (connected) | available |
 
-> Détails d'implémentation : `core/ingestion/`. Tokens : `.env` (jamais committé).
-> ⚠️ Le prix du compute n'existe pas en historique : `infra/collectors/gpu_price_snapshot.py`
-> l'accumule jour après jour dans `data/snapshots/`. La jambe énergie, elle, a un historique profond.
+> Implementation details: `core/ingestion/`. Tokens: `.env` (never committed).
+> ⚠️ There's no historical price for compute: `infra/collectors/gpu_price_snapshot.py`
+> accumulates it day by day into `data/snapshots/`. The energy leg, by contrast, has deep history.
 
-## 4. Structure du dépôt
+## 4. Repo structure
 
-- `core/` — bibliothèque partagée installable (`pip install -e .`)
-  - `ingestion/` connecteurs · `data_quality/` validation · `pricing/` spark spread
-  - `features/` feature engineering point-in-time · `models/` XGBoost, LSTM/TFT
-  - `backtest/` moteur + métriques · `utils/` config, logging, tracking (MLflow)
-- `data/` — `snapshots/` (brut collecté, **versionné git/LFS**) → `interim/` → `processed/`
-- `experiments/` — runs MLflow (tracking local, pas de serveur)
-- `projects/NN_nom/` — un projet de recherche autonome (a son propre CLAUDE.md)
-- `infra/mcp-servers/` — **code** des serveurs MCP custom (≠ `.mcp.json` racine)
-- `infra/collectors/` — services planifiés (snapshot prix GPU)
-- `tests/` — pytest · `references/` — **couche savoir** : bibliographie + méthodo distillée
+- `core/` — shared installable library (`pip install -e .`)
+  - `ingestion/` connectors · `data_quality/` validation · `pricing/` spark spread
+  - `features/` point-in-time feature engineering · `models/` XGBoost, LSTM/TFT
+  - `backtest/` engine + metrics · `utils/` config, logging, tracking (MLflow)
+- `data/` — `snapshots/` (raw collected, **git-versioned**) → `interim/` → `processed/`
+- `experiments/` — MLflow runs (local tracking, no server)
+- `projects/NN_name/` — a standalone research project (has its own CLAUDE.md)
+- `infra/mcp-servers/` — **code** for custom MCP servers (≠ root `.mcp.json`)
+- `infra/collectors/` — scheduled services (GPU price snapshot)
+- `tests/` — pytest · `references/` — **knowledge layer**: bibliography + distilled methodology
 
-## 5. Mécanismes d'orchestration (`.claude/`)
+## 5. Orchestration mechanisms (`.claude/`)
 
-- **rules/** — contraintes path-scopées (qualité Python, intégrité données, no look-ahead)
-- **skills/** — procédures : `/run-backtest`, `/data-quality-check`, `/new-research-project`
-  - **couche savoir** : `/cointegration-analysis`, `/spread-trading-playbook`, `/backtest-pitfalls`
-  - **veille parallèle** : `/market-scan` (essaim de subagents sur le marché du compute)
-- **agents/** — le « personnel » du labo (voir §6)
-- **settings.json** — hooks déterministes (format auto, blocage écriture `data/raw/`, blocage `.env`)
+- **rules/** — path-scoped constraints (Python quality, data integrity, no look-ahead)
+- **skills/** — procedures: `/run-backtest`, `/data-quality-check`, `/new-research-project`
+  - **knowledge layer**: `/cointegration-analysis`, `/spread-trading-playbook`, `/backtest-pitfalls`
+  - **parallel scanning**: `/market-scan` (swarm of subagents on the compute market)
+- **agents/** — the lab's "staff" (see §6)
+- **settings.json** — deterministic hooks (auto-format, blocks writes to `data/raw/`, blocks `.env`)
 
-## 6. Le personnel du labo (subagents)
+## 6. The lab's staff (subagents)
 
-La session principale = directeur de recherche qui délègue. Chaque agent tourne en
-isolation et ne renvoie qu'une synthèse.
+The main session = research director who delegates. Each agent runs in
+isolation and returns only a synthesis.
 
-- `data-engineer` — ingestion, scraping, connecteurs
-- `data-quality-auditor` — gaps, outliers, intégrité point-in-time
-- `quant-researcher` — features, modélisation, signaux
-- `backtest-runner` — exécution isolée → PnL / Sharpe / drawdown
-- `risk-validator` — **adversaire** : traque look-ahead, overfitting, data snooping
-- `infra-engineer` — serveurs MCP, CI, environnement
-- `literature-scout` — veille arXiv / SSRN
-- `code-reviewer` — qualité, typage, conventions
+- `data-engineer` — ingestion, scraping, connectors
+- `data-quality-auditor` — gaps, outliers, point-in-time integrity
+- `quant-researcher` — features, modeling, signals
+- `backtest-runner` — isolated execution → PnL / Sharpe / drawdown
+- `risk-validator` — **adversary**: hunts look-ahead, overfitting, data snooping
+- `infra-engineer` — MCP servers, CI, environment
+- `literature-scout` — arXiv / SSRN scanning
+- `code-reviewer` — quality, typing, conventions
 
-## 7. Opérations parallèles (usine de recherche)
+## 7. Parallel operations (research factory)
 
-Travail massivement parallèle en 3 voies : **collecte** (essaim de subagents via
-`/market-scan`), **construction** (git worktrees, 1 worktree = 1 module disjoint),
-**convergence** (1 session pilote qui merge et réconcilie). Règle d'or : un worktree
-n'écrit que dans son module ; la zone protégée (`CLAUDE.md`, `.claude/`, `.mcp.json`,
-`pyproject.toml`) passe uniquement par la session de convergence.
-→ Détail et partition de propriété : `docs/parallel-ops.md`. Helper : `scripts/new-worktree.ps1`.
+Massively parallel work along 3 tracks: **collection** (subagent swarm via
+`/market-scan`), **construction** (git worktrees, 1 worktree = 1 disjoint module),
+**convergence** (1 pilot session that merges and reconciles). Golden rule: a worktree
+only writes to its own module; the protected zone (`CLAUDE.md`, `.claude/`, `.mcp.json`,
+`pyproject.toml`) is touched only by the convergence session.
+→ Details and ownership partition: `docs/parallel-ops.md`. Helper: `scripts/new-worktree.ps1`.
 
 ## 8. Conventions
 
-- Python ≥ 3.11, environnement géré par **uv** (`uv sync`), lockfile committé.
-- Tout I/O de données passe par `core/` — jamais de chemin en dur dans un projet.
-- `data/raw/` est **immuable** : on n'écrit jamais dedans à la main (hook PreToolUse).
-- Tout backtest est loggué dans MLflow avec params + métriques + SHA git + version DVC des données.
-- Commits sémantiques. Tests + ruff verts avant merge (pre-commit + CI).
+- Python ≥ 3.11, environment managed via **uv** (`uv sync`), committed lockfile.
+- All data I/O goes through `core/` — never a hardcoded path in a project.
+- `data/raw/` is **immutable**: never write into it by hand (PreToolUse hook).
+- Every backtest is logged to MLflow with params + metrics + git SHA.
+- Semantic commits. Tests + ruff green before merge (pre-commit + CI).
 
-## 9. Commandes utiles
+## 9. Useful commands
 
 ```bash
-uv sync                 # installe l'environnement depuis le lockfile
-pytest                  # lance les tests
-ruff check . && mypy core   # qualité
-git lfs pull            # récupère les données versionnées (CSV de snapshots)
-mlflow ui               # tableau de bord des expériences (local)
+uv sync                 # install the environment from the lockfile
+pytest                  # run the tests
+ruff check . && mypy core   # quality
+mlflow ui               # experiment dashboard (local)
 ```
