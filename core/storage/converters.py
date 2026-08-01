@@ -29,6 +29,7 @@ from core.storage.schema import (
     VCPU,
     normalize_frame,
 )
+from core.utils.coerce import lenient_float, lenient_int, lenient_str
 
 
 def snapshots_to_frame(snapshots: Sequence[Snapshot]) -> pd.DataFrame:
@@ -76,27 +77,6 @@ def frame_to_snapshots(frame: pd.DataFrame) -> list[Snapshot]:
     optionnelles absentes (Parquet legacy) sont backfillées par ``normalize_frame``.
     """
     frame = normalize_frame(frame)
-
-    def _opt_str(val: object) -> str | None:
-        if val is None or (isinstance(val, float) and __import__("math").isnan(val)):
-            return None
-        return str(val)
-
-    def _opt_float(val: object) -> float | None:
-        if val is None:
-            return None
-        try:
-            f = float(val)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            return None
-        import math
-
-        return None if math.isnan(f) else f
-
-    def _opt_int(val: object) -> int | None:
-        f = _opt_float(val)
-        return None if f is None else int(f)
-
     return [
         Snapshot(
             snapshotted_at=row[SNAPSHOTTED_AT].to_pydatetime(),
@@ -105,12 +85,12 @@ def frame_to_snapshots(frame: pd.DataFrame) -> list[Snapshot]:
             price_usd_per_hour=float(row[PRICE]),
             lease_type=str(row[LEASE_TYPE]),
             availability=int(row[AVAILABILITY]),
-            region=_opt_str(row.get(REGION)),
-            gpu_memory_gb=_opt_float(row.get(GPU_MEMORY_GB)),
-            vcpu=_opt_int(row.get(VCPU)),
-            ram_gb=_opt_float(row.get(RAM_GB)),
-            disk_gb=_opt_float(row.get(DISK_GB)),
-            provider_detail=_opt_str(row.get(PROVIDER_DETAIL)),
+            region=lenient_str(row.get(REGION)),
+            gpu_memory_gb=lenient_float(row.get(GPU_MEMORY_GB)),
+            vcpu=lenient_int(row.get(VCPU)),
+            ram_gb=lenient_float(row.get(RAM_GB)),
+            disk_gb=lenient_float(row.get(DISK_GB)),
+            provider_detail=lenient_str(row.get(PROVIDER_DETAIL)),
         )
         for _, row in frame.iterrows()
     ]

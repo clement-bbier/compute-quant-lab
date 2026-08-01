@@ -31,6 +31,7 @@ import requests
 
 from core.ingestion.protocols import Snapshot
 from core.ingestion.providers.base import normalize_gpu_model
+from core.utils.coerce import opt_float, opt_int
 
 _HYPERSTACK_BASE_URL = "https://infrahub-api.nexgencloud.com/v1"
 _HYPERSTACK_FLAVORS_URL = f"{_HYPERSTACK_BASE_URL}/core/flavors"
@@ -75,16 +76,6 @@ def _vram_gb(gpu_raw: str) -> float | None:
     """Extrait la mémoire GPU encodée dans le type (``"H100-80G-PCIe"`` → 80.0), sinon ``None``."""
     match = _VRAM_RE.search(gpu_raw)
     return float(match.group(1)) if match else None
-
-
-def _opt_float(value: Any) -> float | None:
-    """Cast optionnel en flottant (``None`` si absent ou non numérique ; un booléen n'est pas un nombre)."""
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
-
-
-def _opt_int(value: Any) -> int | None:
-    """Cast optionnel en entier (``None`` si absent ou non numérique)."""
-    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def parse_hyperstack(
@@ -132,9 +123,9 @@ def parse_hyperstack(
                     availability=_availability(flavor.get("stock_available")),
                     region=flavor.get("region_name") or group_region,
                     gpu_memory_gb=_vram_gb(gpu_raw),
-                    vcpu=_opt_int(flavor.get("cpu")),
-                    ram_gb=_opt_float(flavor.get("ram")),
-                    disk_gb=_opt_float(flavor.get("disk")),
+                    vcpu=opt_int(flavor.get("cpu")),
+                    ram_gb=opt_float(flavor.get("ram")),
+                    disk_gb=opt_float(flavor.get("disk")),
                 )
             )
     return out

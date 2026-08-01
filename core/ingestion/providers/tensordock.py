@@ -50,6 +50,7 @@ import requests
 
 from core.ingestion.protocols import Snapshot
 from core.ingestion.providers.base import normalize_gpu_model
+from core.utils.coerce import opt_float
 
 _TENSORDOCK_HOSTNODES_URL = "https://dashboard.tensordock.com/api/v2/hostnodes"
 
@@ -71,11 +72,6 @@ def _hostnodes_records(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-def _opt_float(value: Any) -> float | None:
-    """Cast optionnel en flottant (``None`` si absent/non numérique ; un booléen n'est pas un nombre)."""
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
-
-
 def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None:
     """Convertit un nœud TensorDock en ``Snapshot``, ou ``None`` si non conforme/indisponible.
 
@@ -93,7 +89,7 @@ def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None
         amount = int(gpu.get("amount") or 0)
     except (TypeError, ValueError):
         return None
-    price = _opt_float(gpu.get("price"))
+    price = opt_float(gpu.get("price"))
     if amount <= 0 or price is None or price <= 0:
         return None
     location = node.get("location")
@@ -107,7 +103,7 @@ def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None
         lease_type="on_demand",
         availability=amount,
         region=location.get("region") or location.get("country"),
-        gpu_memory_gb=_opt_float(gpu.get("vram")),
+        gpu_memory_gb=opt_float(gpu.get("vram")),
     )
 
 
