@@ -18,5 +18,5 @@ active implementation is exposed as `core.backtest.engine.USING_RUST_KERNEL`, an
 the Rust-only tests skip when the crate is absent (same policy as the P01 pricing
 kernel).
 
-> ⚠️ Protected zone: wiring this build into the root `pyproject.toml` plus the Rust
-> CI is a **convergence patch** (see `projects/08_backtest_risk_engine/CONVERGENCE.md`).
+> ⚠️ Wiring this build into the root `pyproject.toml` plus the Rust CI remains an
+> open gap — see `docs/decisions/002-per-project-ci-testpaths-gap.md`.

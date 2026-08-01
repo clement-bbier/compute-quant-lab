@@ -27,7 +27,7 @@ from core.utils.timeindex import to_utc_index
 # Each exogenous variable is only known with a delay. A lag that is too short =
 # look-ahead; too long = exploitable signal is thrown away. *Conservative* default (we
 # prefer over-estimating the delay). To be recalibrated against the real calendar when
-# wiring the real connector (see CONVERGENCE); if the source exposes vintages, feed the
+# wiring the real connector; if the source exposes vintages, feed the
 # vintage frames directly (revisions are handled by `as_of_snapshot`).
 # ---------------------------------------------------------------------------
 DEFAULT_PUBLICATION_LAGS: dict[str, pd.Timedelta] = {

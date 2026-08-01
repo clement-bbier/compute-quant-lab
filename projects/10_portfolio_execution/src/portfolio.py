@@ -67,7 +67,8 @@ class ERCScheme:
 
     def weights(self, vols: FloatArray, risk_budget: FloatArray | None = None) -> FloatArray:
         raise NotImplementedError(
-            "ERCScheme (risk-parity) belongs to the institutional tier: see CONVERGENCE.md."
+            "ERCScheme (risk-parity) belongs to the institutional tier: see "
+            "docs/decisions/ and this project's CLAUDE.md institutional-tier backlog."
         )
 
 

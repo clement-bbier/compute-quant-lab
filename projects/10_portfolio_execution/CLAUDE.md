@@ -1,7 +1,7 @@
 # Project 10 — Portfolio & Execution (Desk layer)
 
 > LOCAL context. Root glossary and conventions: root CLAUDE.md. Detailed methodology
-> and status: [README.md](README.md). Protected-zone patches: [CONVERGENCE.md](CONVERGENCE.md).
+> and status: [README.md](README.md). Cross-cutting decisions: [docs/decisions/](../../docs/decisions/).
 
 ## Project-specific thesis
 Turn **signals** (mean-reversion P02, derivatives P06, ML P09) into a desk-quality
@@ -17,7 +17,7 @@ the `Strategy`/`PointInTimeView` abstraction from **P08** (`core.backtest`). The
 ## Owned modules
 - `projects/10_portfolio_execution/` only.
 - Read-only: `core.backtest` (P08: engine, look-ahead guard, metrics, tracking).
-- Off-limits: any `core/`, root protected zone → patches go in [CONVERGENCE.md](CONVERGENCE.md).
+- Off-limits: any `core/`, root protected zone → convergence process (`docs/parallel-ops.md`).
 
 ## Architecture (SOLID / DI)
 - `src/provenance.py` — `SignalProvenance(name, simulated)`: the `simulated` flag is

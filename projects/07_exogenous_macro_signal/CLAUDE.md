@@ -57,7 +57,7 @@ requires `GRIDSTATUS_API_KEY`).
 - [x] STRICT anti-look-ahead tested red-first (publication lag, guard).
 - [x] Point-in-time builders (lags, moving averages, diffs) on known fixtures.
 - [x] Anti-overfit lead measurement: cross-correlation + out-of-sample OLS (temporal split).
-- [x] Reproducible MLflow run + raw exogenous data in local cache (`data/raw/`, cf. CONVERGENCE).
+- [x] Reproducible MLflow run + raw exogenous data in local cache (`data/raw/`, gitignored by design).
 
 ## Key results (SIMULATED data, seed=7)
 DGP injecting a 3-day lead; the pipeline recovers **2 exploitable days** (the 1-day
@@ -72,5 +72,5 @@ timezone, spurious regression (measured on **changes**, not levels).
 nowcasting, causal model, large panel, fine-grained handling of real revisions.
 
 ## Convergence
-Patches to the protected zone (testpaths, source registry…):
-see [CONVERGENCE.md](CONVERGENCE.md).
+Adding this project's tests to `testpaths` remains an open gap: see
+`docs/decisions/002-per-project-ci-testpaths-gap.md`.

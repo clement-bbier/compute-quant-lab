@@ -52,6 +52,6 @@ on simulated data whose generator is known. The high Sharpe is *expected* and mi
    autocorrelated returns.
 
 ## 5. Governance note
-The `risk-validator` agent described in the root `CLAUDE.md` §6 is **not registered** in
-this environment: this audit was conducted manually via the `/backtest-pitfalls` checklist. Creating
-the agent (via `agent-architect` / `/new-agent`) is a **lab growth** item -> `CONVERGENCE.md`.
+At the time of this audit, the `risk-validator` agent described in the root `CLAUDE.md` §6
+was not yet registered in this environment, so this review was conducted manually via the
+`/backtest-pitfalls` checklist. The agent has since been created (`.claude/agents/risk-validator.md`).

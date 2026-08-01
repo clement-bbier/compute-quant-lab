@@ -31,5 +31,4 @@ A modest Sharpe (0.62) on a synthetic z-score mean-reversion setup is not suspic
 
 Fixed seed (42), fixed summation order on the Rust core side (`backtest_loop`), bit-exact
 parity with the Python oracle (`core/backtest/reference_loop.py`, tested). MLflow run
-logged (params + metrics + git SHA + `dvc_version` — resolves to `no-dvc-data` in the
-absence of versioned real data, cf. root CLAUDE.md).
+logged (params + metrics + git SHA via `core.utils.tracking`).

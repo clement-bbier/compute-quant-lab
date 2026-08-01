@@ -64,7 +64,7 @@ def prefer_direct_venues(rates: Sequence[VenueRate]) -> list[VenueRate]:
     Prime Intellect relays other providers' inventory, so ``primeintellect:datacrunch``
     and the direct ``datacrunch`` venue describe the *same* underlying capacity. Letting
     both into the estimator double-counts that venue and silently overweights it
-    (see ``providers/CONVERGENCE.md`` section W2.4).
+    (see ``docs/decisions/004-provider-registry-architecture.md``).
 
     The direct quote wins: it is one hop closer to the source, so it carries neither
     the aggregator's markup nor its refresh lag. An aggregator quote is kept whenever

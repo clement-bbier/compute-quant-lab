@@ -1,8 +1,9 @@
 # P09 — Synthesis & adversarial verdict
 
-> Role held: **risk-validator** (adversary). The dedicated agent doesn't exist yet in
-> the environment (cf. [CONVERGENCE.md](../CONVERGENCE.md) §3) — the `/backtest-pitfalls`
-> audit was therefore conducted by hand, actively hunting for flaws rather than excusing them.
+> Role held: **risk-validator** (adversary). At the time of this audit the dedicated agent
+> did not yet exist in the environment (it has since been registered:
+> `.claude/agents/risk-validator.md`) — the `/backtest-pitfalls` audit was therefore
+> conducted by hand, actively hunting for flaws rather than excusing them.
 
 ## Reference run (SIMULATED)
 

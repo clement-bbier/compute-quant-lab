@@ -1,8 +1,8 @@
 # P07 — Synthesis: exogenous macro signal (lead over the spread)
 
 > **SIMULATED** data (deterministic fallback, fixed seed): a demonstration of
-> point-in-time method, not a claim of realism. Real weather/gas
-> connector = `data-engineer` item (cf. CONVERGENCE).
+> point-in-time method, not a claim of realism. A real weather/gas
+> connector remains a `data-engineer` backlog item.
 
 ## Observed lead
 - Best feature: **gas_price_lag0**

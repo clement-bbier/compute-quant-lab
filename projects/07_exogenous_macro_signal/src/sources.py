@@ -2,7 +2,7 @@
 
 Real if an API token is present; otherwise a **deterministic synthetic
 fallback** (fixed seed), logged — in the same manner as P01. The real weather/gas
-connector falls to `data-engineer` (cf. CONVERGENCE: source registry CLAUDE.md §3).
+connector falls to `data-engineer` (source registry: root `CLAUDE.md` §3).
 
 The synthetic generative process deliberately injects a **lead**: energy
 (and thus the spread) responds to gas and HDD *delayed* by ``LEAD_DAYS``. The
@@ -108,7 +108,7 @@ def load_panel(seed: int = DEMO_SEED) -> ExogenousPanel:
     token = get_env("EXOGENOUS_API_TOKEN")
     if token:
         logger.info(
-            "Exogenous token present but the real connector is not wired up (cf. CONVERGENCE) "
+            "Exogenous token present but the real connector is not wired up "
             "-> falling back to synthetic."
         )
     mode = "synthetic"

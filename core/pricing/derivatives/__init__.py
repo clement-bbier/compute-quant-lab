@@ -7,8 +7,8 @@ carries a mandatory ``simulated`` field (no default value), enforced by the type
 covered by tests.
 
 Standalone subpackage of :mod:`core.pricing`: it does not alter the P01 API (spark
-spread). Convergence will add the re-export from ``core/pricing/__init__.py`` (see
-``projects/06_compute_futures_pricing/CONVERGENCE.md``).
+spread). Re-exporting these symbols from ``core/pricing/__init__.py`` remains an
+open gap: importing via ``core.pricing.derivatives`` directly works today.
 """
 
 from __future__ import annotations

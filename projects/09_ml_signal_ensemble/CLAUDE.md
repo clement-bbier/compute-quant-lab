@@ -1,7 +1,7 @@
 # Project 09 — ML Signal Ensemble
 
 > LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
-> and status: [README.md](README.md). Protected-zone patches: [CONVERGENCE.md](CONVERGENCE.md).
+> and status: [README.md](README.md). Cross-cutting decisions: [docs/decisions/](../../docs/decisions/).
 
 ## Specific thesis
 Forecast the **direction of the spark spread** (P01) with an **ML ensemble** fed by
@@ -13,7 +13,7 @@ temporal validation rigor trumps model complexity.
 - **`core/models/`** (reusable building block) **+** `projects/09_ml_signal_ensemble/`.
 - Read-only: `core.pricing` (P01), `core.features` (P07), `core.backtest` (P08).
 - Off-limits: everything else in `core/`, root protected zone (`CLAUDE.md`, `.claude/`, `.mcp.json`,
-  `pyproject.toml`) → patches in [CONVERGENCE.md](CONVERGENCE.md).
+  `pyproject.toml`) → convergence process (`docs/parallel-ops.md`).
 
 ## Architecture (SOLID / DI) — `core/models/`
 - `protocols.py` — `Model` (`fit`/`predict_proba`), `Splitter`: injectable contracts (DI).
@@ -41,11 +41,11 @@ data (not blocked on ENTSO-E).
 - [x] `core/models/`: protocols, purged-CV + embargo + OOS, deflated Sharpe, PIT pipeline, deterministic
   XGBoost + seed ensemble, `Strategy` adapter — 30 passing tests.
 - [x] Anti-look-ahead (3 defenses), leak-free temporal split, determinism, pure-noise sanity check.
-- [x] Simulated headline run → P08 backtest → MLflow (params + n_trials + SHA + DVC + PnL figure).
+- [x] Simulated headline run → P08 backtest → MLflow (params + n_trials + SHA + data version + PnL figure).
 - [x] Adversarial verdict `/backtest-pitfalls` ([results/SYNTHESIS.md](results/SYNTHESIS.md)).
 - [x] `ruff` / `mypy core` / `pytest` all green.
 - [ ] **Real data** (ENTSO-E + compute history); **walk-forward**; LSTM/TFT (tier 3b).
-- [ ] `risk-validator` agent (protected zone → convergence, cf. CONVERGENCE.md).
+- [x] `risk-validator` agent (now registered: `.claude/agents/risk-validator.md`).
 
 ## Key results
 Pipeline validated end-to-end on **SIMULATED** data. Sharpe ~0.17, deflated/PSR ~0.66, deep

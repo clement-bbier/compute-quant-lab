@@ -58,5 +58,5 @@ uv run pytest projects/03_gpu_vol_term_structure
 - **Seed** fixed everywhere. MLflow 2026 → `MLFLOW_ALLOW_FILE_STORE=true` (handled by `tracking`).
 
 ## Convergence handoff
-See [CONVERGENCE.md](CONVERGENCE.md): adding P03 to `testpaths`, possible promotion of the
-vol estimators to `core/`.
+Adding P03 to `testpaths` remains open (see `docs/decisions/002-per-project-ci-testpaths-gap.md`);
+promoting the vol estimators to `core/` is undecided (a second consumer would confirm the need).

@@ -1,7 +1,7 @@
 # Project 05 — Energy ↔ Compute Basis
 
 > LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
-> and status: [README.md](README.md). Protected-zone patches: [CONVERGENCE.md](CONVERGENCE.md).
+> and status: [README.md](README.md). Cross-cutting decisions: [docs/decisions/](../../docs/decisions/).
 
 ## Project-specific thesis
 The spark spread varies **by region**: regional electricity price (FR/DE, ENTSO-E) ×
@@ -13,7 +13,7 @@ persistence, and honestly exposes its limitations.
 ## Modules owned
 - `projects/05_energy_compute_basis/` only.
 - Read-only: all of `core/` (P01 `core.pricing`, P04 `core.ingestion`, `core.utils`),
-  root protected zone. Any need touching the protected zone → [CONVERGENCE.md](CONVERGENCE.md).
+  root protected zone. Any need touching the protected zone → convergence process (`docs/parallel-ops.md`).
 
 ## Architecture (SOLID / DI)
 - `RegionConfig` (PUE, FX, efficiency) = injected config, no magic numbers.

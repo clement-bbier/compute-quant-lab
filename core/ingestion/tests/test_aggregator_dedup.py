@@ -3,7 +3,7 @@
 Prime Intellect relays other providers' inventory under ``primeintellect:<venue>``, so
 that quote and the direct ``<venue>`` feed describe the same underlying capacity. Both
 entering the estimator overweights the venue and skews the outlier statistics
-(``providers/CONVERGENCE.md`` section W2.4).
+(``docs/decisions/004-provider-registry-architecture.md``).
 """
 
 from __future__ import annotations

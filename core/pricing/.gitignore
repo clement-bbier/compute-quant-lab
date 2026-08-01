@@ -1,5 +1,5 @@
 # Compiled artifact of the Rust subcrate (local: `maturin develop` or a copy from
-# `_kernel/target/`). Never committed; rebuilt on demand. See CONVERGENCE.md.
+# `_kernel/target/`). Never committed; rebuilt on demand.
 _kernel.pyd
 *.pyd
 *.so

@@ -43,16 +43,17 @@ Deterministic fixtures, **zero network**.
 - [x] `ruff check .` — All checks passed.
 - [x] `mypy core` — clean (the initial crash was a stale `.mypy_cache`, purged).
 - [x] `pytest core/storage/tests` — 23 passed.
-- [x] Synthesis + convergence handoffs (`CONVERGENCE.md`).
-- [ ] **`data/snapshots/` as DVC-tracked Parquet — ⛔ blocked**: *live* seed impossible here
-  (no `.env` in the worktree, no `VASTAI/RUNPOD` token, reading the main `.env` refused by
-  the credentials guardrail). **No data fabricated**. The layer is ready; the exact seed +
-  `dvc add` procedure is in `CONVERGENCE.md` section 4 (to be run with tokens).
+- [x] Synthesis + convergence handoffs (later applied; see `docs/decisions/005-parquet-cold-store-and-dvc-removal.md`).
+- [x] **`data/snapshots/` as versioned Parquet**: *live* seed was blocked at the time this
+  synthesis was written (no `.env` in the worktree, no `VASTAI/RUNPOD` token, reading the
+  main `.env` refused by the credentials guardrail). **No data was fabricated**. Data is now
+  versioned as plain git / git-lfs, not DVC — see
+  `docs/decisions/005-parquet-cold-store-and-dvc-removal.md`.
 - [x] Nothing written outside `core/storage/` + `infra/collectors/` (+ the `data/snapshots/`
   artifact). Neither merge nor push.
 
 ## Environment note
-`duckdb 1.5.4` installed **ad hoc** in the venv (formal `pyproject` declaration ->
-convergence, `CONVERGENCE.md` section 1). `mlflow` absent from this interpreter -> the full
-MLflow run of `demo.main` executes in the lab's `uv` env; the attached `run_summary.json`
-reflects an **empty** lake (0 rows), honest before seeding.
+`duckdb 1.5.4` was installed **ad hoc** in the venv at the time (now a formal `pyproject`
+dependency). `mlflow` absent from this interpreter -> the full MLflow run of `demo.main`
+executes in the lab's `uv` env; the attached `run_summary.json` reflects an **empty** lake
+(0 rows), honest before seeding.

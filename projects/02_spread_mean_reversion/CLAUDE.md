@@ -1,7 +1,7 @@
 # Project 02 — Spread Mean Reversion
 
 > LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
-> and status: [README.md](README.md). Protected-zone patches: [CONVERGENCE.md](CONVERGENCE.md).
+> and status: [README.md](README.md). Cross-cutting decisions: [docs/decisions/](../../docs/decisions/).
 
 ## Specific thesis
 If the energy leg (ENTSO-E) and the compute leg (GPU marketplaces) are **cointegrated**, the
@@ -11,7 +11,7 @@ We bet on this mean reversion (z-score with a hysteresis band), backtested by th
 ## Owned modules
 - `projects/02_spread_mean_reversion/` only.
 - Read-only: `core.pricing` (P01), `core.backtest` (P08), `core.ingestion` (compute leg).
-- Forbidden: any `core/`, root protected zone -> patches go to [CONVERGENCE.md](CONVERGENCE.md).
+- Forbidden: any `core/`, root protected zone -> see `docs/parallel-ops.md` for the convergence process.
 
 ## Architecture (SOLID / DI)
 - `src/cointegration.py` — full protocol: ADF/KPSS, Engle-Granger (**MacKinnon** p-value via

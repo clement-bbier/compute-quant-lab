@@ -8,7 +8,7 @@ from the network call (``fetch_primeintellect``, token-gated). Output unit: USD 
 Aggregator specificity: ``source`` is **qualified by the underlying provider**
 (``"primeintellect:<provider>"``) when it is exposed, otherwise ``"primeintellect"``. This
 avoids hiding a venue that is already wired in directly (index-level deduplication by
-``source``) -- see the convergence handoff (``CONVERGENCE.md``).
+``source``) -- see ``docs/decisions/004-provider-registry-architecture.md``.
 """
 
 from __future__ import annotations

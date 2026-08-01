@@ -1,7 +1,7 @@
 # Project 06 — Compute Futures Pricing (theoretical)
 
 > LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
-> and launch instructions: [README.md](README.md). Convergence patches: [CONVERGENCE.md](CONVERGENCE.md).
+> and launch instructions: [README.md](README.md). Cross-cutting decisions: [docs/decisions/](../../docs/decisions/).
 
 ## Project-specific thesis
 Compute futures (CME, settling on the Silicon Data SDH100RT index) are

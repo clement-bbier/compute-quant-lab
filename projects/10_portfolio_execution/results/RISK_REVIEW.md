@@ -1,8 +1,8 @@
 # P10 — Adversarial review (risk-validator work, done inline)
 
-> The `risk-validator` agent doesn't exist yet in `.claude/agents/` (protected zone, to be
-> created during convergence — CONVERGENCE.md §3). In the meantime, its discipline is applied
-> here: **attack the net PnL**, hunt for look-ahead / overfitting / underestimated costs
+> At the time of this review, the `risk-validator` agent did not yet exist in
+> `.claude/agents/` (it has since been registered). Its discipline was applied
+> here by hand: **attack the net PnL**, hunt for look-ahead / overfitting / underestimated costs
 > (skill `/backtest-pitfalls`).
 
 ## P12 update (2026-06-22) — **real** signals wired in (P02/P06/P09)

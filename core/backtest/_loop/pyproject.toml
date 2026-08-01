@@ -1,6 +1,6 @@
 # STANDALONE maturin subcrate — deliberately separate from the root pyproject.toml
-# (protected zone). Wiring the build into the root package + the Rust CI is a
-# convergence patch (see projects/08_backtest_risk_engine/CONVERGENCE.md).
+# (protected zone). Wiring the build into the root package + the Rust CI is an
+# open gap, see docs/decisions/002-per-project-ci-testpaths-gap.md.
 [build-system]
 requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"

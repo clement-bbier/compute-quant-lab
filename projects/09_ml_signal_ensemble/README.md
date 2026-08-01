@@ -53,5 +53,5 @@ version + PnL figure) and writes `results/last_run.json`. Dashboard: `mlflow ui`
 PoC on **labeled simulated data** (`provenance.simulated=True`). **Modest result, not sold
 as alpha**: the full adversarial verdict (`/backtest-pitfalls` checklist) lives in
 [results/SYNTHESIS.md](results/SYNTHESIS.md). The institutional tier (real data,
-walk-forward, LSTM/TFT, deflated Sharpe with a real `n_trials`) is listed in
-[CONVERGENCE.md](CONVERGENCE.md).
+walk-forward, LSTM/TFT, deflated Sharpe with a real `n_trials`) is listed as future work
+in the [CLAUDE.md](CLAUDE.md) progress status above.

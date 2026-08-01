@@ -35,7 +35,7 @@ real compute snapshots ─┘                                            │
 uv sync --extra dev
 uv run maturin develop -m core/backtest/_loop/Cargo.toml
 
-# Tests (explicit invocation: testpaths to be widened at convergence, cf. CONVERGENCE.md)
+# Tests (explicit invocation: see docs/decisions/002-per-project-ci-testpaths-gap.md)
 uv run pytest projects/02_spread_mean_reversion -q
 
 # Backtest + MLflow run (simulated until real data is wired up)
@@ -48,7 +48,7 @@ uv run python projects/02_spread_mean_reversion/src/run_backtest.py
 - **Compute**: Vast.ai key (<https://vast.ai/> -> account -> API key) in `VASTAI_API_KEY`, then
   accumulate via the `infra/collectors/gpu_price_snapshot.py` collector (history builds up
   day by day; no retroactive compute data exists). Deeper alternative: Silicon Data
-  SDH100RT (paid, `SILICONDATA_API_TOKEN`, to be wired — cf. CONVERGENCE.md).
+  SDH100RT (paid, `SILICONDATA_API_TOKEN`, not yet wired).
 
 `run_backtest.py` automatically detects real data (token + snapshots present) and otherwise falls back to
 the **labeled** simulated dataset `simulated=True`.

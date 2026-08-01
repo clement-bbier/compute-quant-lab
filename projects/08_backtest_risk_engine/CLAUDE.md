@@ -36,9 +36,10 @@ Demo (`run_demo.py`, mean-reversion z-score on a synthetic series, 512 obs, fees
 - 29 passing tests (analytical metrics, red-guard, determinism, costs, Rust/Python parity).
 
 **Limitations / pitfalls covered**: look-ahead (active guard + red test), explicit costs,
-determinism (fixed seed + summation order), reproducibility (git SHA + DVC version).
+determinism (fixed seed + summation order), reproducibility (git SHA + data version).
 **Out of scope (tier 3b)**: deflated Sharpe (only `n_trials` is tracked), purged/embargoed CV,
 multi-asset, fine-grained execution modeling.
 
 ## Convergence
-Protected-zone patches + lab growth items: see [CONVERGENCE.md](CONVERGENCE.md).
+Protected-zone patches (Rust CI wiring, `testpaths`): see
+`docs/decisions/002-per-project-ci-testpaths-gap.md`.

@@ -54,8 +54,7 @@ infra/mcp-servers/gpu-price-server/
 ├── server.py     # FastMCP: 5 @mcp.tool() delegating to service.py + data/snapshots path resolution + stdio transport.
 ├── tests/
 │   └── test_service.py   # TDD: ParquetPriceStore on tmp_path + deterministic synthetic data
-├── README.md     # provenance: unit ($/GPU·h), timezone (UTC), frequency (hourly snapshot), real/simulated
-└── CONVERGENCE.md  # protected-zone handoff: pyproject (mcp) + CI matrix (see section 10), like W1
+└── README.md     # provenance: unit ($/GPU·h), timezone (UTC), frequency (hourly snapshot), real/simulated
 ```
 
 - **Reads**: `core.storage.ParquetPriceStore(<root>)` — `read(as_of=…,
@@ -162,8 +161,8 @@ Branch built on `main` post-W1 (`209fab1`). The server is **independent of
 the W1 providers layer**: it reads storage, never calls
 `fetch_live_gpu_prices` nor the providers. Files in the **protected zone**
 (`pyproject.toml`, `.github/workflows/ci.yml`) only go through **convergence**
-(parallel-ops section 7) — so **documented in `CONVERGENCE.md`, NOT applied
-in the branch**, exactly like W1:
+(parallel-ops section 7) — so documented here as a handoff, not applied
+in the branch, exactly like W1 (`mcp` was since folded into main dependencies):
 
 - **`pyproject.toml`** (handoff): add `"mcp>=1.2"` to `dependencies`. For
   local dev/test, `mcp` is installed **ad hoc** in the `.venv` (`uv pip

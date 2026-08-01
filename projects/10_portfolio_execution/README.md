@@ -57,7 +57,7 @@ uv run pytest projects/10_portfolio_execution/tests   # 37 tests
 uv run python projects/10_portfolio_execution/src/run_desk.py
 ```
 > Warning: `pyproject.toml`'s `testpaths` points at the P01 foundation; run P10 tests via
-> **explicit path** until convergence adds `projects/10_…/tests` (see CONVERGENCE.md).
+> **explicit path** — see `docs/decisions/002-per-project-ci-testpaths-gap.md`.
 
 ## Status
 Pipeline validated end-to-end on the **3 real signals** P02/P06/P09 (37 green tests,
@@ -65,4 +65,5 @@ Pipeline validated end-to-end on the **3 real signals** P02/P06/P09 (37 green te
 gross on a mean-reverting synthetic series is an artifact (the signals track the generating
 process), not alpha, and execution costs push it down further. Details and adversarial
 verdict: [results/SYNTHESIS.md](results/SYNTHESIS.md),
-[results/RISK_REVIEW.md](results/RISK_REVIEW.md). Next: [CONVERGENCE.md](CONVERGENCE.md).
+[results/RISK_REVIEW.md](results/RISK_REVIEW.md). Next: institutional-tier items in
+[CLAUDE.md](CLAUDE.md)'s progress status above.
