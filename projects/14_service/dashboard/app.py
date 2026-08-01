@@ -33,14 +33,20 @@ if str(_SRC) not in sys.path:
 from signal_iface import Action, NaiveSignalSource  # noqa: E402  (après ajout sys.path)
 from views import MarketView, price_curve, read_market  # noqa: E402
 
-#: Modèles proposés au sélecteur (présents ou non dans le lac — géré à l'affichage).
-CANDIDATE_MODELS: list[str] = ["H100", "H200", "B200", "A100", "L40S", "RTX4090"]
+#: Repli si le lac est encore vide (clone frais) — aucun modèle n'y est encore présent.
+_FALLBACK_MODELS: list[str] = ["H100", "H200", "B200"]
 #: Profondeur de la courbe de tendance (jours).
 CURVE_LOOKBACK_DAYS: int = 30
 
 
 def _store() -> ParquetSnapshotStore:
     return ParquetSnapshotStore(SNAPSHOTS_DIR)
+
+
+def _available_models(store: ParquetSnapshotStore) -> list[str]:
+    """Modèles GPU réellement présents dans le lac (triés), repli si le lac est vide."""
+    models = sorted({s.gpu_model for s in store.load()})
+    return models or _FALLBACK_MODELS
 
 
 def _render_cheapest(market: MarketView) -> None:
@@ -119,7 +125,7 @@ def render() -> None:
     st.caption("Benchmark multi-venues point-in-time · free tier public")
 
     store = _store()
-    model = st.selectbox("Modèle GPU", CANDIDATE_MODELS, index=0)
+    model = st.selectbox("Modèle GPU", _available_models(store), index=0)
     as_of = dt.datetime.now(tz=dt.timezone.utc)
 
     try:
@@ -138,4 +144,5 @@ def render() -> None:
     _render_about()
 
 
-render()
+if __name__ == "__main__":
+    render()
