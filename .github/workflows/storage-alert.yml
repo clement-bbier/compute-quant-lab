@@ -1,9 +1,9 @@
 name: storage-alert
 
 # Alerte avant de saturer le stockage GitHub (le repo accumule l'historique compute
-# sur la branche data-snapshots). Hebdomadaire : si la taille du repo depasse le seuil,
-# ouvre une issue -> GitHub t'envoie un mail (notifications issues activees par defaut).
-# Aucun secret requis (GITHUB_TOKEN suffit).
+# en git ordinaire dans data/snapshots/, sans LFS ni DVC). Hebdomadaire : si la taille
+# du repo depasse le seuil, ouvre une issue -> GitHub t'envoie un mail (notifications
+# issues activees par defaut). Aucun secret requis (GITHUB_TOKEN suffit).
 
 on:
   schedule:
@@ -37,4 +37,4 @@ jobs:
           fi
           gh issue create \
             --title "URGENT stockage GitHub : ${size} Ko (seuil ${THRESHOLD_KB})" \
-            --body "Le repo atteint ${size} Ko. Action : migrer l'historique data-snapshots vers du stockage objet (S3/R2 via DVC) ou compacter la branche. Cf. docs/storage-roadmap.md. (Alerte auto storage-alert.yml.)"
+            --body "Le repo atteint ${size} Ko. Action : migrer data/snapshots/ vers du stockage objet (S3/R2) ou compacter l'historique git. Cf. docs/storage-roadmap.md. (Alerte auto storage-alert.yml.)"
