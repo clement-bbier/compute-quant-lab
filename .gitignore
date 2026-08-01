@@ -31,6 +31,11 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 
+# Rust (maturin/cargo build output for the _loop, _kernel, forward_engine crates)
+target/
+*.pyd
+*.so
+
 # Coverage (make coverage) — regenerated locally/CI, never committed.
 .coverage
 .coverage-report.md
