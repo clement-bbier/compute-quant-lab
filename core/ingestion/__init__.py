@@ -5,6 +5,7 @@ détail des sources réelles (marketplace) vit dans ``gpu_market.py``, le stocka
 ``snapshot_store.py``, l'agrégation configurable dans ``estimators.py`` / ``compute_index.py``.
 """
 
+from core.ingestion import energy, providers
 from core.ingestion.compute_index import (
     DEFAULT_INDEX_CONFIG,
     HYPERSCALERS,
@@ -39,6 +40,9 @@ from core.ingestion.protocols import (
 from core.ingestion.snapshot_store import CsvSnapshotStore
 
 __all__ = [
+    # Sous-paquets de connecteurs (façade symétrique : compute + énergie).
+    "energy",
+    "providers",
     "DEFAULT_INDEX_CONFIG",
     "HYPERSCALERS",
     "IndexConfig",
