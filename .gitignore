@@ -15,8 +15,7 @@
 
 # data/snapshots/ EST versionné : c'est la donnée brute collectée heure par
 # heure, irremplaçable (le prix du compute n'a pas d'historique achetable).
-# Les CSV passent par git-lfs (cf. .gitattributes) ; les Parquet, petits et
-# nombreux, restent en git ordinaire — LFS y serait contre-productif.
+# CSV et Parquet sont tous les deux en git ordinaire (LFS retiré).
 
 # Expériences / artefacts
 /experiments/mlruns/
