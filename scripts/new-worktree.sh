@@ -4,7 +4,9 @@ set -euo pipefail
 module="${1:?Usage: ./scripts/new-worktree.sh <module>}"
 branch="feature/${module}"
 path="../lab-${module}"
-git worktree add "$path" -b "$branch"
+# Lab standard (docs/git-workflow.md §2): branch off `integration`, not
+# whatever ref HEAD happens to be pointing at.
+git worktree add "$path" -b "$branch" integration
 echo ""
 echo "Worktree created: $path (branch $branch)"
 echo "Reminder: this session must write ONLY into the '$module' module."

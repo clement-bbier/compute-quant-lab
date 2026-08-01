@@ -6,7 +6,9 @@ param(
 $branch = "feature/$Module"
 $path   = "../lab-$Module"
 
-git worktree add $path -b $branch
+# Lab standard (docs/git-workflow.md §2): branch off `integration`, not
+# whatever ref HEAD happens to be pointing at.
+git worktree add $path -b $branch integration
 Write-Host ""
 Write-Host "Worktree created: $path  (branch $branch)" -ForegroundColor Green
 Write-Host "Reminder: this session must write ONLY into the '$Module' module."
