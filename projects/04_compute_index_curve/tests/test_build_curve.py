@@ -35,5 +35,8 @@ def test_build_forward_curve_logs_and_returns_simulated(tmp_path, monkeypatch) -
 
 
 def test_select_forward_model_uses_rust_when_built() -> None:
+    pytest.importorskip(
+        "forward_engine", reason="forward_engine crate not built (run `make kernels`)"
+    )
     _, engine = select_forward_model(seed=0, n_paths=1000)
-    assert engine == "rust"  # la crate forward_engine est buildée dans ce worktree
+    assert engine == "rust"
