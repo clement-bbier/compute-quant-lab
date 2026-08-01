@@ -36,6 +36,7 @@ from core.ingestion.compute_index import DEFAULT_INDEX_CONFIG  # noqa: E402
 from core.ingestion.protocols import Snapshot  # noqa: E402
 from core.storage import ParquetSnapshotStore  # noqa: E402
 from core.utils.config import SNAPSHOTS_DIR  # noqa: E402
+from dashboard_kit import COLORS, SIZES, apply_page, header, money_axis  # noqa: E402
 
 CONFIG = DEFAULT_INDEX_CONFIG
 
@@ -68,11 +69,11 @@ def _venue_points(snapshots: list[Snapshot], grid: list[dt.datetime], model: str
 
 
 def main() -> None:
-    st.set_page_config(page_title="Compute Spot Benchmark", layout="wide")
-    st.title("Compute Spot Benchmark — GPU-hour reference price")
-    st.caption(
-        "**Real** multi-venue spot index, point-in-time (UTC). Published measurement: reference "
-        'price + cross-venue dispersion. No timing signal ("rent on X now").'
+    template = apply_page(title="Compute Spot Benchmark", icon="⚡")
+    header(
+        "Compute Spot Benchmark",
+        "Real multi-venue GPU-hour reference price · point-in-time (UTC) · "
+        'measurement only, no timing signal ("rent on X now").',
     )
 
     root = st.sidebar.text_input("Cold store root (Parquet)", value=str(SNAPSHOTS_DIR))
@@ -86,20 +87,19 @@ def main() -> None:
         )
         return
 
-    st.info(
-        f"⚠️ Real history: **{history.n_snapshots}** readings · "
-        f"**{history.n_venues}** venues ({', '.join(history.sources)}) · "
-        f"**{history.n_distinct_timestamps}** instants · span **{history.span_hours:.1f} h**. "
-        "Thin by construction at the start — it grows day by day."
-    )
+    kpi = st.columns(4)
+    kpi[0].metric("Readings", f"{history.n_snapshots:,}")
+    kpi[1].metric("Venues", str(history.n_venues), help=", ".join(history.sources))
+    kpi[2].metric("Distinct instants", f"{history.n_distinct_timestamps:,}")
+    kpi[3].metric("History span", f"{history.span_hours / 24:.1f} d")
 
     candidates = multi_venue_models(snapshots) or sorted({s.gpu_model for s in snapshots})
     col_model, col_cad = st.sidebar, st.sidebar
     model = col_model.selectbox("GPU model", candidates)
     cadence = col_cad.radio(
         "Cadence",
-        ["Demo (per observed snapshot)", "Daily (canonical, settlement)"],
-        help="The published product = daily fix; the demo cadence shows the thin history.",
+        ["Daily (canonical, settlement)", "Demo (per observed snapshot)"],
+        help="The published product = daily fix; the demo cadence shows every observed instant.",
     )
 
     grid = _grid(snapshots, model, cadence)
@@ -117,7 +117,7 @@ def main() -> None:
                     x=venue_df["as_of"],
                     y=venue_df["rate"],
                     mode="markers",
-                    marker=dict(size=8, opacity=0.55),
+                    marker=dict(size=7, opacity=0.5),
                     name="venues (dispersion)",
                     text=venue_df["source"],
                 )
@@ -128,11 +128,13 @@ def main() -> None:
                     x=index_df["as_of"],
                     y=index_df["price_usd_per_hour"],
                     mode="lines+markers",
-                    line=dict(width=3),
+                    line=dict(width=2.5, color=COLORS["accent"]),
+                    marker=dict(size=5, color=COLORS["accent"]),
                     name="index",
                 )
             )
-        fig.update_layout(yaxis_title="$/GPU·h", xaxis_title="fix (UTC)", height=420)
+        fig.update_layout(template=template, xaxis_title="fix (UTC)", height=SIZES["chart_height"])
+        money_axis(fig)
         st.plotly_chart(fig, use_container_width=True)
         if series.skipped:
             st.caption(
