@@ -1,16 +1,15 @@
-"""Reproductibilité : logging MLflow d'un backtest (params + métriques + SHA + DVC + figure).
+"""Reproducibility: MLflow logging of a backtest (params + metrics + git SHA + figure).
 
-Compose `core.utils.tracking.run` (qui logge déjà params + SHA git) sans le modifier,
-et ajoute la **version DVC** des données — rendant exécutable la convention du labo
-« tout backtest loggué MLflow + SHA git + version DVC ». L'I/O est explicite et isolé
-ici ; le moteur (`engine.py`) reste pur.
+Composes :func:`core.utils.tracking.run` (which already logs params and the git SHA)
+without modifying it, and adds the backtest-specific artefacts. Data files are
+tracked as plain git objects, so the logged git SHA already pins the exact dataset
+a run saw -- no separate data-version tag is needed. I/O is explicit and confined
+to this module; the engine (``engine.py``) stays pure.
 """
 
 from __future__ import annotations
 
-import hashlib
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Any, Iterator
 
 import mlflow
@@ -19,44 +18,31 @@ from core.backtest.protocols import FloatArray
 from core.utils import tracking as base_tracking
 
 
-def dvc_version() -> str:
-    """Empreinte de la version des données DVC (best-effort, jamais bloquant).
-
-    Hash court de `dvc.lock` s'il existe, sinon `"no-dvc-data"` quand rien n'est
-    encore traqué (cas actuel du dépôt). Garantit qu'un run logge toujours *une*
-    version DVC, même vide.
-    """
-    lock = Path("dvc.lock")
-    if lock.exists():
-        return hashlib.sha256(lock.read_bytes()).hexdigest()[:12]
-    return "no-dvc-data"
-
-
 @contextmanager
 def tracked_run(experiment: str, params: dict[str, Any]) -> Iterator[None]:
-    """Run MLflow loggant params + SHA git (hérité) + version DVC.
+    """Open an MLflow run logging params and the git SHA (inherited).
 
-    Usage :
-        with tracked_run("p08_backtest_demo", params):
-            log_metrics(result.metrics)
-            log_pnl_figure(cumulative_pnl(result.ledger.pnl))
+    Examples
+    --------
+    >>> with tracked_run("p08_backtest_demo", params):  # doctest: +SKIP
+    ...     log_metrics(result.metrics)
+    ...     log_pnl_figure(cumulative_pnl(result.ledger.pnl))
     """
     with base_tracking.run(experiment, params):
-        mlflow.set_tag("dvc_version", dvc_version())
         yield
 
 
 def log_metrics(metrics: dict[str, float]) -> None:
-    """Logge le dictionnaire de métriques dans le run MLflow actif."""
+    """Log the metrics mapping to the active MLflow run."""
     mlflow.log_metrics(metrics)
 
 
 def log_pnl_figure(cumulative_pnl: FloatArray, artifact_file: str = "pnl_curve.html") -> None:
-    """Logge la courbe de PnL cumulé comme artefact du run MLflow actif."""
+    """Log the cumulative PnL curve as an artefact of the active MLflow run."""
     import plotly.graph_objects as go
 
-    figure = go.Figure(go.Scatter(y=cumulative_pnl, mode="lines", name="PnL cumulé"))
+    figure = go.Figure(go.Scatter(y=cumulative_pnl, mode="lines", name="Cumulative PnL"))
     figure.update_layout(
-        title="PnL cumulé", xaxis_title="pas de temps", yaxis_title="PnL (capital=1)"
+        title="Cumulative PnL", xaxis_title="time step", yaxis_title="PnL (capital=1)"
     )
     mlflow.log_figure(figure, artifact_file)

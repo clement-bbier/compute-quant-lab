@@ -1,11 +1,12 @@
-"""Run consommateur du cold store : EDA DuckDB + log de la version DVC (reproductibilité).
+"""Cold-store consumer run: DuckDB EDA plus MLflow logging (reproducibility).
 
-Démontre le **cœur du lot** (roadmap §0, instance §7) : un consommateur lit le lac Parquet
-versionné via DuckDB et logge la **version DVC** des données (par ``core.utils.tracking``),
-si bien qu'une même requête est rejouable des mois plus tard sur la même version de données.
+Demonstrates the core of the batch (roadmap section 0, instance section 7): a consumer
+reads the versioned Parquet lake through DuckDB and logs the run via
+``core.utils.tracking``, whose git SHA pins the exact dataset. The same query is
+therefore replayable months later against the same data version.
 
-``summarize`` est une fonction pure (testable, sans MLflow) ; ``main`` l'enveloppe d'un run
-MLflow et matérialise ``results/run_summary.json``.
+``summarize`` is a pure function (testable, no MLflow); ``main`` wraps it in an MLflow
+run and materialises ``results/run_summary.json``.
 """
 
 from __future__ import annotations
@@ -35,13 +36,13 @@ FROM prices
 
 
 def summarize(store: ParquetPriceStore) -> dict[str, Any]:
-    """Statistiques d'audit du lac via DuckDB (pure, sans effet de bord).
+    """Audit statistics of the lake via DuckDB (pure, no side effect).
 
     Returns
     -------
     dict
-        ``n_rows``, ``n_sources``, ``n_models`` (entiers) et ``min_price`` / ``max_price``
-        (flottants $/GPU·h). Tout à zéro sur un lac vide.
+        ``n_rows``, ``n_sources``, ``n_models`` (integers) plus ``min_price`` /
+        ``max_price`` (floats, $/GPU-h). All zero on an empty lake.
     """
     row = query(_SUMMARY_SQL, store).iloc[0]
     return {
@@ -54,12 +55,13 @@ def summarize(store: ParquetPriceStore) -> dict[str, Any]:
 
 
 def main(store: ParquetPriceStore | None = None) -> dict[str, Any]:
-    """Run MLflow : logge les stats du cold store + la version DVC, écrit ``run_summary.json``.
+    """MLflow run: log the cold-store statistics and write ``run_summary.json``.
 
-    Importe MLflow paresseusement pour que ``summarize`` reste testable sans la dépendance.
+    Imports MLflow lazily so that ``summarize`` stays testable without the dependency.
     """
-    from core.utils import tracking  # import paresseux (effets de bord MLflow)
     import mlflow
+
+    from core.utils import tracking
 
     store = store or ParquetPriceStore(SNAPSHOT_DIR)
     summary = summarize(store)
@@ -68,7 +70,7 @@ def main(store: ParquetPriceStore | None = None) -> dict[str, Any]:
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "run_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    logger.info("Cold store résumé : %s", summary)
+    logger.info("Cold store summary: %s", summary)
     return summary
 
 
