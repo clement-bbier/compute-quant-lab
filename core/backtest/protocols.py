@@ -10,11 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-import numpy as np
-from numpy.typing import NDArray
-
-#: Tableau de flottants double précision (les séries du moteur sont en float64).
-FloatArray = NDArray[np.float64]
+#: Re-exported from :mod:`core.utils.types` so the public alias name is unchanged.
+from core.utils.types import FloatArray
 
 
 @dataclass(frozen=True)
@@ -81,21 +78,18 @@ class PointInTimeView(Protocol):
 class Strategy(Protocol):
     """Produit une position cible à t à partir de données ≤ t uniquement."""
 
-    def signal(self, view: PointInTimeView) -> float:
-        ...
+    def signal(self, view: PointInTimeView) -> float: ...
 
 
 @runtime_checkable
 class CostModel(Protocol):
     """Coût (€) d'un trade : frais + slippage."""
 
-    def cost(self, trade: Trade) -> float:
-        ...
+    def cost(self, trade: Trade) -> float: ...
 
 
 @runtime_checkable
 class MetricsCalculator(Protocol):
     """Calcule les métriques de risque à partir d'un `Ledger`."""
 
-    def compute(self, ledger: Ledger) -> dict[str, float]:
-        ...
+    def compute(self, ledger: Ledger) -> dict[str, float]: ...

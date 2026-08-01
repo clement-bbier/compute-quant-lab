@@ -16,13 +16,8 @@ from __future__ import annotations
 
 from typing import Iterator, Protocol, runtime_checkable
 
-import numpy as np
-from numpy.typing import NDArray
-
-#: Tableau de flottants 64 bits (même convention que `core.pricing` / `core.backtest`).
-FloatArray = NDArray[np.float64]
-#: Tableau d'indices entiers (sorties des splitters).
-IntArray = NDArray[np.intp]
+#: Re-exported from :mod:`core.utils.types` so the public alias names are unchanged.
+from core.utils.types import FloatArray, IntArray
 
 
 @runtime_checkable

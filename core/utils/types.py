@@ -11,10 +11,11 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-#: Contiguous array of 64-bit floats (prices, returns, spreads, positions).
+#: Array of 64-bit floats (prices, returns, spreads, positions).
 FloatArray = NDArray[np.float64]
 
-#: Contiguous array of 64-bit signed integers (indices, counts, discrete states).
-IntArray = NDArray[np.int64]
+#: Array of platform-sized integers, as returned by NumPy indexing operations
+#: (``np.intp``, the dtype of ``argsort``/``nonzero``). Used for fold indices.
+IntArray = NDArray[np.intp]
 
 __all__ = ["FloatArray", "IntArray"]

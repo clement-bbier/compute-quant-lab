@@ -23,12 +23,9 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-import numpy as np
-import numpy.typing as npt
 import pandas as pd
 
-#: Tableau de flottants 64 bits (même convention que `core.pricing`).
-FloatArray = npt.NDArray[np.float64]
+from core.utils.types import FloatArray as FloatArray  # re-export: public alias
 
 #: Colonnes canoniques d'un frame *vintage* (tidy, long-form).
 VALUE_TS = "value_ts"

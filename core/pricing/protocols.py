@@ -11,12 +11,10 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-import numpy as np
-import numpy.typing as npt
 import pandas as pd
 
-#: Tableau de flottants 64 bits, unité de travail du noyau vectoriel.
-FloatArray = npt.NDArray[np.float64]
+#: Re-exported from :mod:`core.utils.types` so the public alias name is unchanged.
+from core.utils.types import FloatArray
 
 
 @runtime_checkable
