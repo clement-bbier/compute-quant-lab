@@ -1,7 +1,7 @@
 """Reproducible demo of the P08 engine on synthetic fixtures → full MLflow run.
 
 Runs the mean-reversion strategy on the synthetic series, computes the risk metrics,
-and logs a full MLflow run (params + metrics + git SHA + DVC version + PnL figure)
+and logs a full MLflow run (params + metrics + git SHA + PnL figure)
 into `results/mlruns`. Identically replayable (fixed seed).
 
     uv run python projects/08_backtest_risk_engine/run_demo.py
@@ -17,7 +17,7 @@ from pathlib import Path
 import mlflow
 
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
-from core.backtest.tracking import dvc_version, log_metrics, log_pnl_figure, tracked_run
+from core.backtest.tracking import log_metrics, log_pnl_figure, tracked_run
 from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
@@ -60,13 +60,12 @@ def main() -> None:
 
     snapshot = {
         "run_id": run_id,
-        "dvc_version": dvc_version(),
         "params": params,
         "metrics": result.metrics,
     }
     (RESULTS_DIR / "last_run.json").write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
 
-    log.info("run_id=%s  dvc_version=%s", run_id, snapshot["dvc_version"])
+    log.info("run_id=%s", run_id)
     for name, value in result.metrics.items():
         log.info("  %-14s = %.6f", name, value)
 

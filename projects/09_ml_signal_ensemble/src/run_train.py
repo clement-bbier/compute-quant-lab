@@ -8,7 +8,7 @@ Reproducible and HONEST pipeline on **simulated** data (provenance ``simulated=T
 3. OOS signal → `PrecomputedSignalStrategy` → P08 backtest engine;
 4. risk metrics + **deflated Sharpe** (Probabilistic Sharpe Ratio, accounting for the
    number of trials, sample size, and non-normality);
-5. MLflow run (params + n_trials + seed + windows + SHA + DVC + PnL figure).
+5. MLflow run (params + n_trials + seed + windows + SHA + PnL figure).
 
     uv run python projects/09_ml_signal_ensemble/src/run_train.py
 
@@ -30,7 +30,7 @@ from scipy.stats import kurtosis as scipy_kurtosis
 from scipy.stats import skew as scipy_skew
 
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
-from core.backtest.tracking import dvc_version, log_metrics, log_pnl_figure, tracked_run
+from core.backtest.tracking import log_metrics, log_pnl_figure, tracked_run
 from core.features import FeatureSpec, PointInTimeFeatureBuilder
 from core.models import (
     FeaturePipeline,
@@ -182,7 +182,6 @@ def main() -> None:
 
     snapshot = {
         "run_id": run_id,
-        "dvc_version": dvc_version(),
         "params": params,
         "metrics": metrics,
     }

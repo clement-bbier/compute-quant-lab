@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
-from core.backtest.tracking import dvc_version, log_metrics, log_pnl_figure, tracked_run
+from core.backtest.tracking import log_metrics, log_pnl_figure, tracked_run
 from core.ingestion import CsvSnapshotStore
 from core.utils.logging import get_logger
 
@@ -162,7 +162,6 @@ def main() -> None:
 
     snapshot = {
         "run_id": run_id,
-        "dvc_version": dvc_version(),
         "params": params,
         "metrics": result.metrics,
         "n_trades": result.ledger.n_trades,

@@ -8,8 +8,8 @@ gross on synthetic data is an artifact (see results/SYNTHESIS.md). This validate
 (risk-budgeted weighting + execution costs → net PnL) on real signals.
 
 The run logs to MLflow: params (weighting, costs, κ, signals used, n_trials, simulated) +
-risk metrics **both net AND gross** + per-signal contribution + net PnL figure. Replayable
-(fixed seed). Run:
+risk metrics **both net AND gross** + per-signal contribution + net PnL figure + git SHA.
+Replayable (fixed seed). Run:
 
     uv run python projects/10_portfolio_execution/src/run_desk.py
 """
@@ -30,7 +30,7 @@ import pandas as pd
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
 from core.backtest.metrics import DefaultMetrics
 from core.backtest.protocols import FloatArray, Ledger
-from core.backtest.tracking import dvc_version, log_pnl_figure, tracked_run
+from core.backtest.tracking import log_pnl_figure, tracked_run
 from core.models.pipeline import FeaturePipeline, SpreadFeatureSpec, build_labels
 from core.models.protocols import Model
 from core.models.validation import PurgedKFold, oos_predict
@@ -332,7 +332,6 @@ def main() -> None:
 
     snapshot = {
         "run_id": run_id,
-        "dvc_version": dvc_version(),
         "params": params,
         "net_metrics": result.net_metrics,
         "gross_metrics": result.gross_metrics,
