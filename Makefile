@@ -27,13 +27,13 @@ CRATES := core/pricing/_kernel \
           projects/04_compute_index_curve/forward_engine
 
 .DEFAULT_GOAL := help
-.PHONY: help install kernels test coverage lint fmt demo clean
+.PHONY: help sync kernels check-kernels test coverage lint fmt demo clean
 
 help: ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
-install: ## Sync the environment and build the Rust kernels
+sync: ## THE command to update the environment: uv sync + rebuild Rust kernels
 	uv sync --extra dev
 	@$(MAKE) kernels
 
@@ -43,7 +43,11 @@ kernels: ## Build the three Rust extension modules
 		uv run maturin develop -m "$$c/Cargo.toml" || exit 1; \
 	done
 
-test: ## Run every test suite in isolation
+check-kernels: ## Pre-flight: fail fast if the Rust kernels aren't built (uv sync removes them)
+	@uv run python -c "import _kernel, backtest_loop, forward_engine" 2>/dev/null \
+		|| { echo "kernels missing — run \`make kernels\`" >&2; exit 1; }
+
+test: check-kernels ## Run every test suite in isolation
 	@ran=0; \
 	for d in $(TEST_DIRS); do \
 		[ -d "$$d" ] || continue; \
@@ -54,7 +58,7 @@ test: ## Run every test suite in isolation
 	echo "== $$ran suites =="; \
 	[ "$$ran" -ge 20 ] || { echo "Too few suites ($$ran < 20)" >&2; exit 1; }
 
-coverage: ## Run every test suite with combined coverage (core, projects, infra)
+coverage: check-kernels ## Run every test suite with combined coverage (core, projects, infra)
 	@rm -f .coverage
 	@for d in $(TEST_DIRS); do \
 		[ -d "$$d" ] || continue; \
