@@ -1,7 +1,7 @@
 """``SnapshotStore`` adapter (P04 ingestion leg) over the Parquet cold store.
 
 Lets ``build_spot_index`` / ``MarketplaceProxySource`` read the index from the
-**versioned cold store** (Parquet + DVC) rather than the CSV — compliant with the
+**versioned cold store** (Parquet, plain git) rather than the CSV — compliant with the
 ``training-cold-store`` rule. Single bridge: implements the
 :class:`core.ingestion.protocols.SnapshotStore` protocol by delegating to
 :class:`~core.storage.parquet_store.ParquetPriceStore` through the converters.

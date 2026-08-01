@@ -2,16 +2,15 @@
 
 Reads the **real versioned cold store** (Parquet, ``core.storage.ParquetSnapshotStore`` on
 ``data/snapshots``), builds the canonical daily index + cross-venue dispersion
-via the pure ``benchmark`` layer, logs a reproducible MLflow run (params + SHA + DVC
-version, provenance ``real_spot``) and writes an auditable summary to ``results/``.
+via the pure ``benchmark`` layer, logs a reproducible MLflow run (params + SHA,
+provenance ``real_spot``) and writes an auditable summary to ``results/``.
 
 Product granularity: **daily fix** (00:30 UTC). A day's fix settles after the fact
 (24 h staleness window); the grid therefore extends ``staleness`` beyond the last
 reading to include the most recent settlement fix.
 
-Data: ``data/snapshots`` is versioned as plain git on ``main``. For the most recent
-collection (accumulated continuously by the CI cron), populate the lake via
-``git checkout data-snapshots -- data/snapshots``.
+Data: ``data/snapshots`` is versioned as plain git on ``main``, updated continuously by
+the CI cron — no extra step is needed to have the latest collection locally.
 Launch: ``uv run python projects/13_compute_benchmark/run_build_benchmark.py [--root DIR]``.
 """
 

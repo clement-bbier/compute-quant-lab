@@ -7,7 +7,7 @@ Near-zero cost: no database to administer is introduced as long as the data stay
 
 The query runs against a ``prices`` view exposing the canonical schema
 (:data:`~core.storage.schema.COLUMNS` columns + the ``month`` partition). Since the
-DVC-versioned lake is immutable, replaying the same query on the same DVC version is
+plain-git-versioned lake is immutable, replaying the same query at the same git SHA is
 reproducible.
 """
 

@@ -7,7 +7,7 @@ prices), ``publish_time = interval_start`` (known at the end of the interval).
 
 Append-only, **content-idempotent**, partitioned by ``series`` / month — the foundation
 of calibration reproducibility (training-cold-store rule: training reads this immutable
-DVC-versioned lake, never live data). Parallel to the GPU price lake
+plain-git-versioned lake, never live data). Parallel to the GPU price lake
 (``ParquetPriceStore``), with a distinct schema because energy carries two timestamps
 (publication + target).
 """

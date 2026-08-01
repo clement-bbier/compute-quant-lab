@@ -2,7 +2,7 @@
 
 A columnar, typed, compressed price lake partitioned by ``source`` / month — append-only
 and idempotent. This is the lab's **reproducibility foundation**: an immutable,
-point-in-time history, DVC-versioned, on which every model trains identically.
+point-in-time history, plain-git-versioned, on which every model trains identically.
 
 Idempotence by **full row content** (price included): rewriting the same reading is a
 no-op, but distinct offers at the same instant/source/model are **all kept** — the store

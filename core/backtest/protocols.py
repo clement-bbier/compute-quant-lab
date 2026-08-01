@@ -41,7 +41,7 @@ class Ledger:
 class BacktestResult:
     """*Pure* result of a run: accounting + metrics + params.
 
-    Reproducibility metadata (git SHA, DVC version, run_id) does not live here:
+    Reproducibility metadata (git SHA, run_id) does not live here:
     it is logged to MLflow by `core.backtest.tracking` (the run is replayable from
     its MLflow run_id alone). Keeps the engine free of hidden I/O.
     """
