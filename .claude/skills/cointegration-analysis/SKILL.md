@@ -1,37 +1,37 @@
 ---
 name: cointegration-analysis
-description: Protocole rigoureux pour tester si deux séries (prix élec et prix compute) sont liées par une relation stable exploitable en arbitrage. À invoquer avant de construire toute stratégie de spread ou de mean-reversion.
+description: Rigorous protocol to test whether two series (electricity price and compute price) are linked by a stable relationship exploitable for arbitrage. To be invoked before building any spread or mean-reversion strategy.
 ---
 # Cointegration Analysis
 
-Deux séries peuvent être corrélées par hasard (corrélation fallacieuse) sans relation
-durable. La cointégration teste une vraie relation d'équilibre de long terme — c'est le
-fondement statistique d'un arbitrage de spread. Ne jamais shorter un spread sans l'avoir testé.
+Two series can be correlated by chance (spurious correlation) without any lasting
+relationship. Cointegration tests for a true long-run equilibrium relationship — it is the
+statistical foundation of a spread arbitrage. Never short a spread without having tested it.
 
-## Protocole
+## Protocol
 
-1. **Stationnarité** : tester chaque série brute avec ADF (Augmented Dickey-Fuller) et
-   KPSS. Une série de prix est typiquement I(1) (non-stationnaire en niveau, stationnaire
-   en différence). Confirmer avant d'aller plus loin.
-2. **Test de cointégration** :
-   - Engle-Granger (2 séries) : régresser y sur x, tester la stationnarité du résidu (ADF).
-     Si le résidu est stationnaire → cointégration.
-   - Johansen (≥ 2 séries, plus robuste) : préférer pour estimer le vecteur de cointégration
-     et le nombre de relations.
-3. **Le spread** = combinaison linéaire stationnaire issue du test. C'est lui qu'on trade,
-   pas les prix bruts.
-4. **Demi-vie de mean-reversion** : estimer via un modèle d'Ornstein-Uhlenbeck (régression
-   du Δspread sur le spread retardé). Une demi-vie courte = signal plus exploitable.
-5. **Stabilité** : re-tester sur fenêtres glissantes. Une relation qui n'apparaît que sur
-   une période est suspecte. La cointégration peut casser (changement de régime).
+1. **Stationarity**: test each raw series with ADF (Augmented Dickey-Fuller) and
+   KPSS. A price series is typically I(1) (non-stationary in level, stationary
+   in first difference). Confirm before going further.
+2. **Cointegration test**:
+   - Engle-Granger (2 series): regress y on x, test the residual for stationarity (ADF).
+     If the residual is stationary → cointegration.
+   - Johansen (≥ 2 series, more robust): prefer it to estimate the cointegration vector
+     and the number of relationships.
+3. **The spread** = stationary linear combination coming out of the test. This is what you trade,
+   not the raw prices.
+4. **Mean-reversion half-life**: estimate via an Ornstein-Uhlenbeck model (regression
+   of Δspread on the lagged spread). A short half-life = a more exploitable signal.
+5. **Stability**: re-test on rolling windows. A relationship that only appears over
+   one period is suspect. Cointegration can break down (regime change).
 
-## Pièges (déléguer la vérif à risk-validator)
-- Cointégration in-sample non vérifiée out-of-sample.
-- Look-ahead : le vecteur de cointégration doit être estimé en point-in-time, ré-estimé
-  sur fenêtre glissante, jamais sur tout l'échantillon d'un coup.
+## Pitfalls (delegate the check to risk-validator)
+- In-sample cointegration not verified out-of-sample.
+- Look-ahead: the cointegration vector must be estimated point-in-time, re-estimated
+  on a rolling window, never on the whole sample at once.
 
-## Outils
-`statsmodels` : `adfuller`, `coint` (Engle-Granger), `coint_johansen` (via vecm).
+## Tools
+`statsmodels`: `adfuller`, `coint` (Engle-Granger), `coint_johansen` (via vecm).
 
-## Référence
-Voir `references/stat-arb/` (Engle-Granger 1987 ; Johansen ; Avellaneda & Lee).
+## Reference
+See `references/stat-arb/` (Engle-Granger 1987; Johansen; Avellaneda & Lee).

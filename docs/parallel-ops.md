@@ -1,26 +1,26 @@
-# Opérations parallèles — le modèle « usine de recherche »
+# Parallel operations — the "research factory" model
 
-Comment faire tourner beaucoup d'agents, de worktrees et de terminaux en parallèle
-sans que ça s'effondre en conflits de merge.
+How to run many agents, worktrees and terminals in parallel without
+collapsing into merge conflicts.
 
-## Les trois voies
+## The three lanes
 
-| Voie | Mécanisme | Parallélisme | Sortie |
+| Lane | Mechanism | Parallelism | Output |
 |---|---|---|---|
-| **Collecte** | essaim de subagents (`/market-scan`) | élevé (≈10) | synthèses → `references/` |
-| **Construction** | git worktrees + sessions | modéré | code → branche d'intégration |
-| **Convergence** | 1 session pilote | séquentiel | review, merge, MAJ `CLAUDE.md` |
+| **Collection** | subagent swarm (`/market-scan`) | high (~10) | syntheses -> `references/` |
+| **Construction** | git worktrees + sessions | moderate | code -> integration branch |
+| **Convergence** | 1 pilot session | sequential | review, merge, update `CLAUDE.md` |
 
-Collecte : « beaucoup d'agents » est sans risque, ils ne renvoient que des synthèses.
-Construction : le risque est git, pas Claude → règle de partition ci-dessous.
-Convergence : le vrai goulot est humain → cadence de réconciliation.
+Collection: "many agents" is safe, they only return syntheses.
+Construction: the risk is git, not Claude -> partition rule below.
+Convergence: the real bottleneck is human -> reconciliation cadence.
 
-## Règle d'or des worktrees : 1 worktree = 1 module DISJOINT
+## Golden rule of worktrees: 1 worktree = 1 DISJOINT module
 
-Chaque session parallèle ne possède qu'un dossier et n'écrit que dedans.
-Partition de propriété (évite les collisions de merge) :
+Each parallel session owns exactly one directory and writes only into it.
+Ownership partition (avoids merge collisions):
 
-| Worktree / branche | Possède (écrit uniquement ici) |
+| Worktree / branch | Owns (writes only here) |
 |---|---|
 | `feature/ingestion` | `core/ingestion/`, `infra/mcp-servers/`, `infra/collectors/` |
 | `feature/data-quality` | `core/data_quality/` |
@@ -30,21 +30,21 @@ Partition de propriété (évite les collisions de merge) :
 | `feature/dashboard` | `projects/01_digital_spark_spread/` |
 | `feature/research` | `references/` |
 
-### Zone protégée (NE PAS modifier dans un worktree périphérique)
-`CLAUDE.md`, `.claude/`, `.mcp.json`, `pyproject.toml` changent rarement et passent
-UNIQUEMENT par la session de convergence. Sinon, conflits garantis.
+### Protected zone (do NOT modify from a peripheral worktree)
+`CLAUDE.md`, `.claude/`, `.mcp.json`, `pyproject.toml` change rarely and go
+through the convergence session ONLY. Otherwise, conflicts are guaranteed.
 
-## Garde-fous hérités automatiquement
-Les hooks et rules vivent dans `.claude/` committé : chaque worktree et chaque session
-hérite du blocage d'écriture sur `data/raw/`, du formatage auto et des règles anti-look-ahead.
-Tu peux paralléliser sans craindre pour l'intégrité des données.
+## Guardrails inherited automatically
+Hooks and rules live in the committed `.claude/`: every worktree and every
+session inherits the write-block on `data/raw/`, auto-formatting, and the
+anti-look-ahead rules. You can parallelize without worrying about data integrity.
 
-## Cadence suggérée
-1. Lancer un `/market-scan` (voie collecte) → alimente `references/`.
-2. Ouvrir 2-4 worktrees sur des modules disjoints (voie construction).
-3. Une fois par cycle, la session pilote merge les branches dans `integration`,
-   relance les tests, met à jour l'index `CLAUDE.md`, réconcilie les synthèses.
+## Suggested cadence
+1. Launch a `/market-scan` (collection lane) -> feeds `references/`.
+2. Open 2-4 worktrees on disjoint modules (construction lane).
+3. Once per cycle, the pilot session merges the branches into `integration`,
+   reruns the tests, updates the `CLAUDE.md` index, reconciles the syntheses.
 
-## Surveiller les sessions
-`claude agents` ouvre la vue des sessions (en cours / bloquées / terminées),
-utile quand beaucoup de terminaux tournent.
+## Monitoring sessions
+`claude agents` opens the sessions view (running / blocked / done),
+useful when many terminals are running.

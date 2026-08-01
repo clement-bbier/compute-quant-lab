@@ -1,31 +1,31 @@
 ---
 name: backtest-pitfalls
-description: Checklist anti-illusion pour tout backtest de ML financier (overfitting, p-hacking, biais de sélection). À invoquer systématiquement avant de croire un résultat. Cœur du travail du risk-validator.
+description: Anti-illusion checklist for any financial ML backtest (overfitting, p-hacking, selection bias). To be invoked systematically before trusting a result. Core of the risk-validator's job.
 ---
-# Backtest Pitfalls (ML financier)
+# Backtest Pitfalls (financial ML)
 
-Un backtest qui brille est coupable jusqu'à preuve du contraire. Distillé de la pratique
-du ML financier (López de Prado et al.).
+A backtest that shines is guilty until proven innocent. Distilled from financial ML
+practice (López de Prado et al.).
 
 ## Checklist
-1. **Look-ahead bias** : aucune feature ne doit utiliser d'information future. Vérifier
-   chaque feature ligne à ligne.
-2. **Overfitting / sélection de modèle** : combien de configurations ont été essayées ?
-   Plus on teste, plus un bon Sharpe arrive par hasard (multiple testing). Documenter le
-   nombre d'essais ; ajuster (deflated Sharpe ratio).
-3. **Découpe temporelle** : pas de shuffle aléatoire sur des séries. Utiliser une CV
-   adaptée au temporel (purged k-fold, embargo) pour éviter la fuite entre train et test.
-4. **Survivorship / sélection d'univers** : l'univers GPU change (hôtes qui entrent/sortent).
-   Ne pas conditionner rétroactivement sur ce qui a survécu.
-5. **Coûts réalistes** : un alpha qui meurt après frais+slippage n'est pas un alpha.
-6. **Stationnarité du régime** : un modèle entraîné sur un régime de prix peut échouer
-   au régime suivant. Tester sur plusieurs régimes.
-7. **Reproductibilité** : seed fixée, version DVC des données, params MLflow. Si tu ne
-   peux pas le reproduire, tu ne peux pas le croire.
+1. **Look-ahead bias**: no feature must use future information. Check
+   each feature line by line.
+2. **Overfitting / model selection**: how many configurations were tried?
+   The more you test, the more a good Sharpe arrives by chance (multiple testing). Document the
+   number of trials; adjust (deflated Sharpe ratio).
+3. **Temporal split**: no random shuffle on time series. Use a CV
+   suited to time series (purged k-fold, embargo) to avoid leakage between train and test.
+4. **Survivorship / universe selection**: the GPU universe changes (hosts entering/leaving).
+   Do not retroactively condition on what survived.
+5. **Realistic costs**: an alpha that dies after fees+slippage is not an alpha.
+6. **Regime stationarity**: a model trained on one price regime can fail
+   in the next regime. Test across multiple regimes.
+7. **Reproducibility**: fixed seed, git-tracked data version, MLflow params. If you
+   can't reproduce it, you can't trust it.
 
 ## Verdict
-Si un point échoue → le résultat n'est pas publiable. Le rôle du risk-validator est de
-chercher activement ces failles, pas de les excuser.
+If any point fails → the result is not publishable. The risk-validator's role is to
+actively hunt for these flaws, not to excuse them.
 
-## Référence
+## Reference
 `references/ml-finance-pitfalls/` (López de Prado, *Advances in Financial Machine Learning*).

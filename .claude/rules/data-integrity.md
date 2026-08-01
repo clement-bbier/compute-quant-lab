@@ -4,12 +4,12 @@ paths:
   - "core/data_quality/**"
   - "data/**"
 ---
-# Intégrité des données
+# Data integrity
 
-- `data/raw/` est IMMUABLE. On n'y écrit jamais à la main ni par script post-ingestion.
-  Toute transformation produit un nouvel artefact dans `data/interim/`.
-- Tous les timestamps sont en UTC, timezone-aware. Pas de datetime naïf.
-- Toute série ingérée est versionnée via DVC avant d'être utilisée par un projet.
-- Documenter pour chaque source : unité, fuseau, fréquence, méthode de gap-filling.
-- Aucune donnée révisée rétroactivement ne doit écraser une valeur historique
-  (préserver le point-in-time).
+- `data/raw/` is IMMUTABLE. Never write to it by hand or via a post-ingestion script.
+  Every transformation produces a new artifact in `data/interim/`.
+- All timestamps are in UTC, timezone-aware. No naive datetime.
+- Every ingested series must be committed as plain git-tracked data before a project uses it.
+- Document for each source: unit, timezone, frequency, gap-filling method.
+- No retroactively revised data may overwrite a historical value
+  (preserve point-in-time).

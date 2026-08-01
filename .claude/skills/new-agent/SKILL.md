@@ -1,54 +1,54 @@
 ---
 name: new-agent
-description: Protocole de fabrication d'un mécanisme d'orchestration (subagent, skill, rule ou hook) via le méta-agent agent-architect. À invoquer pour créer ou réviser un employé du labo. Trigger : /new-agent.
+description: "Protocol for building an orchestration mechanism (subagent, skill, rule, or hook) via the agent-architect meta-agent. To be invoked to create or revise a lab employee. Trigger: /new-agent."
 ---
-# New Agent — protocole de fabrication
+# New Agent — construction protocol
 
-> Aucun agent/skill/rule/hook ne se crée à la main. Cette procédure est exécutée
-> par (ou pour) l'agent `agent-architect`. Elle est idempotente : relancée, elle
-> ne casse rien et propose un diff plutôt qu'un écrasement.
+> No agent/skill/rule/hook is created by hand. This procedure is executed
+> by (or for) the `agent-architect` agent. It is idempotent: rerun, it
+> breaks nothing and proposes a diff rather than an overwrite.
 
-## 1. Cadrer la responsabilité unique
-Formuler la mission en une phrase. Si la phrase contient « et » sur deux missions
-distinctes → **scinder** en deux mécanismes. Un fourre-tout est un refus.
+## 1. Frame the single responsibility
+State the mission in one sentence. If the sentence contains "and" joining two
+distinct missions → **split** into two mechanisms. A catch-all is a refusal.
 
-## 2. Choisir le mécanisme
-| Besoin | Mécanisme | Emplacement |
+## 2. Choose the mechanism
+| Need | Mechanism | Location |
 |---|---|---|
-| Un rôle qui travaille en isolation et renvoie une synthèse | **subagent** | `.claude/agents/X.md` |
-| Une méthode/playbook réutilisable invoquée à la demande | **skill** | `.claude/skills/X/SKILL.md` |
-| Une invariante path-scopée toujours appliquée | **rule** | `.claude/rules/X.md` |
-| Un garde-fou déterministe qui DOIT se déclencher | **hook** | `.claude/settings.json` |
+| A role that works in isolation and returns a synthesis | **subagent** | `.claude/agents/X.md` |
+| A reusable method/playbook invoked on demand | **skill** | `.claude/skills/X/SKILL.md` |
+| A path-scoped invariant always enforced | **rule** | `.claude/rules/X.md` |
+| A deterministic guardrail that MUST trigger | **hook** | `.claude/settings.json` |
 
-Tranchage : « à coup sûr » → hook ; « invariante sur des fichiers » → rule ;
-« méthode réutilisable » → skill ; « travailleur délégué » → subagent.
+Decision rule: "must trigger every time" → hook; "invariant on files" → rule;
+"reusable method" → skill; "delegated worker" → subagent.
 
-## 3. Appliquer le moindre privilège (subagents)
-Lister le strict minimum d'outils. Lecture/recherche seule → `Read, Grep, Glob`.
-Ajouter `Write/Edit` seulement s'il produit des fichiers, `Bash` seulement s'il
-exécute. Justifier chaque outil. Choisir `model` : `sonnet` par défaut, `opus`
-si conception/jugement élevé.
+## 3. Apply least privilege (subagents)
+List the strict minimum of tools. Read/search only → `Read, Grep, Glob`.
+Add `Write/Edit` only if it produces files, `Bash` only if it
+executes. Justify each tool. Choose `model`: `sonnet` by default, `opus`
+if high-level design/judgment is required.
 
-## 4. Respecter le contrat de frontmatter
-- **Agent** : `name`, `description` (finit par « À appeler pour… »), `tools`, `model` ;
-  corps « Tu es… » concis en français, clôture « Tu renvoies une synthèse : … ».
-- **Skill** : `name`, `description` (déclencheur explicite) ; corps en étapes numérotées.
+## 4. Honor the frontmatter contract
+- **Agent**: `name`, `description` (ends with "To be called for…"), `tools`, `model`;
+  body "You are…" concise in French, closing "You return a synthesis: …".
+- **Skill**: `name`, `description` (explicit trigger); body in numbered steps.
 
-## 5. Vérifier l'idempotence avant d'écrire
-Le fichier existe-t-il déjà ? S'il diffère, **montrer un diff et demander** avant
-toute modification. Sinon, créer.
+## 5. Check idempotence before writing
+Does the file already exist? If it differs, **show a diff and ask** before
+any modification. Otherwise, create it.
 
-## 6. Tester la découverte
-Confirmer que le mécanisme est bien repéré (l'agent/skill apparaît dans la liste,
-le hook se déclenche sur un cas factice, la rule matche le bon path). Pas de test
-vert → pas de livraison.
+## 6. Test discovery
+Confirm the mechanism is properly picked up (the agent/skill appears in the list,
+the hook triggers on a mock case, the rule matches the right path). No green
+test → no delivery.
 
-## 7. Enregistrer (zone protégée → convergence)
-Préparer le patch : ligne au §6 roster de `CLAUDE.md` racine, et si un nouveau
-module possédé apparaît, ligne dans la table de partition de `docs/parallel-ops.md`.
-Ces fichiers de la **zone protégée** ne changent QUE via la session de convergence :
-on prépare le patch, on ne l'applique pas depuis un worktree périphérique.
+## 7. Register (protected zone → convergence)
+Prepare the patch: a line in the §6 roster of the root `CLAUDE.md`, and if a new
+owned module appears, a line in the partition table of `docs/parallel-ops.md`.
+These **protected zone** files change ONLY via the convergence session:
+prepare the patch, do not apply it from a peripheral worktree.
 
-## 8. Synthèse
-Renvoyer : mécanisme + justification, outils + justification, fichiers touchés,
-résultat du test, patch d'enregistrement à appliquer, risques.
+## 8. Synthesis
+Return: mechanism + justification, tools + justification, files touched,
+test result, registration patch to apply, risks.

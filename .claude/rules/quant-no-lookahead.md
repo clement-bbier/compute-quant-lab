@@ -3,13 +3,13 @@ paths:
   - "core/backtest/**"
   - "projects/**"
 ---
-# Rigueur quantitative (anti-biais)
+# Quantitative rigor (anti-bias)
 
-- INTERDIT : utiliser à l'instant t une information non disponible à t (look-ahead).
-  Les features sont calculées uniquement sur des données passées (point-in-time).
-- Modéliser explicitement les coûts (frais, slippage) dans tout backtest.
-- Séparer strictement train / validation / test temporellement (pas de shuffle aléatoire
-  sur des séries temporelles).
-- Tout résultat de backtest doit être reproductible : seed fixée, version DVC des données
-  loggée, params loggés dans MLflow.
-- Méfiance envers un Sharpe trop beau : suspecter overfitting / data snooping avant de célébrer.
+- FORBIDDEN: using at instant t information not available at t (look-ahead).
+  Features are computed only on past data (point-in-time).
+- Explicitly model costs (fees, slippage) in every backtest.
+- Strictly separate train / validation / test temporally (no random shuffle
+  on time series).
+- Every backtest result must be reproducible: seed fixed, git commit of the data
+  logged, params logged in MLflow.
+- Be suspicious of a Sharpe that looks too good: suspect overfitting / data snooping before celebrating.

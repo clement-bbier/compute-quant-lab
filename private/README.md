@@ -1,26 +1,28 @@
-# `private/` — zone à edge, JAMAIS versionnée en ligne
+# `private/` — edge zone, NEVER versioned online
 
-> Le repo est **public**. Tout ce qui constitue un **avantage monétisable** (signaux
-> qui rapportent, paramètres calibrés gagnants, stratégies d'exécution réelles) vit
-> **ici** et n'est **jamais** poussé. Seul ce fichier `README.md` et `.gitkeep` sont suivis.
+> The repo is **public**. Anything that constitutes a **monetizable edge**
+> (signals that make money, winning calibrated parameters, real execution
+> strategies) lives **here** and is **never** pushed. Only this `README.md`
+> and `.gitkeep` are tracked.
 
-## Règle (non négociable)
-- Le **public** montre l'**infrastructure** et le **benchmark** (impressionnant, vendable
-  comme portfolio / data) — **pas l'edge**.
-- Le **privé** garde ce qui gagne : un signal committé sur un repo public = **edge mort**
-  (tout le monde le voit). C'est la séparation infra (publique) / alpha (privé).
+## Rule (non-negotiable)
+- The **public** side shows the **infrastructure** and the **benchmark**
+  (impressive, sellable as portfolio / data) — **not the edge**.
+- The **private** side keeps what wins: a signal committed to a public repo
+  is **dead edge** (everyone can see it). This is the infra (public) /
+  alpha (private) separation.
 
-## Conventions gitignorées (voir `.gitignore`)
-- Tout `private/**` (sauf ce README + `.gitkeep`).
-- Tout fichier `*.private.py`, `*.private.json`, `*.private.parquet` **où qu'il soit**.
+## Gitignored conventions (see `.gitignore`)
+- All of `private/**` (except this README + `.gitkeep`).
+- Any `*.private.py`, `*.private.json`, `*.private.parquet` file, **wherever it is**.
 
-## Où mettre quoi
-| Type | Emplacement |
+## What goes where
+| Type | Location |
 |---|---|
-| Signal de procurement gagnant, params calibrés | `private/procurement/` |
-| Stratégie tradable réelle, seuils optimisés | `private/strategies/` |
-| Données/dérivés à edge | `private/data/` ou `*.private.parquet` |
-| Brique générique réutilisable (sans edge) | reste dans `core/` (public) |
+| Winning procurement signal, calibrated params | `private/procurement/` |
+| Real tradable strategy, optimized thresholds | `private/strategies/` |
+| Edge data/derivatives | `private/data/` or `*.private.parquet` |
+| Generic reusable building block (no edge) | stays in `core/` (public) |
 
-> En cas de doute : « est-ce que voir ce fichier donne à quelqu'un un avantage que je
-> perds ? » → si oui, **privé**.
+> When in doubt: "does seeing this file give someone an advantage I lose?"
+> -> if yes, **private**.

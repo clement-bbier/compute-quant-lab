@@ -1,12 +1,12 @@
 ---
 name: new-research-project
-description: Scaffolde un nouveau projet de recherche dans projects/ avec la structure standard du labo. À invoquer pour démarrer un projet (ex. "nouveau projet sur la volatilité des prix GPU").
+description: Scaffolds a new research project under projects/ with the lab's standard structure. To be invoked to start a project (e.g. "new project on GPU price volatility").
 ---
 # New Research Project
 
-1. Demander un numéro/nom court (ex. `02_gpu_vol_term_structure`).
-2. Créer `projects/NN_nom/` avec : `CLAUDE.md`, `src/`, `notebooks/`, `results/`, `dashboard/`.
-3. Le `CLAUDE.md` local décrit : la thèse spécifique, les données utilisées, l'état
-   d'avancement, les résultats clés. Il ne duplique PAS le glossaire global.
-4. Réutiliser `core/` au maximum ; ce qui devient générique remonte dans `core/`.
-5. Ajouter une ligne au §4 "index des projets" du CLAUDE.md racine.
+1. Ask for a short number/name (e.g. `02_gpu_vol_term_structure`).
+2. Create `projects/NN_name/` with: `CLAUDE.md`, `src/`, `notebooks/`, `results/`, `dashboard/`.
+3. The local `CLAUDE.md` describes: the specific thesis, the data used, the
+   current progress, the key results. It does NOT duplicate the global glossary.
+4. Reuse `core/` as much as possible; whatever becomes generic moves up into `core/`.
+5. Add a line to the §4 "project index" of the root CLAUDE.md.

@@ -4,13 +4,13 @@ paths:
   - "core/pricing/**"
   - "projects/**"
 ---
-# Frontière réel / simulé (jamais de confusion)
+# Real / simulated boundary (never mix them up)
 
-- Toute courbe forward / future construite par modèle est SIMULÉE et DOIT porter
-  un drapeau explicite **non optionnel** (ex. `Curve.simulated: bool`).
-- Les futures compute CME sont annoncés mais NON listés (revue réglementaire) :
-  toute courbe forward compute est donc simulée, jamais servie comme réelle.
-- Distinguer dans le code ET les logs le RÉEL (ENTSO-E/PJM, spot Silicon Data) du
-  SIMULÉ. Un test DOIT échouer si le drapeau réel/simulé est absent.
-- La jambe énergie et le spot compute sont réels ; ne jamais les mélanger avec une
-  série simulée sans étiquetage explicite.
+- Any forward / future curve built by a model is SIMULATED and MUST carry
+  an explicit **non-optional** flag (e.g. `Curve.simulated: bool`).
+- CME compute futures have been announced but are NOT yet listed (regulatory review):
+  every compute forward curve is therefore simulated, never served as real.
+- Distinguish REAL (ENTSO-E/PJM, Silicon Data spot) from SIMULATED in both the code AND
+  the logs. A test MUST fail if the real/simulated flag is missing.
+- The energy leg and the compute spot are real; never mix them with a
+  simulated series without explicit labeling.

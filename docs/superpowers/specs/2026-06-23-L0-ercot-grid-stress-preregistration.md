@@ -1,135 +1,135 @@
-# L0 — Fiche de pré-enregistrement : stress réseau ERCOT → spike RTM
+# L0 — Preregistration sheet: ERCOT grid stress -> RTM spike
 
-> **Statut : SIGNÉE le 2026-06-23 (session pilote / convergence).**
-> Document figé. Toute modification d'une hypothèse, d'un prédicteur, d'un seuil
-> ou d'une métrique après cette date ouvre une **nouvelle** fiche L0 — jamais un
-> avenant. C'est le contrat anti-p-hacking que les Worktrees A et B référencent.
+> **Status: SIGNED on 2026-06-23 (pilot / convergence session).**
+> Frozen document. Any change to a hypothesis, a predictor, a threshold or a
+> metric after this date opens a **new** L0 sheet — never an amendment. This
+> is the anti-p-hacking contract that Worktrees A and B reference.
 
-## 0. Objet et cadrage honnête
+## 0. Object and honest framing
 
-On teste si la **prévision ex ante de tension du réseau ERCOT** (connue la veille
-au soir) prédit les **événements de rareté soutenus** du marché temps-réel (RTM)
-le lendemain, **au-delà** d'une climatologie saisonnière naïve.
+We test whether the **ex ante forecast of ERCOT grid tension** (known the
+evening before) predicts **sustained scarcity events** in the real-time
+market (RTM) the next day, **beyond** a naive seasonal climatology.
 
-**Ce que cette fiche est** : une validation de pipeline point-in-time + une mesure
-de skill prédictif sur une relation **quasi-structurelle** (le mécanisme ORDC lie
-mécaniquement réserves et prix de rareté). Le résultat dé-risque la machinerie
-énergie et calibre l'effet.
+**What this sheet is**: a point-in-time pipeline validation + a measurement
+of predictive skill on a **quasi-structural** relationship (the ORDC
+mechanism mechanically ties reserves and scarcity prices). The result
+de-risks the energy machinery and calibrates the effect.
 
-**Ce que cette fiche n'est PAS** : une revendication d'alpha nouveau. L'alpha
-visé — élec → dislocation du prix compute — est le **cross-leg différé**, gaté sur
-l'accumulation du cold store. Il n'est pas testé ici.
+**What this sheet is NOT**: a claim of new alpha. The targeted alpha —
+electricity -> compute price dislocation — is the **deferred cross-leg**,
+gated on cold-store accumulation. It is not tested here.
 
-## 1. Hypothèses
+## 1. Hypotheses
 
-- **H1 (testée)** : le vecteur de prédicteurs de tension réseau prévu à T améliore
-  la prédiction des événements de rareté RTM de T+h **strictement au-dessus** du
-  baseline climatologique.
-- **H0 (nulle)** : aucun gain de skill sur le baseline (PR-AUC du modèle ≤ PR-AUC
-  du baseline, intervalle de confiance inclus).
+- **H1 (tested)**: the grid-tension predictor vector forecast at T improves
+  the prediction of RTM scarcity events at T+h **strictly above** the
+  climatological baseline.
+- **H0 (null)**: no skill gain over the baseline (model PR-AUC <= baseline
+  PR-AUC, confidence interval included).
 
-Confirmer H1 **et** réfuter H1 sont **deux succès** : les deux valident le pipeline
-et informent la suite.
+Confirming H1 **and** rejecting H1 are **both successes**: either one
+validates the pipeline and informs what comes next.
 
-## 2. Marché et provenance
+## 2. Market and provenance
 
-- **Marché** : ERCOT (Texas).
-- **Source** : données **réelles** ERCOT via `gridstatus` (publiques, sans token).
-  Tout point simulé porterait un flag `simulated=True` non optionnel (rule
-  `forward-real-simulated`). Ici : **100 % réel**.
-- **À vérifier par le `data-engineer` à l'ingestion** (sans changer la fiche) : noms
-  exacts des rapports ERCOT et leurs **heures de publication réelles**, pour garantir
-  le caractère point-in-time du prédicteur.
+- **Market**: ERCOT (Texas).
+- **Source**: **real** ERCOT data via `gridstatus` (public, no token
+  needed). Any simulated point would carry a non-optional `simulated=True`
+  flag (rule `forward-real-simulated`). Here: **100% real**.
+- **To be checked by `data-engineer` at ingestion** (without changing this
+  sheet): exact names of the ERCOT reports and their **actual publication
+  times**, to guarantee the predictor's point-in-time nature.
 
-## 3. Prédicteur (set GELÉ)
+## 3. Predictor (FROZEN set)
 
-Vecteur connu à **~18:00 CPT le jour J-1** (cutoff de décision) :
+Vector known at **~18:00 CPT on day J-1** (decision cutoff):
 
-1. **Marge de réserve prévue** (MW) = capacité prévue − charge prévue, pour les
-   heures cibles de J, issue du dernier rapport de prévision ERCOT publié **avant**
-   le cutoff.
-2. **Gradient de net-load prévu** (dérivée première sur la fenêtre cible) : capte la
-   *vitesse* d'effondrement de la marge au coucher du soleil (duck curve).
+1. **Forecast reserve margin** (MW) = forecast capacity - forecast load, for
+   the target hours of day J, taken from the latest ERCOT forecast report
+   published **before** the cutoff.
+2. **Forecast net-load gradient** (first derivative over the target window):
+   captures the *speed* of margin collapse at sunset (duck curve).
 
-> **Le set est fermé à ces 2 prédicteurs.** Aucun ajout (« juste encore une feature »)
-> sans ouvrir une nouvelle fiche L0. Chaque prédicteur supplémentaire est un degré
-> de liberté compté dans le budget de specs (§7).
+> **The set is closed to these 2 predictors.** No addition ("just one more
+> feature") without opening a new L0 sheet. Each extra predictor is a degree
+> of freedom counted against the spec budget (section 7).
 
-## 4. Label cible (événement prédit)
+## 4. Target label (predicted event)
 
-- **Définition primaire** : **spike RTM soutenu** = prix RTM **horaire intégré**
-  (moyenne pondérée temps sur l'heure) system-wide **> τ**. L'intégration horaire
-  filtre par construction le bruit de microstructure 5/15 min (un blip isolé ne
-  déclenche pas).
-- **Robustesse de durée** : ≥ 2 intervalles de 15 min **consécutifs** > τ.
-- **Label secondaire (zonal)** : même définition sur le hub `HB_WEST` (concentration
-  datacenter/mining). *Secondaire seulement* : le prédicteur §3 est system-wide ;
-  un spike zonal peut venir d'une congestion locale que cette métrique ne capte pas.
-  La zonalisation passe en **primaire** quand le mapping instance→hub existera
-  (cross-leg différé).
+- **Primary definition**: **sustained RTM spike** = system-wide **hourly
+  integrated** RTM price (time-weighted average over the hour) **> tau**.
+  Hourly integration filters out 5/15-min microstructure noise by
+  construction (an isolated blip does not trigger it).
+- **Duration robustness check**: >= 2 **consecutive** 15-min intervals > tau.
+- **Secondary label (zonal)**: same definition on the `HB_WEST` hub
+  (datacenter/mining concentration). *Secondary only*: the predictor in
+  section 3 is system-wide; a zonal spike can come from local congestion
+  that this metric does not capture. Zonalization becomes **primary** once
+  the instance-to-hub mapping exists (deferred cross-leg).
 
-## 5. Seuil τ (définition du spike)
+## 5. Threshold tau (spike definition)
 
-- **Primaire** : prix RTM horaire > **99e percentile conditionnel à l'heure-de-jour**,
-  estimé sur fenêtre **trailing causale** (uniquement données connues à t). La
-  conditionnalité heure-de-jour neutralise la forme intra-journalière (sinon on
-  flague tous les pics de pointe diurnes).
-- **Robustesse** : seuil absolu > **$1 500/MWh** (rareté réelle, pas le $250 d'un
-  après-midi d'été texan ordinaire).
+- **Primary**: hourly RTM price > **99th percentile conditional on
+  hour-of-day**, estimated on a **causal trailing window** (only data known
+  at t). The hour-of-day conditioning neutralizes the intraday shape
+  (otherwise every ordinary daytime peak would be flagged).
+- **Robustness check**: absolute threshold > **$1,500/MWh** (genuine
+  scarcity, not the $250 of an ordinary Texan summer afternoon).
 
-## 6. Lag et causalité
+## 6. Lag and causality
 
-- Prédicteur connu ~18:00 J-1 → label réalisé sur les heures de J. **Strictement
-  causal** : le label ne peut être connu avant le timestamp du prédicteur.
-- On cible le **RTM** (et non le DAM) précisément pour cette raison : le DAM de J
-  clôture vers 13:30 J-1, *avant* le cutoff 18:00 → l'utiliser serait du look-ahead.
+- Predictor known ~18:00 J-1 -> label realized over the hours of day J.
+  **Strictly causal**: the label cannot be known before the predictor's timestamp.
+- We target the **RTM** (not the DAM) precisely for this reason: day J's DAM
+  clears around 13:30 on J-1, *before* the 18:00 cutoff -> using it would be look-ahead.
 
-## 7. Évaluation (anti-p-hacking, figé ex ante)
+## 7. Evaluation (anti-p-hacking, frozen ex ante)
 
-- **Baseline à battre** : climatologie **heure-de-jour × mois** (taux de base
-  saisonnier). H1 n'est validée que si le modèle **bat** ce baseline.
-- **Métrique primaire** : **PR-AUC sans seuil** + courbe Precision-Recall complète +
-  **diagramme de fiabilité** (calibration). Métrique *threshold-free* et *policy-free*
-  par choix : la qualité de signal se mesure indépendamment de tout point de
-  fonctionnement.
-- **PAS d'asymétrie de coût ici.** La fonction de perte asymétrique faux-négatif /
-  faux-positif est un **concern de couche Desk** (P10/P12), à **dériver** de
-  l'économie réelle (€/MWh d'exposition × économie d'instance), jamais devinée. Hors
-  périmètre L0.
-- **Split** : chronologique, **purged + embargo** (machinerie P09). Holdout = dernier
-  **30 %** chronologique, **figé** avant tout regard. Embargo de **7 jours** autour
-  de la coupure.
-- **Budget de specs** : **N = 4** spécifications maximum autorisées (les 2 seuils τ ×
-  les 2 labels primaire/secondaire). Correction de multiplicité **Benjamini-Hochberg**
-  sur ces 4. Toute spec au-delà = nouvelle fiche.
-- **Politique outliers (figée)** : **Winter Storm Uri** (fév. 2021) **inclus** dans
-  l'échantillon, **plus** une analyse de sensibilité séparée **avec / sans** Uri
-  (événement 100-σ qui dominerait tout fit non maîtrisé).
-- **Critère de décision** : H1 retenue si, sur le **holdout**, la PR-AUC du modèle
-  dépasse la borne haute de l'IC bootstrap (1000 ré-échantillons) de la PR-AUC du
-  baseline, sur la spec primaire, après correction BH.
-- **Règle d'arrêt** : une fois le holdout évalué sur les 4 specs, **stop**. Pas de
-  re-tuning post-holdout. Tout nouveau cycle = nouvelle fiche datée.
+- **Baseline to beat**: **hour-of-day x month** climatology (seasonal base
+  rate). H1 is only validated if the model **beats** this baseline.
+- **Primary metric**: **threshold-free PR-AUC** + full Precision-Recall
+  curve + **reliability diagram** (calibration). A *threshold-free* and
+  *policy-free* metric by choice: signal quality is measured independently
+  of any operating point.
+- **NO cost asymmetry here.** The false-negative / false-positive asymmetric
+  loss function is a **Desk-layer concern** (P10/P12), to be **derived**
+  from real economics (EUR/MWh of exposure x instance savings), never
+  guessed. Out of scope for L0.
+- **Split**: chronological, **purged + embargo** (P09 machinery). Holdout =
+  last chronological **30%**, **frozen** before any look. **7-day** embargo
+  around the cutoff.
+- **Spec budget**: **N = 4** specifications maximum allowed (the 2 tau
+  thresholds x the 2 primary/secondary labels). **Benjamini-Hochberg**
+  multiplicity correction across these 4. Any spec beyond that = a new sheet.
+- **Outlier policy (frozen)**: **Winter Storm Uri** (Feb. 2021) **included**
+  in the sample, **plus** a separate sensitivity analysis **with / without**
+  Uri (a 100-sigma event that would dominate any unguarded fit).
+- **Decision criterion**: H1 is retained if, on the **holdout**, the model's
+  PR-AUC exceeds the upper bound of the bootstrap CI (1000 resamples) of the
+  baseline's PR-AUC, on the primary spec, after BH correction.
+- **Stopping rule**: once the holdout has been evaluated on the 4 specs,
+  **stop**. No post-holdout re-tuning. Any new cycle = a new dated sheet.
 
-## 8. Prior PUE — Worktree A (orthogonal à ce test)
+## 8. PUE prior — Worktree A (orthogonal to this test)
 
-Documenté ici pour traçabilité, mais **n'entre pas** dans le test §1–§7 : le PUE ne
-touche que le **pricing** (spread compute−énergie, Worktree A), pas la relation
-stress→prix (Worktree B). Rassurant : la 1ʳᵉ validation ne dépend pas du paramètre
-le plus incertain.
+Documented here for traceability, but **not part of** the test in sections
+1-7: the PUE only affects **pricing** (compute-energy spread, Worktree A),
+not the stress->price relationship (Worktree B). Reassuring: the first
+validation does not depend on the most uncertain parameter.
 
-- **Distribution** : **truncated-normal**, μ=1.45, σ=0.15, **support [1.2 ; 1.8]**
-  (respecte PUE ≥ 1 par construction ; Texas centré plus haut pour le refroidissement).
-- **Usage** : **prior strict**, jamais mis à jour par les prix observés (interdit de
-  fit-to-price). Propagé en **bandes de sensibilité** dans les sorties de pricing.
-- **Note de calibrage** : ancrer le centre sur les moyennes publiées (Uptime
-  mondiale ≈ 1.55 ; hyperscale ≈ 1.1–1.2 ; hôtes spot hétérogènes → dispersion réelle
-  possiblement plus large que σ=0.15 ; à réviser dans une fiche dédiée si besoin).
+- **Distribution**: **truncated normal**, mu=1.45, sigma=0.15, **support
+  [1.2, 1.8]** (respects PUE >= 1 by construction; Texas centered higher for cooling).
+- **Usage**: **strict prior**, never updated from observed prices (fitting
+  to price is forbidden). Propagated as **sensitivity bands** in the pricing outputs.
+- **Calibration note**: anchor the center on published averages (Uptime
+  global ~= 1.55; hyperscale ~= 1.1-1.2; heterogeneous spot hosts -> real
+  dispersion possibly wider than sigma=0.15; revisit in a dedicated sheet if needed).
 
-## 9. Garde-fous hérités (non négociables)
+## 9. Inherited guardrails (non-negotiable)
 
-- Point-in-time strict partout (as_of, lags, révisions) — machinerie `core/features`.
-- Frontière réel / simulé étiquetée (rule `forward-real-simulated`).
-- Tout backtest/calibration loggué MLflow + SHA git.
-- Gates obligatoires : `data-quality-auditor` (ingestion) → `backtest-pitfalls` +
-  passe `risk-validator` (avant de croire un résultat) → convergence pilote.
+- Strict point-in-time everywhere (as_of, lags, revisions) — `core/features` machinery.
+- Real / simulated boundary labeled (rule `forward-real-simulated`).
+- Every backtest/calibration logged to MLflow + git SHA.
+- Mandatory gates: `data-quality-auditor` (ingestion) -> `backtest-pitfalls`
+  + `risk-validator` pass (before trusting a result) -> pilot convergence.
