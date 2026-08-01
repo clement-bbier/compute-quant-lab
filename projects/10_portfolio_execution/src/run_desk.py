@@ -41,6 +41,7 @@ from core.signals import (
     MLEnsembleSignal,
     SignalProducer,
 )
+from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
@@ -52,6 +53,7 @@ from signals import ConstantMock, MeanReversionMock, MomentumMock  # noqa: E402
 
 RESULTS_DIR = _HERE.parent / "results"
 EXPERIMENT = "p10_portfolio_execution"
+log = get_logger("run_desk")
 SEED = 42
 PERIODS_PER_YEAR = 252.0  # desk à pas journalier (démo)
 CAPITAL = 1.0
@@ -343,13 +345,15 @@ def main() -> None:
         json.dumps(snapshot, indent=2, default=str), encoding="utf-8"
     )
 
-    print(f"run_id={run_id}  simulated={provenance.simulated}  signals={params['signals']}")
-    print(f"  {'metric':16s} {'gross':>12s} {'net':>12s}")
+    log.info("run_id=%s  simulated=%s  signals=%s", run_id, provenance.simulated, params["signals"])
+    log.info("  %-16s %12s %12s", "metric", "gross", "net")
     for name in result.net_metrics:
-        print(f"  {name:16s} {result.gross_metrics[name]:12.6f} {result.net_metrics[name]:12.6f}")
-    print("  contribution par signal (PnL brut) :")
+        log.info(
+            "  %-16s %12.6f %12.6f", name, result.gross_metrics[name], result.net_metrics[name]
+        )
+    log.info("  contribution par signal (PnL brut) :")
     for name, value in result.attribution.items():
-        print(f"    {name:22s} = {value:+.6f}")
+        log.info("    %-22s = %+.6f", name, value)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import mlflow
 
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
 from core.backtest.tracking import dvc_version, log_metrics, log_pnl_figure, tracked_run
+from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE / "src"))
@@ -25,6 +26,7 @@ import demo_fixtures  # noqa: E402  (ajout dynamique au sys.path ci-dessus)
 
 RESULTS_DIR = _HERE / "results"
 EXPERIMENT = "p08_backtest_demo"
+log = get_logger("run_demo")
 
 
 def main() -> None:
@@ -64,9 +66,9 @@ def main() -> None:
     }
     (RESULTS_DIR / "last_run.json").write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
 
-    print(f"run_id={run_id}  dvc_version={snapshot['dvc_version']}")
+    log.info("run_id=%s  dvc_version=%s", run_id, snapshot["dvc_version"])
     for name, value in result.metrics.items():
-        print(f"  {name:14s} = {value:.6f}")
+        log.info("  %-14s = %.6f", name, value)
 
 
 if __name__ == "__main__":

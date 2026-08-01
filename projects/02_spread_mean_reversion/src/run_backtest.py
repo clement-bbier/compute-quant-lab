@@ -13,7 +13,6 @@ cointégration, demi-vie, réel/simulé) + métriques de risque + figure PnL. Re
 from __future__ import annotations
 
 import json
-import logging
 import os
 import sys
 from pathlib import Path
@@ -25,6 +24,7 @@ import pandas as pd
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
 from core.backtest.tracking import dvc_version, log_metrics, log_pnl_figure, tracked_run
 from core.ingestion import CsvSnapshotStore
+from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
@@ -32,8 +32,7 @@ import cointegration  # noqa: E402  (src ajouté au sys.path ci-dessus)
 from data_sources import DataProvenance, SpreadDataset, build_spread, compute_index_series  # noqa: E402
 from strategy import MeanReversionStrategy  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-log = logging.getLogger("run_backtest")
+log = get_logger("run_backtest")
 
 # Racine du dépôt : ce fichier est à projects/02_spread_mean_reversion/src/.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -172,14 +171,15 @@ def main() -> None:
         json.dumps(snapshot, indent=2, default=str), encoding="utf-8"
     )
 
-    print(f"run_id={run_id}  simulated={provenance.simulated}  source={provenance.source}")
-    print(
-        f"cointegration p-value={diagnostics['coint_pvalue']:.4f}  "
-        f"half-life={diagnostics['half_life_hours']:.1f}h  "
-        f"johansen_relations={diagnostics['johansen_n_relations']}"
+    log.info("run_id=%s  simulated=%s  source=%s", run_id, provenance.simulated, provenance.source)
+    log.info(
+        "cointegration p-value=%.4f  half-life=%.1fh  johansen_relations=%s",
+        diagnostics["coint_pvalue"],
+        diagnostics["half_life_hours"],
+        diagnostics["johansen_n_relations"],
     )
     for name, value in result.metrics.items():
-        print(f"  {name:14s} = {value:.6f}")
+        log.info("  %-14s = %.6f", name, value)
 
 
 if __name__ == "__main__":

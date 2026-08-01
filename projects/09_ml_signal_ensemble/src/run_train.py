@@ -42,6 +42,7 @@ from core.models import (
     deflated_sharpe_ratio,
     oos_predict,
 )
+from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
@@ -49,6 +50,7 @@ from synthetic import SyntheticDataset, generate  # noqa: E402  (src ajouté au 
 
 RESULTS_DIR = _HERE.parent / "results"
 EXPERIMENT = "p09_ml_signal_ensemble"
+log = get_logger("run_train")
 SEED = 42
 PERIODS_PER_YEAR = 365.0  # grille journalière
 
@@ -188,16 +190,23 @@ def main() -> None:
         json.dumps(snapshot, indent=2, default=str), encoding="utf-8"
     )
 
-    print(
-        f"run_id={run_id}  simulated={dataset.provenance.simulated}  source={dataset.provenance.source}"
+    log.info(
+        "run_id=%s  simulated=%s  source=%s",
+        run_id,
+        dataset.provenance.simulated,
+        dataset.provenance.source,
     )
-    print(
-        f"obs={params['n_obs']}  predicted={n_predicted}  features={params['n_features']}  n_trials={N_TRIALS}"
+    log.info(
+        "obs=%d  predicted=%d  features=%d  n_trials=%d",
+        params["n_obs"],
+        n_predicted,
+        params["n_features"],
+        N_TRIALS,
     )
     for name, value in metrics.items():
-        print(f"  {name:22s} = {value:.6f}")
-    print(
-        "\n[!] Sharpe sur SIMULE - non credible comme alpha. Le Sharpe degonfle (PSR) et le "
+        log.info("  %-22s = %.6f", name, value)
+    log.warning(
+        "Sharpe sur SIMULE - non credible comme alpha. Le Sharpe degonfle (PSR) et le "
         "verdict adversarial (results/SYNTHESIS.md) priment."
     )
 
