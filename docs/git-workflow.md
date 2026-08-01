@@ -138,8 +138,8 @@ only there (anti-collision, see the partition in [parallel-ops.md](parallel-ops.
 
 > Note: this section used to point at `docs/orchestration/` for the roster
 > and per-instance prompts. That directory has since been removed from the
-> repository (see PARTIE 6 of the convergence notes); the reference is kept
-> here as a description of the practice, not as a live link.
+> repository (see `docs/decisions/001-worktree-convergence-model.md`); the
+> reference is kept here as a description of the practice, not as a live link.
 
 ### Cleanup
 
