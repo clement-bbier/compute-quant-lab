@@ -1,15 +1,15 @@
-# Data — convention en couches
+# Data — layered convention
 
-- `snapshots/` brut collecté heure par heure (prix GPU multi-venues).
-  **Versionné dans git** : les CSV via git-LFS, les Parquet en git ordinaire.
-  C'est la seule couche irremplaçable — le prix du compute n'a pas
-  d'historique achetable, il ne s'obtient qu'en l'accumulant.
-- `raw/`       brut d'une source externe, immuable. **On n'écrit jamais ici à la main.**
-- `interim/`   nettoyé / aligné dans le temps.
-- `processed/` prêt-modèle (features), produit par les checks qualité.
-- `cold/`      cold store dérivé (Parquet partitionné), régénérable.
+- `snapshots/` raw data collected hour by hour (multi-venue GPU prices).
+  **Versioned in git** as plain files (both CSV and Parquet). This is the
+  only irreplaceable layer — compute price has no purchasable history, it
+  can only be obtained by accumulating it.
+- `raw/`       raw data from an external source, immutable. **Never write here by hand.**
+- `interim/`   cleaned / time-aligned.
+- `processed/` model-ready (features), produced by the quality checks.
+- `cold/`      derived cold store (partitioned Parquet), regenerable.
 
-Les couches dérivées (`raw/`, `interim/`, `processed/`, `cold/`) ne sont pas
-versionnées : elles se reconstruisent depuis `snapshots/` et les connecteurs.
+The derived layers (`raw/`, `interim/`, `processed/`, `cold/`) are not
+versioned: they are rebuilt from `snapshots/` and the connectors.
 
-Récupérer les données après un clone : `git lfs pull`.
+Getting the data after a clone: a plain `git clone` is enough.

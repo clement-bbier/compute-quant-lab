@@ -1,43 +1,47 @@
-# L0-v2 — Amendement du prédicteur de marge de réserve (ERCOT)
+# L0-v2 — Amendment to the reserve margin predictor (ERCOT)
 
-> **Statut : SIGNÉ le 2026-06-23 (session pilote).** Amende le §3 de
-> [L0](2026-06-23-L0-ercot-grid-stress-preregistration.md). **Seul le prédicteur de
-> marge de réserve change** ; tout le reste de L0 (label spike RTM, lag 18h J-1,
-> métrique PR-AUC threshold-free, split purged+embargo, budget 4 specs / BH, baseline
-> climatologique, politique Uri) est **INCHANGÉ**.
+> **Status: SIGNED on 2026-06-23 (pilot session).** Amends section 3 of
+> [L0](2026-06-23-L0-ercot-grid-stress-preregistration.md). **Only the
+> reserve margin predictor changes**; everything else in L0 (RTM spike
+> label, 18h J-1 lag, threshold-free PR-AUC metric, purged+embargo split,
+> 4-spec/BH budget, climatological baseline, Uri policy) is **UNCHANGED**.
 
-## Motif (découvert à l'implémentation sur données réelles)
+## Reason (discovered during implementation on real data)
 
-La marge de réserve v1 = `capacité prévue − charge prévue (brute)` à `as_of = 18h J-1`.
-Au backfill de l'été 2022, le dataset hébergé `ercot_load_forecast` s'avère être un
-produit **court terme** (~1 h d'horizon, granularité 5 min) : au cutoff 18h J-1 il **ne
-couvre pas encore le jour J**. Diagnostic point-in-time confirmé :
+The v1 reserve margin = `forecast capacity - forecast load (gross)` at `as_of
+= 18h J-1`. During the summer 2022 backfill, the hosted `ercot_load_forecast`
+dataset turns out to be a **short-term** product (~1h horizon, 5-min
+granularity): at the 18h J-1 cutoff it **does not yet cover** day J.
+Point-in-time diagnosis confirmed:
 
-| Jambe (au cutoff 18h J-1) | Couvre le jour J ? |
+| Leg (at the 18h J-1 cutoff) | Covers day J? |
 |---|---|
-| capacité disponible (STSA, 7 j) | ✅ |
-| net-load prévu (7 j) | ✅ |
-| **charge brute (`ercot_load_forecast`, court terme)** | ❌ |
+| available capacity (STSA, 7 days) | yes |
+| forecast net-load (7 days) | yes |
+| **gross load (`ercot_load_forecast`, short-term)** | no |
 
-La prévision de **charge 7 jours** est un autre dataset hébergé, **non backfillé** (quota
-free épuisé). La v1 est donc non calculable en l'état.
+The **7-day load** forecast is another hosted dataset, **not backfilled**
+(free quota exhausted). v1 is therefore not computable as specified.
 
-## Amendement (§3 — prédicteur de marge de réserve)
+## Amendment (section 3 — reserve margin predictor)
 
-Marge de réserve prévue = **`capacité disponible (STSA) − net-load prévu`** à
-`as_of = 18h J-1` (au lieu de `capacité − charge brute`).
+Forecast reserve margin = **`available capacity (STSA) - forecast
+net-load`** at `as_of = 18h J-1` (instead of `capacity - gross load`).
 
-**Justification méthodologique** : le **net-load** (demande − génération renouvelable)
-est précisément la charge que la **capacité dispatchable doit servir**. `capacité −
-net-load` mesure la **tension réelle du réseau** de façon plus fidèle que `capacité −
-charge brute`, qui ignore l'apport renouvelable côté offre. L'amendement est donc à la
-fois une *contrainte de disponibilité de données* **et** un raffinement défendable.
+**Methodological justification**: **net-load** (demand minus renewable
+generation) is precisely the load that **dispatchable capacity must serve**.
+`capacity - net-load` measures **actual grid tension** more faithfully than
+`capacity - gross load`, which ignores the renewable contribution on the
+supply side. The amendment is therefore both a *data-availability
+constraint* **and** a defensible refinement.
 
-Le **second prédicteur** (gradient net-load) et le **label** (spike RTM) sont inchangés.
+The **second predictor** (net-load gradient) and the **label** (RTM spike) are unchanged.
 
-## Garde-fous (inchangés de L0)
+## Guardrails (unchanged from L0)
 
-Point-in-time strict (`publish_time <= as_of`, garde-fou `_latest_known_per_interval`),
-purged + embargo, PR-AUC threshold-free, Benjamini-Hochberg sur le budget de specs, run
-MLflow + SHA git + version DVC. **Retour possible à la v1** (charge brute) si le dataset
-de prévision de charge 7 jours est câblé (quota / tier payant).
+Strict point-in-time (`publish_time <= as_of`, `_latest_known_per_interval`
+guardrail), purged + embargo, threshold-free PR-AUC, Benjamini-Hochberg on
+the spec budget, MLflow run + git SHA (the data lives in the same git
+history, tracked as plain files, so that SHA already pins the exact dataset
+version). **Reverting to v1** (gross load) remains possible if the 7-day
+load forecast dataset gets wired up (quota / paid tier).

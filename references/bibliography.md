@@ -1,32 +1,32 @@
-# Bibliographie — le canon du labo
+# Bibliography — the lab's canon
 
-> Méthodologie distillée + pointeurs vers les ouvrages. On ne copie aucun texte sous
-> copyright : on encode des protocoles actionnables (voir les skills) et on cite les sources.
+> Distilled methodology + pointers to the works. No copyrighted text is
+> copied: actionable protocols are encoded (see the skills) and sources are cited.
 
-## Statistical arbitrage & cointégration
-- Engle, R. & Granger, C. (1987), *Co-integration and Error Correction* — le test fondateur.
-- Johansen, S. — test de cointégration multivarié (préféré pour ≥ 2 séries).
+## Statistical arbitrage & cointegration
+- Engle, R. & Granger, C. (1987), *Co-integration and Error Correction* — the founding test.
+- Johansen, S. — multivariate cointegration test (preferred for >= 2 series).
 - Avellaneda, M. & Lee, J. (2010), *Statistical Arbitrage in the U.S. Equities Market*.
-- Chan, E., *Algorithmic Trading: Winning Strategies and Their Rationale* — mise en pratique.
-→ Méthodo distillée : `.claude/skills/cointegration-analysis`, `spread-trading-playbook`.
+- Chan, E., *Algorithmic Trading: Winning Strategies and Their Rationale* — practical application.
+-> Distilled methodology: `.claude/skills/cointegration-analysis`, `spread-trading-playbook`.
 
-## Pièges du ML financier (CRITIQUE pour risk-validator)
-- López de Prado, M., *Advances in Financial Machine Learning* — overfitting de backtest,
-  purged k-fold, deflated Sharpe, meta-labeling.
-→ Méthodo distillée : `.claude/skills/backtest-pitfalls`.
+## Financial ML pitfalls (CRITICAL for risk-validator)
+- Lopez de Prado, M., *Advances in Financial Machine Learning* — backtest
+  overfitting, purged k-fold, deflated Sharpe, meta-labeling.
+-> Distilled methodology: `.claude/skills/backtest-pitfalls`.
 
-## Marchés de l'énergie & dérivés
+## Energy markets & derivatives
 - Eydeland, A. & Wolyniec, K., *Energy and Power Risk Management*.
 - Clewlow, L. & Strickland, C., *Energy Derivatives: Pricing and Risk Management*.
-- Le concept de *spark spread* (gaz→électricité) vient de cette littérature ; on l'adapte
-  ici en *digital spark spread* (électricité→compute).
-→ Notes : `references/energy-markets/`.
+- The *spark spread* concept (gas->electricity) comes from this literature;
+  here it is adapted into the *digital spark spread* (electricity->compute).
+-> Notes: `references/energy-markets/`.
 
-## Séries temporelles & prévision
-- Hyndman, R. & Athanasopoulos, G., *Forecasting: Principles and Practice* (libre en ligne).
-- Modèles : XGBoost (baseline), LSTM / Temporal Fusion Transformer (séquentiel).
+## Time series & forecasting
+- Hyndman, R. & Athanasopoulos, G., *Forecasting: Principles and Practice* (free online).
+- Models: XGBoost (baseline), LSTM / Temporal Fusion Transformer (sequential).
 
-## Sources de données de référence (connecteurs)
-- ENTSO-E Transparency Platform — prix spot élec EU (officiel, gratuit, historique profond).
-- S&P Global / Kensho — donnée financière institutionnelle (MCP connecté).
-- Tavily — recherche web structurée pour la veille (MCP connecté).
+## Reference data sources (connectors)
+- ENTSO-E Transparency Platform — EU electricity spot price (official, free, deep history).
+- S&P Global / Kensho — institutional financial data (MCP connected).
+- Tavily — structured web search for scouting (MCP connected).

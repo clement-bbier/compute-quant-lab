@@ -1,102 +1,114 @@
-# Roadmap stockage — du fichier au temps réel
+# Storage roadmap — from file to real time
 
-> Comment le labo stocke la donnée pour **entraîner des modèles sur un historique
-> fiable** aujourd'hui, et **servir du temps réel** demain — sans sur-construire.
-> Règle directrice : *le bon stockage dépend de l'usage*, et on n'avance d'une phase
-> que quand un **déclencheur** concret le justifie.
+> How the lab stores data to **train models on a reliable history** today,
+> and **serve real time** tomorrow — without over-building. Guiding rule:
+> *the right storage depends on the usage*, and we only move to the next
+> phase when a concrete **trigger** justifies it.
 
-## 0. Principe non négociable : reproductibilité d'abord
+## 0. Non-negotiable principle: reproducibility first
 
-L'entraînement lit **toujours** le **cold store versionné** (Parquet + DVC), **jamais**
-le hot store mutable (TimescaleDB/Redis). Un run MLflow logge la **version DVC** des
-données (déjà câblé dans `core.utils.tracking`) → on ré-entraîne à l'identique des mois
-plus tard. Le hot store sert le **serving/monitoring**, pas la repro.
+Training **always** reads the **versioned cold store** (Parquet, tracked as
+plain git files), **never** the mutable hot store (TimescaleDB/Redis). An
+MLflow run logs the **git SHA** of the code (already wired into
+`core.utils.tracking`) -> since the data lives in the same git history, that
+SHA already pins the exact dataset version, so a run can be retrained
+identically months later. The hot store serves **serving/monitoring**, not
+reproducibility.
 
 ```
-   COLLECTE → COLD (Parquet+DVC, immuable, point-in-time) → entraînement / backtest
-                  └─(stream)→ HOT (Timescale/Redis) ───────→ serving live / dashboard
+   COLLECT -> COLD (Parquet, plain git, immutable, point-in-time) -> training / backtest
+                  |_(stream)_> HOT (Timescale/Redis) ─────────────> live serving / dashboard
 ```
 
-## 1. Réalité data actuelle (point de départ)
+## 1. Current data reality (starting point)
 
-| Jambe | Cadence | Historique | Stockage actuel |
+| Leg | Cadence | History | Current storage |
 |---|---|---|---|
-| Énergie (ENTSO-E) | horaire, batch | profond (API) | `data/raw/` + DVC |
-| Compute (Vast/RunPod) | snapshot (live) | **inexistant → on l'accumule** | `data/snapshots/*.csv` |
-| Forward compute | simulée | — | artefacts projet |
+| Energy (ENTSO-E) | hourly, batch | deep (API) | `data/raw/` + plain git |
+| Compute (Vast/RunPod) | snapshot (live) | **none -> we accumulate it** | `data/snapshots/*.csv` |
+| Compute forward | simulated | -- | project artefacts |
 
-→ Tout est **batch**. Le temps réel n'a de sens que si on crée un flux (Phase 2).
+-> Everything is **batch**. Real time only makes sense once a stream exists (Phase 2).
 
-## 2. Couche d'abstraction (à poser AVANT tout backend)
+## 2. Abstraction layer (to lay down BEFORE any backend)
 
-Un paquet `core/storage/` avec des **Protocols** (DI/SOLID), pour que les projets
-dépendent d'abstractions, jamais d'un backend concret (même patron que les sources P04) :
+A `core/storage/` package with **Protocols** (DI/SOLID), so projects depend
+on abstractions, never on a concrete backend (same pattern as the P04 sources):
 
-- `PriceStore` : `write(frame)`, `read(query, as_of)` → impl Parquet, puis Timescale.
-- `TickStream` : `produce(tick)`, `consume()` → impl Redpanda (Phase 2).
-- `HotCache` : `set_latest(...)`, `get_latest(...)` → impl Redis (Phase 4).
+- `PriceStore`: `write(frame)`, `read(query, as_of)` -> Parquet impl, then Timescale.
+- `TickStream`: `produce(tick)`, `consume()` -> Redpanda impl (Phase 2).
+- `HotCache`: `set_latest(...)`, `get_latest(...)` -> Redis impl (Phase 4).
 
-**Bénéfice** : changer de backend = nouvelle implémentation, **zéro modif** des stratégies/modèles (OCP). La migration entre phases devient indolore.
+**Benefit**: switching backend = new implementation, **zero change** to
+strategies/models (OCP). Migrating between phases becomes painless.
 
-## 3. Les phases (chacune avec son déclencheur)
+## 3. The phases (each with its own trigger)
 
-### Phase 0 — Cold store : **Parquet + DVC** *(à faire maintenant)*
-- Remplacer `CsvSnapshotStore` → **`ParquetSnapshotStore`** : colonne, typé, compressé,
-  partitionné (`source` / mois). Append-only, idempotent (dédup conservée).
-- **DVC-tracker** `data/snapshots/` (+ `raw/`, `interim/`) → chaque dataset versionné.
-- **Fix qualité** au passage : garder la **distribution** des offres par modèle (ne pas
-  réduire à 1 ligne/modèle) — l'agrégation (trimmed-mean) appartient à l'indice P04, pas au store.
-- **Déclencheur** : c'est le socle, aucun prérequis. **Owner** : `data-engineer`.
+### Phase 0 — Cold store: **Parquet, plain git** *(do this now)*
+- Replace `CsvSnapshotStore` with **`ParquetSnapshotStore`**: columnar, typed,
+  compressed, partitioned (`source` / month). Append-only, idempotent (dedup kept).
+- **Track** `data/snapshots/` (+ `raw/`, `interim/`) in git as plain files ->
+  every dataset versioned through normal git history.
+- **Quality fix** along the way: keep the **distribution** of offers per
+  model (do not reduce to 1 row/model) — aggregation (trimmed mean) belongs
+  to the P04 index, not to the store.
+- **Trigger**: this is the foundation, no prerequisite. **Owner**: `data-engineer`.
 
-### Phase 1 — Couche requête : **DuckDB** *(quand tu veux du SQL)*
-- DuckDB lit le Parquet **directement en SQL**, embarqué, **zéro serveur**.
-- Usage : EDA, jointures point-in-time à l'échelle, construction de features (P07/P09).
-- **Déclencheur** : pandas-sur-fichiers devient pénible, ou besoin de SQL analytique.
-- **Owner** : `data-engineer`. Coût quasi nul.
+### Phase 1 — Query layer: **DuckDB** *(once you want SQL)*
+- DuckDB reads the Parquet **directly in SQL**, embedded, **zero server**.
+- Usage: EDA, point-in-time joins at scale, feature building (P07/P09).
+- **Trigger**: pandas-on-files becomes painful, or analytical SQL is needed.
+- **Owner**: `data-engineer`. Near-zero cost.
 
-### Phase 2 — Ingestion temps réel : **Redpanda** + tick collector *(le vrai pivot)*
-- Transformer le snapshot quotidien en **collecteur de ticks haute fréquence** : poller
-  Vast/RunPod toutes les 1–5 min → publier sur un topic `compute.prices` (Redpanda,
-  Kafka-compatible, mono-binaire, plus léger que Kafka), via **docker-compose local**.
-- Consommateurs : (a) sink **cold** (Parquet/DVC, entraînement), (b) sink **hot** (Phase 3),
-  (c) MAJ **Redis** (Phase 4). Le prix GPU **bouge en intraday** → streamer a du sens.
-- **Déclencheur** : tu veux de la granularité intraday / un pipeline vivant.
-- **Owner** : `infra-engineer` (services/compose/CI) + `data-engineer` (schémas/sinks).
+### Phase 2 — Real-time ingestion: **Redpanda** + tick collector *(the real pivot)*
+- Turn the daily snapshot into a **high-frequency tick collector**: poll
+  Vast/RunPod every 1-5 min -> publish to a `compute.prices` topic (Redpanda,
+  Kafka-compatible, single binary, lighter than Kafka), via **local
+  docker-compose**.
+- Consumers: (a) **cold** sink (Parquet/plain git, training), (b) **hot**
+  sink (Phase 3), (c) **Redis** update (Phase 4). GPU price **moves
+  intraday** -> streaming makes sense.
+- **Trigger**: you want intraday granularity / a live pipeline.
+- **Owner**: `infra-engineer` (services/compose/CI) + `data-engineer` (schemas/sinks).
 
-### Phase 3 — Hot historique : **TimescaleDB** (défaut) / ClickHouse *(au volume)*
-- TimescaleDB = Postgres + séries temporelles (hypertables, **continuous aggregates**,
-  compression). SQL, transactionnel, écosystème riche → **défaut recommandé**.
-- Stocke les ticks streamés pour requêtes time-range rapides + agrégats continus
-  (OHLC 1 min / 1 h de l'indice compute).
-- ClickHouse **seulement** si OLAP massif (≫10⁸ lignes, scans analytiques lourds).
-- **Déclencheur** : latence des requêtes sur Parquet/DuckDB qui pique, ou agrégats sur flux.
-- **Owner** : `infra-engineer`.
+### Phase 3 — Historical hot store: **TimescaleDB** (default) / ClickHouse *(at volume)*
+- TimescaleDB = Postgres + time series (hypertables, **continuous
+  aggregates**, compression). SQL, transactional, rich ecosystem -> **recommended default**.
+- Stores the streamed ticks for fast time-range queries + continuous
+  aggregates (1 min / 1 h OHLC of the compute index).
+- ClickHouse **only** for massive OLAP (>>10^8 rows, heavy analytical scans).
+- **Trigger**: query latency on Parquet/DuckDB starts to hurt, or aggregates on a live stream.
+- **Owner**: `infra-engineer`.
 
-### Phase 4 — Serving / features chaudes : **Redis** *(quand un consommateur live existe)*
-- Redis garde le **dernier prix / feature** (+ fenêtres courtes) pour servir en **faible
-  latence** : pricer spark spread live, inférence P09, desk P10, dashboard.
-- **Déclencheur** : un modèle/dashboard a besoin de l'état courant en sub-seconde.
-- **Owner** : `infra-engineer`.
+### Phase 4 — Serving / hot features: **Redis** *(once a live consumer exists)*
+- Redis holds the **latest price / feature** (+ short windows) to serve at
+  **low latency**: live spark spread pricer, P09 inference, P10 desk, dashboard.
+- **Trigger**: a model/dashboard needs sub-second current state.
+- **Owner**: `infra-engineer`.
 
-### Phase 5 — Feature store point-in-time *(quand le ML mûrit)*
-- Split offline (entraînement, cold) / online (serving, hot) **point-in-time correct**.
-- Promouvoir les features de `core/features/` (P07) ici. Éviter le prématuré : les
-  jointures point-in-time (déjà faites par P07) sont le cœur ; l'outillage vient après.
+### Phase 5 — Point-in-time feature store *(once ML matures)*
+- Split offline (training, cold) / online (serving, hot), **point-in-time correct**.
+- Promote the features from `core/features/` (P07) here. Avoid premature
+  work: the point-in-time joins (already done by P07) are the core; the
+  tooling comes after.
 
-## 4. Anti-sur-ingénierie (à lire avant de coder Kafka)
+## 4. Anti-over-engineering (read before deploying Kafka)
 
-- **Ne pas** monter Redpanda + Timescale + Redis **sur des snapshots quotidiens** : tu
-  aurais un moteur de course sans carburant. Le streaming n'a de sens **qu'après** avoir
-  décidé de ticker en intraday (Phase 2).
-- Rester **Phase 0–1** tant que la donnée est batch et le volume modeste (DuckDB-sur-Parquet
-  encaisse beaucoup). **Local-first** : tout en docker-compose ; managed cloud au seul palier institutionnel.
-- **Poser l'abstraction (§2) maintenant** : c'est ce qui rend les phases 2–4 indolores le jour venu.
+- **Do not** stand up Redpanda + Timescale + Redis **on top of daily
+  snapshots**: that would be a race engine with no fuel. Streaming only
+  makes sense **after** deciding to tick intraday (Phase 2).
+- Stay at **Phase 0-1** as long as the data is batch and the volume modest
+  (DuckDB-on-Parquet absorbs a lot). **Local-first**: everything in
+  docker-compose; managed cloud only at the institutional tier.
+- **Lay down the abstraction (section 2) now**: that is what makes phases
+  2-4 painless when the day comes.
 
-## 5. Comment ça se construit (rituel du labo)
+## 5. How this gets built (lab ritual)
 
-Lot dédié = un projet d'infra données, exécuté dans un **worktree** comme les autres
-(plan → tests-first → commit → convergence). Modules possédés : `core/storage/` + `infra/`.
-Owners : `infra-engineer` (à fabriquer via `agent-architect`) + `data-engineer`.
+A dedicated batch = a data-infra project, run in a **worktree** like any
+other (plan -> tests-first -> commit -> convergence). Owned modules:
+`core/storage/` + `infra/`. Owners: `infra-engineer` (to be built via
+`agent-architect`) + `data-engineer`.
 
-**Prochain pas concret recommandé : Phase 0** (`ParquetSnapshotStore` + DVC + fix distribution)
-— petit, à fort levier, débloque tout le reste.
+**Recommended next concrete step: Phase 0** (`ParquetSnapshotStore` + plain
+git tracking + distribution fix) — small, high-leverage, unblocks everything else.

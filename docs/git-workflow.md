@@ -1,146 +1,153 @@
-# Workflow Git parallèle du labo
+# Lab parallel git workflow
 
-> Comment plusieurs instances focalisées travaillent en parallèle sans casser
-> `main`. Ce document décrit le **cycle de vie des branches et worktrees** ; la
-> **propriété des modules** (qui écrit où) vit dans
-> [parallel-ops.md](parallel-ops.md), source de vérité unique. Les deux se lisent
-> ensemble : ici le « comment merger », là-bas le « qui possède quoi ».
+> How several focused instances work in parallel without breaking `main`.
+> This document describes the **branch and worktree lifecycle**; **module
+> ownership** (who writes where) lives in
+> [parallel-ops.md](parallel-ops.md), the single source of truth. Read both
+> together: here the "how to merge", there the "who owns what".
 
-## 1. Modèle de branches
+## 1. Branch model
 
-| Branche | Rôle | Règles |
+| Branch | Role | Rules |
 |---|---|---|
-| `main` | Protégée, stable | Ne reçoit que des merges relus, CI verte. Jamais de commit direct, jamais de force-push. |
-| `integration` | Convergence | Les features y mergent **d'abord**. C'est la base de toutes les branches de travail. |
-| `feature/PNN-<nom>` | Une par projet/instance | Vit dans son propre worktree, branchée sur `integration`. |
-| `chore/<sujet>` | Maintenance d'infra | Mêmes règles que `feature/*` (ex. cette mise en place d'orchestration). |
+| `main` | Protected, stable | Only receives reviewed merges, green CI. Never a direct commit, never a force-push. |
+| `integration` | Convergence | Features merge here **first**. It is the base for every working branch. |
+| `feature/PNN-<name>` | One per project/instance | Lives in its own worktree, branched off `integration`. |
+| `chore/<topic>` | Infra maintenance | Same rules as `feature/*` (e.g. this orchestration setup). |
 
-`PNN` = identifiant projet du roster (ex. `P01`, `P04`, `P08`). Une instance
-focalisée = une branche `feature/PNN-<nom>` = un worktree = un module possédé.
+`PNN` = roster project id (e.g. `P01`, `P04`, `P08`). One focused instance =
+one `feature/PNN-<name>` branch = one worktree = one owned module.
 
-## 2. Worktrees : 1 worktree = 1 module DISJOINT
+## 2. Worktrees: 1 worktree = 1 DISJOINT module
 
-Chaque instance travaille dans un worktree isolé, branché sur `integration` :
+Each instance works in an isolated worktree, branched off `integration`:
 
 ```bash
-git worktree add ../lab-PNN -b feature/PNN-<nom> integration
+git worktree add ../lab-PNN -b feature/PNN-<name> integration
 ```
 
-Le worktree n'écrit **que** dans le module qu'il possède (cf. table de partition
-de [parallel-ops.md](parallel-ops.md)). Pour lister / nettoyer :
+The worktree writes **only** into the module it owns (see the ownership
+partition table in [parallel-ops.md](parallel-ops.md)). To list / clean up:
 
 ```bash
 git worktree list
-git worktree remove ../lab-PNN      # une fois la feature mergée
+git worktree remove ../lab-PNN      # once the feature is merged
 ```
 
-## 3. Zone protégée
+## 3. Protected zone
 
-`CLAUDE.md`, `.claude/`, `.mcp.json`, `pyproject.toml` ne changent **que** via la
-session de convergence (celle qui pilote `integration`), jamais dans un worktree
-périphérique. Un worktree qui doit y toucher prépare un patch et le remonte à la
-convergence. Sinon : conflits de merge garantis sur les fichiers les plus partagés.
+`CLAUDE.md`, `.claude/`, `.mcp.json`, `pyproject.toml` only change through
+the convergence session (the one driving `integration`), never from a
+peripheral worktree. A worktree that needs to touch them prepares a patch
+and hands it up to convergence. Otherwise: guaranteed merge conflicts on the
+most shared files.
 
-## 4. Discipline anti-conflit (avant de merger une feature)
+## 4. Anti-conflict discipline (before merging a feature)
 
 ```bash
-# Dans le worktree de la feature :
+# In the feature's worktree:
 git fetch origin
-git rebase origin/integration       # rejoue la feature sur la base à jour
-# relancer les tests : pytest && ruff check . && mypy core
+git rebase origin/integration       # replay the feature on the up-to-date base
+# rerun the tests: pytest && ruff check . && mypy core
 git switch integration
-git merge --no-ff feature/PNN-<nom>  # ou via PR
+git merge --no-ff feature/PNN-<name>  # or via PR
 ```
 
-- **Rebase avant merge** : la feature se rejoue proprement sur `integration` à jour.
-- **Tests verts obligatoires** après rebase, avant merge.
-- **`--no-ff`** (ou PR) : on garde une trace explicite du point de merge.
+- **Rebase before merge**: the feature replays cleanly on an up-to-date `integration`.
+- **Green tests required** after rebase, before merge.
+- **`--no-ff`** (or PR): keeps an explicit trace of the merge point.
 
-## 5. integration → main
+## 5. integration -> main
 
-`integration` ne remonte vers `main` que lorsque la **CI est verte** et la **revue
-faite**. Le merge se fait en **fast-forward propre** (pas de divergence) :
+`integration` only promotes to `main` once **CI is green** and the **review
+is done**. The merge is a **clean fast-forward** (no divergence):
 
 ```bash
 git switch main
 git merge --ff-only integration
 ```
 
-## 6. Interdits
+## 6. Forbidden
 
-- ❌ Jamais de commit direct sur `main`.
-- ❌ Jamais de force-push sur `main` ou `integration`.
-- ❌ Jamais d'écriture hors de son module possédé depuis un worktree.
-- ⚠️ Tout push sur une branche partagée (`integration`, `main`) se fait après
-  confirmation explicite du directeur de recherche.
+- Never commit directly to `main`.
+- Never force-push to `main` or `integration`.
+- Never write outside your owned module from a worktree.
+- Any push to a shared branch (`integration`, `main`) requires explicit
+  confirmation from the research director.
 
-## 7. Cycle type d'une instance
+## 7. Typical instance cycle
 
-1. La convergence crée/maintient `integration` à jour avec `main`.
-2. L'instance ouvre son worktree : `git worktree add ../lab-PNN -b feature/PNN-<nom> integration`.
-3. Elle travaille **uniquement dans son module**, commits sémantiques.
-4. Avant merge : `git fetch && git rebase origin/integration`, tests verts.
-5. La convergence merge `feature/PNN-<nom>` → `integration` (PR ou `--no-ff`).
-6. Quand un palier est atteint et la CI verte : `integration` → `main` en `--ff-only`.
+1. Convergence creates/keeps `integration` up to date with `main`.
+2. The instance opens its worktree: `git worktree add ../lab-PNN -b feature/PNN-<name> integration`.
+3. It works **only in its own module**, with semantic commits.
+4. Before merging: `git fetch && git rebase origin/integration`, green tests.
+5. Convergence merges `feature/PNN-<name>` -> `integration` (PR or `--no-ff`).
+6. Once a milestone is reached and CI is green: `integration` -> `main` via `--ff-only`.
 
-## 8. Worktrees — pratiques natives Claude Code
+## 8. Worktrees — native Claude Code practices
 
-> Distillé de la doc officielle « Run parallel sessions with worktrees » et des
-> retours d'usage 2026 (liens en §9). La méthode manuelle de la §2 reste le
-> **standard du labo** (base = `integration`, nommage `feature/PNN-<nom>`) ; ce qui
-> suit l'outille et la rend ergonomique.
+> Distilled from the official "Run parallel sessions with worktrees" docs and
+> 2026 usage feedback (links in section 9). The manual method in section 2
+> remains the **lab standard** (base = `integration`, naming
+> `feature/PNN-<name>`); what follows tools it and makes it ergonomic.
 
-### Deux façons de créer un worktree
+### Two ways to create a worktree
 
-- **Manuelle (standard labo)** — base et nom explicites, branchée sur `integration`,
-  puis on **initialise l'environnement dans chaque worktree** (checkout neuf) :
+- **Manual (lab standard)** — explicit base and name, branched off
+  `integration`, then **initialize the environment in each worktree** (fresh
+  checkout):
 
   ```bash
-  git worktree add ../lab-PNN -b feature/PNN-<nom> integration
+  git worktree add ../lab-PNN -b feature/PNN-<name> integration
   cd ../lab-PNN && uv sync --extra dev
   ```
 
-- **Native Claude Code (ad hoc / analyse)** — `claude --worktree <nom>` crée un
-  worktree sous `.claude/worktrees/<nom>/`. ⚠️ Il branche depuis `origin/HEAD`
-  (= `main`), **pas** `integration` : à réserver aux sessions jetables (lecture de
-  logs, requêtes). Pour partir de l'état local, régler `worktree.baseRef: "head"`
-  dans les settings.
+- **Native Claude Code (ad hoc / analysis)** — `claude --worktree <name>`
+  creates a worktree under `.claude/worktrees/<name>/`. Warning: it branches
+  from `origin/HEAD` (= `main`), **not** `integration`: reserve it for
+  throwaway sessions (reading logs, queries). To start from local state, set
+  `worktree.baseRef: "head"` in settings.
 
-### Propagation des secrets (`.worktreeinclude`)
+### Secret propagation (`.worktreeinclude`)
 
-Un worktree est un checkout neuf : `.env` (gitignoré) n'y est **pas**. Le fichier
-`.worktreeinclude` (syntaxe `.gitignore`) liste les fichiers gitignorés à recopier
-automatiquement dans chaque nouveau worktree. **Indispensable ici** : les connecteurs
-(ENTSO-E, Silicon Data) ont besoin des tokens. Voir [`.worktreeinclude`](../.worktreeinclude).
+A worktree is a fresh checkout: `.env` (gitignored) is **not** there. The
+`.worktreeinclude` file (`.gitignore` syntax) lists gitignored files to copy
+automatically into each new worktree. **Essential here**: the connectors
+(ENTSO-E, Silicon Data) need tokens. See [`.worktreeinclude`](../.worktreeinclude).
 
-### Subagents en worktree isolé
+### Subagents in an isolated worktree
 
-Un employé du labo peut tourner dans son propre worktree en ajoutant
-`isolation: worktree` à son frontmatter (ou « utilise un worktree pour tes agents »).
-Idéal pour les gros lots disjoints : chaque agent teste de bout en bout puis ouvre une PR.
+A lab employee can run in its own worktree by adding `isolation: worktree`
+to its frontmatter (or "use a worktree for your agents"). Ideal for large
+disjoint batches: each agent tests end to end then opens a PR.
 
-### Baseline de tests propre (pratique-clé)
+### Clean test baseline (key practice)
 
-Avant de confier un worktree à une instance : le créer, lancer `pytest && ruff check .
-&& mypy core` **immédiatement**, confirmer le vert. Après le travail de l'instance,
-relancer la même suite : toute nouvelle erreur devient ainsi **imputable** à
-l'instance, pas à un état préexistant.
+Before handing a worktree to an instance: create it, run `pytest && ruff
+check . && mypy core` **immediately**, confirm green. After the instance's
+work, rerun the same suite: any new error is then **attributable** to the
+instance, not to a pre-existing state.
 
-### Orientation quand beaucoup de sessions tournent
+### Staying oriented with many running sessions
 
-Nommer les worktrees, alias shell pour sauter de l'un à l'autre, onglets de terminal
-colorés, notifications activées, et garder un worktree « analyse » dédié aux logs /
-requêtes. Le roster et les prompts d'instances (`docs/orchestration/`) jouent le rôle
-de **document de tâches partagé** : chaque instance lit son module possédé et n'écrit
-que dedans (anti-collision, cf. partition de [parallel-ops.md](parallel-ops.md)).
+Name the worktrees, shell aliases to jump between them, colored terminal
+tabs, notifications enabled, and keep a dedicated "analysis" worktree for
+logs / queries. The instance roster and prompts (see the note below) act as
+a **shared task board**: each instance reads its owned module and writes
+only there (anti-collision, see the partition in [parallel-ops.md](parallel-ops.md)).
 
-### Nettoyage
+> Note: this section used to point at `docs/orchestration/` for the roster
+> and per-instance prompts. That directory has since been removed from the
+> repository (see PARTIE 6 of the convergence notes); the reference is kept
+> here as a description of the practice, not as a live link.
 
-`git worktree list` pour l'inventaire ; `git worktree remove ../lab-PNN` une fois la
-feature mergée (`--force` si modifs non committées). Les worktrees natifs sans
-changement sont balayés automatiquement après `cleanupPeriodDays`.
+### Cleanup
+
+`git worktree list` for the inventory; `git worktree remove ../lab-PNN` once
+the feature is merged (`--force` if there are uncommitted changes). Native
+worktrees with no changes are swept automatically after `cleanupPeriodDays`.
 
 ## 9. Sources
 
-- Claude Code — *Run parallel sessions with worktrees* : <https://code.claude.com/docs/en/worktrees>
-- Claude Code — *Power user tips* : <https://support.claude.com/en/articles/14554000-claude-code-power-user-tips>
+- Claude Code — *Run parallel sessions with worktrees*: <https://code.claude.com/docs/en/worktrees>
+- Claude Code — *Power user tips*: <https://support.claude.com/en/articles/14554000-claude-code-power-user-tips>
