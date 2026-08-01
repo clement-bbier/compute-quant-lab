@@ -32,6 +32,8 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "mypy>=1.10",
+    "pandas-stubs>=2.2",
+    "types-requests>=2.31",
     "pre-commit>=3.7",
     "maturin>=1.7",
 ]
@@ -47,6 +49,21 @@ extend-exclude = [
 
 [tool.mypy]
 python_version = "3.11"
+
+# Stub-less third-party / in-repo Rust extension modules only. pandas/requests are
+# typed via pandas-stubs/types-requests (dev deps) instead of blanket
+# ignore_missing_imports, so a real typo in a *typed* import still fails mypy.
+# scipy-stubs is excluded: it requires the Python 3.12 `type` statement, incompatible
+# with this project's python_version = "3.11".
+[[tool.mypy.overrides]]
+module = [
+    "backtest_loop",
+    "spark_kernel",
+    "forward_engine",
+    "gridstatusio",
+    "plotly.*",
+    "scipy.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

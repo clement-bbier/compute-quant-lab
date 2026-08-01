@@ -45,8 +45,9 @@ def test_rtm_price_live() -> None:
     assert len(series) >= 48, f"Insufficient volume: {len(series)} points"
 
     # UTC timezone
-    assert series.index.tz is not None
-    assert str(series.index.tz) == "UTC", f"Unexpected timezone: {series.index.tz}"
+    index = pd.DatetimeIndex(series.index)
+    assert index.tz is not None
+    assert str(index.tz) == "UTC", f"Unexpected timezone: {index.tz}"
 
     # Time monotonicity
     assert series.index.is_monotonic_increasing, "The index is not sorted chronologically"

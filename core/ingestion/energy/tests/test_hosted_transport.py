@@ -62,7 +62,7 @@ def test_hosted_transport_maps_rtm_to_canonical_and_parses() -> None:
     s = market.rtm_price(pd.Timestamp("2024-01-15", tz="UTC"), pd.Timestamp("2024-01-16", tz="UTC"))
     assert s.name == "rtm_price_usd_mwh"
     assert list(s.to_numpy()) == [25.0, 28.0]
-    assert str(s.index.tz) == "UTC"
+    assert str(pd.DatetimeIndex(s.index).tz) == "UTC"
     assert client.calls[0][0] == "ercot_spp_real_time_15_min"  # correct dataset
 
 
@@ -80,6 +80,25 @@ def test_hosted_transport_maps_forecast_to_canonical() -> None:
     assert list(df["forecast_load_mw"]) == [45000.0, 46000.0]
     # capacity not fabricated -> reserve margin NaN (point 2: no more 70 GW placeholder)
     assert df["reserve_margin_mw"].isna().all()
+
+
+def test_hosted_transport_raises_without_key_or_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No injected client and no key anywhere -> fail loudly, not with a cryptic AttributeError."""
+    monkeypatch.delenv("GRIDSTATUS_API_KEY", raising=False)
+    transport = GridstatusIoTransport()
+    with pytest.raises(RuntimeError, match="GRIDSTATUS_API_KEY"):
+        transport.fetch_rtm_spp(
+            pd.Timestamp("2024-01-15", tz="UTC"), pd.Timestamp("2024-01-16", tz="UTC"), "HB_BUSAVG"
+        )
+
+
+def test_direct_transport_net_load_forecast_not_implemented() -> None:
+    """The OSS gridstatus lib exposes no net-load forecast: must fail loudly, not silently."""
+    transport = GridstatusDirectTransport()
+    with pytest.raises(NotImplementedError, match="hosted transport"):
+        transport.fetch_net_load_forecast(
+            pd.Timestamp("2024-01-15", tz="UTC"), pd.Timestamp("2024-01-16", tz="UTC")
+        )
 
 
 def test_transport_selection_hosted_when_key_present(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,7 +133,7 @@ def test_hosted_live_rtm_real_schema() -> None:
     start = end - pd.Timedelta(days=2)
     s = market.rtm_price(start, end)
     assert len(s) > 0
-    assert str(s.index.tz) == "UTC"
+    assert str(pd.DatetimeIndex(s.index).tz) == "UTC"
     assert s.name == "rtm_price_usd_mwh"
 
 

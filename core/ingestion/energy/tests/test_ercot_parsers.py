@@ -47,8 +47,9 @@ class TestParseRtmSpp:
         """The series index is UTC tz-aware."""
         df_raw = pd.read_csv(RTM_FIXTURE, parse_dates=["Time", "Interval Start", "Interval End"])
         result = parse_rtm_spp(df_raw, location="HB_BUSAVG")
-        assert result.index.tz is not None
-        assert str(result.index.tz) == "UTC"
+        index = pd.DatetimeIndex(result.index)
+        assert index.tz is not None
+        assert str(index.tz) == "UTC"
 
     def test_series_name(self) -> None:
         """The series name is rtm_price_usd_mwh."""
