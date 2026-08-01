@@ -84,7 +84,7 @@ only writes to its own module; the protected zone (`CLAUDE.md`, `.claude/`, `.mc
 
 ## 8. Conventions
 
-- Python ≥ 3.11, environment managed via **uv** (`uv sync`), committed lockfile.
+- Python 3.12 (pinned via `.python-version`), environment managed via **uv** (`uv sync`), committed lockfile.
 - All data I/O goes through `core/` — never a hardcoded path in a project.
 - `data/raw/` is **immutable**: never write into it by hand (PreToolUse hook).
 - Every backtest is logged to MLflow with params + metrics + git SHA.

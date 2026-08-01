@@ -9,7 +9,7 @@ build-backend = "maturin"
 name = "backtest-loop"
 version = "0.1.0"
 description = "Rust kernel for phase 2 of the P08 backtest engine."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 [tool.maturin]
 module-name = "backtest_loop"

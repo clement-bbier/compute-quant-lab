@@ -8,7 +8,7 @@ build-backend = "maturin"
 [project]
 name = "spark-kernel"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 description = "Rust kernel for the digital spark spread (parity with the Python oracle)."
 
 [tool.maturin]

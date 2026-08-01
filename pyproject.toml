@@ -2,7 +2,7 @@
 name = "compute-quant-lab"
 version = "0.1.0"
 description = "Quant research lab: compute as an asset class (digital spark spread)."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     # Major upper bounds on the numeric stack: a pandas or numpy 2.x -> 3.x
     # bump would silently break backtests (dtypes, alignment).
@@ -40,7 +40,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 extend-exclude = [
     "core/pricing/_kernel/target",
     "core/backtest/_loop/target",
@@ -48,13 +48,11 @@ extend-exclude = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 
 # Stub-less third-party / in-repo Rust extension modules only. pandas/requests are
 # typed via pandas-stubs/types-requests (dev deps) instead of blanket
 # ignore_missing_imports, so a real typo in a *typed* import still fails mypy.
-# scipy-stubs is excluded: it requires the Python 3.12 `type` statement, incompatible
-# with this project's python_version = "3.11".
 [[tool.mypy.overrides]]
 module = [
     "backtest_loop",

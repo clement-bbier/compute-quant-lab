@@ -31,9 +31,9 @@ jobs:
           fetch-depth: 1
 
       - name: Setup uv + Python
+        # No explicit python-version: setup-uv auto-discovers .python-version
+        # at the repo root — single source of truth for the Python version.
         uses: astral-sh/setup-uv@v3
-        with:
-          python-version: "3.11"
 
       - name: Install deps
         run: uv sync
