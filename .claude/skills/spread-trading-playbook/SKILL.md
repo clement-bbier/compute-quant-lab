@@ -1,28 +1,28 @@
 ---
 name: spread-trading-playbook
-description: Méthodologie de construction d'une stratégie d'arbitrage de spread (ici énergie vs compute) une fois la cointégration établie. À invoquer pour passer du signal statistique à une stratégie tradable.
+description: Methodology for building a spread arbitrage strategy (here energy vs. compute) once cointegration is established. To be invoked to move from a statistical signal to a tradable strategy.
 ---
 # Spread Trading Playbook
 
-Présuppose une relation cointégrée validée (voir /cointegration-analysis).
+Assumes a validated cointegrated relationship (see /cointegration-analysis).
 
-## Construction de la stratégie
-1. **Normaliser le spread** en z-score sur fenêtre glissante point-in-time.
-2. **Règles d'entrée/sortie** : entrer quand |z| dépasse un seuil (ex. 2), sortir au retour
-   vers 0. Le seuil est un hyperparamètre — à optimiser AVEC prudence (cf. backtest-pitfalls).
-3. **Sizing** : position inversement proportionnelle à la volatilité du spread ; cap de risque.
-4. **Coûts** : modéliser frais + slippage. Sur un actif illiquide comme le compute,
-   le slippage domine — être conservateur.
-5. **Stop / régime** : couper si la cointégration casse (le spread ne revient plus).
+## Building the strategy
+1. **Normalize the spread** as a z-score over a point-in-time rolling window.
+2. **Entry/exit rules**: enter when |z| exceeds a threshold (e.g. 2), exit on reversion
+   to 0. The threshold is a hyperparameter — optimize it WITH caution (see backtest-pitfalls).
+3. **Sizing**: position inversely proportional to spread volatility; risk cap.
+4. **Costs**: model fees + slippage. On an illiquid asset like compute,
+   slippage dominates — be conservative.
+5. **Stop / regime**: cut if the cointegration breaks down (the spread no longer reverts).
 
-## Spécificité énergie↔compute
-- La jambe énergie est liquide et a un historique profond (ENTSO-E).
-- La jambe compute est illiquide, peu d'historique, exécution incertaine. Traiter
-  le signal comme indicatif tant que la série compute collectée est courte ;
-  commencer en paper-trading.
+## Energy↔compute specifics
+- The energy leg is liquid and has a deep history (ENTSO-E).
+- The compute leg is illiquid, has little history, and uncertain execution. Treat
+  the signal as indicative as long as the collected compute series is short;
+  start with paper-trading.
 
-## Métriques de validation
-PnL cumulé, Sharpe, max drawdown, turnover, hit ratio, sensibilité au coût.
+## Validation metrics
+Cumulative PnL, Sharpe, max drawdown, turnover, hit ratio, cost sensitivity.
 
-## Référence
-`references/stat-arb/` (Ernie Chan, *Algorithmic Trading*) ; `references/energy-markets/`.
+## Reference
+`references/stat-arb/` (Ernie Chan, *Algorithmic Trading*); `references/energy-markets/`.

@@ -1,35 +1,35 @@
 ---
 name: market-scan
-description: Dispatche un essaim de subagents de veille en parallèle pour cartographier le marché émergent du compute, chacun sur une facette disjointe. À invoquer pour une session de collecte d'information massive.
+description: Dispatches a swarm of intelligence-gathering subagents in parallel to map the emerging compute market, each on a disjoint facet. To be invoked for a massive information-gathering session.
 ---
-# Market Scan — essaim de veille parallèle
+# Market Scan — parallel intelligence swarm
 
-But : rassembler un maximum d'information fiable sur le compute comme classe d'actifs,
-en parallèle, sans redondance. Les agents collectent et synthétisent ; ils n'écrivent
-jamais de code.
+Goal: gather as much reliable information as possible on compute as an asset class,
+in parallel, without redundancy. The agents collect and synthesize; they never write
+code.
 
-## Facettes (sous-questions DISJOINTES — une par agent)
-Lancer un subagent `literature-scout` par facette, chacun avec un brief ciblé :
+## Facets (DISJOINT sub-questions — one per agent)
+Launch one `literature-scout` subagent per facet, each with a targeted brief:
 
-1. **Structure du marché GPU** : acteurs (Vast.ai, RunPod, hyperscalers), mécanismes de
-   prix, liquidité, fragmentation, transparence.
-2. **Marchés forward / futures du compute** : existe-t-il des contrats à terme, des places
-   de marché, des indices ? Qui price le compute à terme ?
-3. **Dynamique des prix de l'énergie** : drivers du spot élec EU, lien gaz/météo/renouvelable,
-   spreads régionaux (Dunkerque, etc.).
-4. **Classes d'actifs comparables** : comment d'autres « commodités numériques » ou
-   l'électricité elle-même ont été financiarisées — analogies et limites.
-5. **Littérature académique** : papers récents (arXiv, SSRN) sur le pricing du compute,
-   l'arbitrage énergie/calcul, le spark spread numérique.
-6. **Cadre réglementaire / risques** : ce qui pourrait contraindre un desk compute.
+1. **GPU market structure**: players (Vast.ai, RunPod, hyperscalers), pricing
+   mechanisms, liquidity, fragmentation, transparency.
+2. **Compute forward / futures markets**: do forward contracts, marketplaces,
+   or indices exist? Who prices compute forward?
+3. **Energy price dynamics**: drivers of EU spot electricity, gas/weather/renewable links,
+   regional spreads (Dunkirk, etc.).
+4. **Comparable asset classes**: how other "digital commodities" or
+   electricity itself have been financialized — analogies and limits.
+5. **Academic literature**: recent papers (arXiv, SSRN) on compute pricing,
+   energy/compute arbitrage, the digital spark spread.
+6. **Regulatory framework / risks**: what could constrain a compute desk.
 
-## Règles
-- Chaque agent PARAPHRASE, ne copie aucun texte sous copyright, et cite ses sources.
-- Chaque agent renvoie une synthèse hiérarchisée : « ce qui change quelque chose pour nous »
-  en premier.
-- Dédupliquer à la convergence : la session pilote fusionne les synthèses dans
-  `references/` (un fichier par facette) et signale les contradictions entre agents.
+## Rules
+- Each agent PARAPHRASES, copies no copyrighted text, and cites its sources.
+- Each agent returns a ranked synthesis: "what actually matters for us"
+  first.
+- Deduplicate at convergence: the pilot session merges the syntheses into
+  `references/` (one file per facet) and flags contradictions between agents.
 
 ## Cadence
-Le market-scan est PONCTUEL (coûte des tokens). Le relancer quand le marché bouge,
-pas en continu. Démarrer avec 4-6 facettes disjointes, pas plus.
+Market-scan is AD HOC (it costs tokens). Rerun it when the market moves,
+not continuously. Start with 4-6 disjoint facets, no more.

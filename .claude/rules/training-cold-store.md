@@ -4,12 +4,12 @@ paths:
   - "core/features/**"
   - "projects/**"
 ---
-# Entraînement = cold store versionné (jamais le hot store)
+# Training = versioned cold store (never the hot store)
 
-- L'entraînement et le backtest lisent **toujours** le cold store **immuable et
-  versionné** (Parquet + DVC, cf. `docs/storage-roadmap.md`), jamais un store mutable
+- Training and backtesting **always** read from the **immutable and
+  versioned** cold store (Parquet, plain git-tracked, cf. `docs/storage-roadmap.md`), never a mutable store
   (TimescaleDB / Redis).
-- Le hot store (serving temps réel) est réservé à l'**inférence live** / monitoring,
-  pas à la reproductibilité d'entraînement.
-- Tout run logge la **version DVC** des données (via `core.utils.tracking`) → un modèle
-  se ré-entraîne à l'identique. Un dataset non versionné ne sert pas de base d'entraînement.
+- The hot store (real-time serving) is reserved for **live inference** / monitoring,
+  not for training reproducibility.
+- Every run logs the **git commit** of the data (via `core.utils.tracking`) → a model
+  can be retrained identically. An unversioned dataset does not serve as a training base.

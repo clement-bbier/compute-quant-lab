@@ -1,11 +1,11 @@
-"""Hook PostToolUse : formate le fichier Python qui vient d'être écrit.
+"""PostToolUse hook: formats the Python file that was just written.
 
-Contrairement à `guard_write.py`, ce hook est **fail-open et volontairement
-silencieux** : il ne protège rien, il rend service. Si `ruff` est absent ou
-échoue, l'édition reste valide et la session continue — la CI et pre-commit
-restent les filets de sécurité sur la qualité.
+Unlike `guard_write.py`, this hook is **fail-open and deliberately
+silent**: it protects nothing, it is a convenience. If `ruff` is absent or
+fails, the edit stays valid and the session continues — CI and pre-commit
+remain the safety nets on quality.
 
-Écrit en Python standard (pas de `jq`) pour fonctionner sous Windows.
+Written in standard Python (no `jq`) to work on Windows.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def main() -> int:
         payload = json.load(sys.stdin)
         file_path = payload["tool_input"]["file_path"]
     except Exception:
-        return 0  # rien d'exploitable : on ne dérange pas la session
+        return 0  # nothing usable: don't disturb the session
 
     if not isinstance(file_path, str) or not file_path.endswith(".py"):
         return 0
