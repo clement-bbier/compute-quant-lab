@@ -1,44 +1,54 @@
 name: ci
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel a still-running CI run for the same ref (branch/PR) once a new push
+# supersedes it — avoids burning runners on commits nobody cares about anymore.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - run: uv sync --extra dev
+
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build the Rust kernels (maturin develop)
-        run: |
-          uv run maturin develop -m core/pricing/_kernel/Cargo.toml
-          uv run maturin develop -m core/backtest/_loop/Cargo.toml
-          uv run maturin develop -m projects/04_compute_index_curve/forward_engine/Cargo.toml
-      - run: uv run ruff check .
-      - run: uv run mypy core
-      - name: Tests (each module in isolation — conftest not shared across projects)
-        run: |
-          set -euo pipefail
-          ran=0
-          for d in tests \
-                   core/backtest/tests \
-                   core/features/tests \
-                   core/ingestion/tests \
-                   core/ingestion/energy/tests \
-                   core/ingestion/providers/tests \
-                   core/models/tests \
-                   core/signals/tests \
-                   core/storage/tests \
-                   infra/collectors/tests \
-                   infra/mcp-servers/*/tests \
-                   projects/*/tests; do
-            # A glob with no match stays literal: skip it instead of passing
-            # it to pytest, which would fail on a nonexistent path.
-            [ -d "$d" ] || continue
-            echo "== pytest $d =="
-            uv run pytest -q "$d"
-            ran=$((ran + 1))
-          done
-          echo "== $ran suites run =="
-          # Guardrail: if the globs stop matching, CI must fail loudly
-          # instead of going green having tested nothing.
-          [ "$ran" -ge 20 ] || { echo "Too few suites ($ran < 20)" >&2; exit 1; }
+
+      - name: Cache cargo registry + target dirs (one per crate)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/pricing/_kernel/target
+            core/backtest/_loop/target
+            projects/04_compute_index_curve/forward_engine/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('core/pricing/_kernel/Cargo.lock', 'core/backtest/_loop/Cargo.lock', 'projects/04_compute_index_curve/forward_engine/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # Same command a developer runs after `git clone` / `git pull` — CI proves
+      # the exact sequence documented in the Makefile actually works, in order:
+      # uv sync (which does NOT keep the Rust kernels, they're outside the
+      # lockfile) THEN the maturin develop builds.
+      - run: make sync
+
+      - run: make lint
+      - run: make test
+      - run: make coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
