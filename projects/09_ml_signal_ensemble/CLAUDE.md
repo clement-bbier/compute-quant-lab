@@ -1,51 +1,53 @@
-# Projet 09 — ML Signal Ensemble
+# Project 09 — ML Signal Ensemble
 
-> Contexte LOCAL. Glossaire et conventions globales : CLAUDE.md racine. Méthodo détaillée
-> et état : [README.md](README.md). Patches zone protégée : [CONVERGENCE.md](CONVERGENCE.md).
+> LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
+> and status: [README.md](README.md). Protected-zone patches: [CONVERGENCE.md](CONVERGENCE.md).
 
-## Thèse spécifique
-Prévoir la **direction du spark spread** (P01) par un **ensemble ML** nourri de features
-exogènes point-in-time (P07) et de features dérivées du spread. Le signal est évalué par le
-moteur de backtest P08. En finance + ML, **l'ennemi n°1 est l'overfitting** : la rigueur de
-validation temporelle prime sur la complexité du modèle.
+## Specific thesis
+Forecast the **direction of the spark spread** (P01) with an **ML ensemble** fed by
+point-in-time exogenous features (P07) and spread-derived features. The signal is
+evaluated by the P08 backtest engine. In finance + ML, **enemy #1 is overfitting**:
+temporal validation rigor trumps model complexity.
 
-## Modules possédés
-- **`core/models/`** (brique réutilisable) **+** `projects/09_ml_signal_ensemble/`.
-- Lecture seule : `core.pricing` (P01), `core.features` (P07), `core.backtest` (P08).
-- Interdit : tout le reste de `core/`, zone protégée racine (`CLAUDE.md`, `.claude/`, `.mcp.json`,
-  `pyproject.toml`) → patches [CONVERGENCE.md](CONVERGENCE.md).
+## Owned modules
+- **`core/models/`** (reusable building block) **+** `projects/09_ml_signal_ensemble/`.
+- Read-only: `core.pricing` (P01), `core.features` (P07), `core.backtest` (P08).
+- Off-limits: everything else in `core/`, root protected zone (`CLAUDE.md`, `.claude/`, `.mcp.json`,
+  `pyproject.toml`) → patches in [CONVERGENCE.md](CONVERGENCE.md).
 
 ## Architecture (SOLID / DI) — `core/models/`
-- `protocols.py` — `Model` (`fit`/`predict_proba`), `Splitter` : contrats injectables (DI).
-- `validation.py` — `PurgedKFold` (purge horizon + embargo, **jamais de shuffle**), `oos_predict`
-  (vecteur OOS aligné), `deflated_sharpe_ratio` (anti multiple-testing).
-- `pipeline.py` — `FeaturePipeline` (consomme `core.features` P07 + features causales du spread),
-  `build_labels` (signe du forward return).
-- `xgboost_model.py` — `XGBoostDirectionModel` (déterministe), `SeedBaggingEnsemble`.
-- `strategy.py` — `PrecomputedSignalStrategy` : adaptateur vers le `Strategy` Protocol de P08
-  (lit `proba[view.t]`, mappe en position via une bande neutre).
+- `protocols.py` — `Model` (`fit`/`predict_proba`), `Splitter`: injectable contracts (DI).
+- `validation.py` — `PurgedKFold` (horizon purge + embargo, **never shuffled**), `oos_predict`
+  (aligned OOS vector), `deflated_sharpe_ratio` (anti multiple-testing).
+- `pipeline.py` — `FeaturePipeline` (consumes `core.features` P07 + causal spread features),
+  `build_labels` (sign of the forward return).
+- `xgboost_model.py` — `XGBoostDirectionModel` (deterministic), `SeedBaggingEnsemble`.
+- `strategy.py` — `PrecomputedSignalStrategy`: adapter to P08's `Strategy` Protocol
+  (reads `proba[view.t]`, maps to a position via a neutral band).
 
-## Insight clé (pont ML → backtest)
-P08 ne passe au `Strategy` qu'une vue point-in-time sur la **série de prix**, pas la matrice de
-features. On précalcule donc un vecteur de **probabilités OOS** (purged-CV) aligné sur l'index,
-et l'adaptateur ne fait que le lire à `view.t`. Le modèle ne voit jamais les prix au runtime →
-toute fuite est neutralisée *en amont*, et le garde-fou `GuardedView` reste gratuit (OCP).
+## Key insight (ML → backtest bridge)
+P08 only passes the `Strategy` a point-in-time view of the **price series**, not the
+feature matrix. So we precompute an **OOS probability** vector (purged-CV) aligned on
+the index, and the adapter just reads it at `view.t`. The model never sees prices at
+runtime → any leakage is neutralized *upstream*, and the `GuardedView` guard stays free
+(OCP).
 
-## Frontière réel/simulé (non négociable)
-`synthetic.DataProvenance.simulated` est **obligatoire** (sans défaut, rule `forward-real-simulated`) ;
-un test échoue s'il manque. Au PoC, tout tourne sur du **simulé étiqueté** (pas bloqué par ENTSO-E).
+## Real/simulated boundary (non-negotiable)
+`synthetic.DataProvenance.simulated` is **mandatory** (no default, `forward-real-simulated`
+rule); a test fails if it's missing. At PoC stage, everything runs on **labeled simulated**
+data (not blocked on ENTSO-E).
 
-## État d'avancement (PoC-now)
-- [x] `core/models/` : protocols, purged-CV + embargo + OOS, deflated Sharpe, pipeline PIT, XGBoost
-  déterministe + ensemble de graines, adaptateur `Strategy` — 30 tests verts.
-- [x] Anti look-ahead (3 défenses), split temporel sans fuite, déterminisme, sanity bruit-pur.
-- [x] Run headline simulé → backtest P08 → MLflow (params + n_trials + SHA + DVC + figure PnL).
-- [x] Verdict adversarial `/backtest-pitfalls` ([results/SYNTHESIS.md](results/SYNTHESIS.md)).
-- [x] `ruff` / `mypy core` / `pytest` verts.
-- [ ] **Données réelles** (ENTSO-E + historique compute) ; **walk-forward** ; LSTM/TFT (palier 3b).
-- [ ] Agent `risk-validator` (zone protégée → convergence, cf. CONVERGENCE.md).
+## Progress status (PoC-now)
+- [x] `core/models/`: protocols, purged-CV + embargo + OOS, deflated Sharpe, PIT pipeline, deterministic
+  XGBoost + seed ensemble, `Strategy` adapter — 30 passing tests.
+- [x] Anti-look-ahead (3 defenses), leak-free temporal split, determinism, pure-noise sanity check.
+- [x] Simulated headline run → P08 backtest → MLflow (params + n_trials + SHA + DVC + PnL figure).
+- [x] Adversarial verdict `/backtest-pitfalls` ([results/SYNTHESIS.md](results/SYNTHESIS.md)).
+- [x] `ruff` / `mypy core` / `pytest` all green.
+- [ ] **Real data** (ENTSO-E + compute history); **walk-forward**; LSTM/TFT (tier 3b).
+- [ ] `risk-validator` agent (protected zone → convergence, cf. CONVERGENCE.md).
 
-## Résultats clés
-Pipeline validé bout-en-bout sur **SIMULÉ**. Sharpe ~0.17, deflated/PSR ~0.66, drawdown profond,
-turnover élevé : l'edge synthétique faible **ne survit pas aux coûts**. **Aucun alpha revendiqué** —
-voir le verdict dans [results/SYNTHESIS.md](results/SYNTHESIS.md).
+## Key results
+Pipeline validated end-to-end on **SIMULATED** data. Sharpe ~0.17, deflated/PSR ~0.66, deep
+drawdown, high turnover: the weak synthetic edge **does not survive costs**. **No alpha
+claimed** — see the verdict in [results/SYNTHESIS.md](results/SYNTHESIS.md).

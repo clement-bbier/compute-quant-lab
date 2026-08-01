@@ -1,11 +1,11 @@
-"""Couche vitrine P13 — benchmark spot compute public (indice + dispersion).
+"""P13 showcase layer — public compute spot benchmark (index + dispersion).
 
-Consomme **uniquement** la fondation (`core.storage` pour lire le cold store,
-`core.ingestion.build_spot_index` pour l'agrégation canonique). Aucune réécriture de
-``core`` : que de la consommation. Logique de calcul pure ici ; l'I/O (lecture du lac,
-dashboard, MLflow) vit dans ``run_build_benchmark.py`` et ``dashboard/app.py``.
+Consumes **only** the foundation (`core.storage` to read the cold store,
+`core.ingestion.build_spot_index` for canonical aggregation). No rewriting of
+``core``: consumption only. Pure computation logic here; I/O (lake reads,
+dashboard, MLflow) lives in ``run_build_benchmark.py`` and ``dashboard/app.py``.
 
-Frontière edge (vitrine PUBLIQUE) : on publie la **mesure** (prix de référence quotidien
-+ dispersion inter-venues descriptive), jamais la **décision** de timing (« louer sur X
-maintenant »). Cf. ``projects/13_compute_benchmark/CLAUDE.md`` §frontière edge.
+Edge boundary (PUBLIC showcase): we publish the **measurement** (daily reference price
++ descriptive cross-venue dispersion), never the timing **decision** ("rent on X
+now"). Cf. ``projects/13_compute_benchmark/CLAUDE.md`` §edge boundary.
 """

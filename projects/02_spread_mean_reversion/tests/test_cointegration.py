@@ -1,8 +1,8 @@
-"""Tests de la boîte à outils de cointégration (Engle-Granger, Johansen, demi-vie, stabilité).
+"""Tests for the cointegration toolkit (Engle-Granger, Johansen, half-life, stability).
 
-Cas analytiques connus : détection sur un couple cointégré construit, **rejet** sur deux
-marches aléatoires indépendantes (anti-spurious), récupération de la demi-vie OU, et
-preuve point-in-time de la ré-estimation glissante.
+Known analytical cases: detection on a constructed cointegrated pair, **rejection** on two
+independent random walks (anti-spurious), recovery of the OU half-life, and
+point-in-time proof of the rolling re-estimation.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def test_engle_granger_detects_known_cointegration(cointegrated_pair) -> None:
     result = engle_granger(y, x)
     assert result.is_cointegrated
     assert result.pvalue < 0.05
-    assert abs(result.hedge_ratio - beta) < 0.10  # β récupéré ≈ vrai β
+    assert abs(result.hedge_ratio - beta) < 0.10  # recovered β ≈ true β
 
 
 def test_engle_granger_rejects_independent_random_walks(independent_random_walks) -> None:
@@ -37,9 +37,9 @@ def test_engle_granger_rejects_independent_random_walks(independent_random_walks
 
 def test_adf_flags_unit_root_and_stationary_series(cointegrated_pair) -> None:
     y, x, _ = cointegrated_pair
-    # x est I(1) (marche aléatoire) → ADF ne rejette pas la racine unitaire.
+    # x is I(1) (random walk) -> ADF does not reject the unit root.
     assert not adf_test(x).is_stationary
-    # Le résidu de cointégration est stationnaire → ADF rejette la racine unitaire.
+    # The cointegration residual is stationary -> ADF rejects the unit root.
     residuals = engle_granger(y, x).residuals
     assert adf_test(residuals).is_stationary
 
@@ -47,7 +47,7 @@ def test_adf_flags_unit_root_and_stationary_series(cointegrated_pair) -> None:
 def test_kpss_agrees_on_stationary_residual(cointegrated_pair) -> None:
     y, x, _ = cointegrated_pair
     residuals = engle_granger(y, x).residuals
-    # KPSS : hypothèse nulle = stationnarité → on ne la rejette pas pour un résidu stationnaire.
+    # KPSS: null hypothesis = stationarity -> we do not reject it for a stationary residual.
     assert kpss_test(residuals).is_stationary
 
 
@@ -69,20 +69,20 @@ def test_half_life_recovers_known_ou_half_life(ou_spread_known_half_life) -> Non
     spread, expected_hl = ou_spread_known_half_life
     hl = half_life(spread)
     assert hl > 0.0
-    assert abs(hl - expected_hl) / expected_hl < 0.25  # à 25 % près (bruit fini)
+    assert abs(hl - expected_hl) / expected_hl < 0.25  # within 25% (finite noise)
 
 
 def test_rolling_cointegration_is_point_in_time(cointegrated_pair) -> None:
-    """La valeur à l'instant i ne doit dépendre QUE des données ≤ i (aucune fuite future)."""
+    """The value at instant i must depend ONLY on data ≤ i (no future leakage)."""
     y, x, _ = cointegrated_pair
     window = 200
     rolling = rolling_cointegration(y, x, window=window)
     assert list(rolling.columns) == ["hedge_ratio", "pvalue"]
-    # Re-calcul sur la série tronquée à i : la dernière ligne doit être identique à rolling[i].
+    # Recompute on the series truncated at i: the last row must match rolling[i].
     i = 400
     truncated = rolling_cointegration(y.iloc[: i + 1], x.iloc[: i + 1], window=window)
     np.testing.assert_allclose(
         truncated.iloc[-1].to_numpy(), rolling.iloc[i].to_numpy(), rtol=1e-12, atol=1e-12
     )
-    # Les premières fenêtres incomplètes sont NaN (pas d'estimation avec < window points).
+    # The first incomplete windows are NaN (no estimation with < window points).
     assert rolling["hedge_ratio"].iloc[: window - 1].isna().all()

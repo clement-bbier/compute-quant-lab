@@ -1,8 +1,8 @@
-"""Tests de la construction de la série spot (glue consommant ``core.ingestion``).
+"""Tests of spot series construction (glue consuming ``core.ingestion``).
 
-``build_spot_series`` rejoue ``build_spot_index`` sur une grille de fix. Deux garanties :
-- **point-in-time** : un relevé postérieur à un fix ne modifie pas ce fix (anti look-ahead) ;
-- **robustesse** : un instant sans données fraîches est ignoré (pas de point fabriqué).
+``build_spot_series`` replays ``build_spot_index`` over a fix grid. Two guarantees:
+- **point-in-time**: a reading posterior to a fix does not modify that fix (anti look-ahead);
+- **robustness**: an instant with no fresh data is ignored (no fabricated point).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from spot_series import build_spot_series
 _GPU = "H100"
 _DAY1 = dt.datetime(2026, 6, 19, 0, 30, tzinfo=dt.timezone.utc)
 _DAY2 = dt.datetime(2026, 6, 20, 0, 30, tzinfo=dt.timezone.utc)
-_DAY0 = dt.datetime(2026, 6, 1, 0, 30, tzinfo=dt.timezone.utc)  # avant toute donnée
+_DAY0 = dt.datetime(2026, 6, 1, 0, 30, tzinfo=dt.timezone.utc)  # before any data
 
 
 def _snaps_two_days() -> list[Snapshot]:
@@ -34,18 +34,18 @@ def test_build_spot_series_returns_one_price_per_resolvable_fix() -> None:
     times, prices = build_spot_series(_snaps_two_days(), [_DAY1, _DAY2], _GPU)
     assert len(times) == 2
     assert prices.shape == (2,)
-    assert prices[1] > prices[0]  # le niveau monte de DAY1 à DAY2
+    assert prices[1] > prices[0]  # the level rises from DAY1 to DAY2
 
 
 def test_grid_point_without_fresh_data_is_skipped() -> None:
     times, prices = build_spot_series(_snaps_two_days(), [_DAY0, _DAY1, _DAY2], _GPU)
-    # _DAY0 n'a aucune donnée fraîche (relevés bien postérieurs) -> ignoré.
+    # _DAY0 has no fresh data (readings well after it) -> ignored.
     assert len(times) == 2
     assert _DAY0 not in times
 
 
 def test_future_snapshot_does_not_change_past_fix() -> None:
-    """Anti look-ahead : ajouter un relevé futur laisse les fix antérieurs inchangés."""
+    """Anti look-ahead: adding a future reading leaves earlier fixes unchanged."""
     base = _snaps_two_days()
     _, prices_base = build_spot_series(base, [_DAY1, _DAY2], _GPU)
 

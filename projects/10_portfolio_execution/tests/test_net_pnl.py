@@ -1,8 +1,8 @@
-"""PnL net et attribution par signal (test §6-d).
+"""Net PnL and per-signal attribution (test §6-d).
 
-On branche le desk composite dans le moteur P08 (run sans coût = brut), puis on vérifie deux
-identités exactes : la position nette se décompose additivement en contributions par signal,
-et ``Σ_i contribution_i == PnL brut``. Enfin ``net = brut − coûts`` via le modèle d'exécution.
+We wire the composite desk into the P08 engine (no-cost run = gross), then verify two
+exact identities: the net position decomposes additively into per-signal contributions,
+and ``Σ_i contribution_i == gross PnL``. Finally ``net = gross − costs`` via the execution model.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def _desk() -> DeskStrategy:
 
 
 def test_components_sum_to_net_position(desk_prices: np.ndarray) -> None:
-    """Les positions-composantes par signal somment exactement à la position nette (additivité)."""
+    """The per-signal component positions sum exactly to the net position (additivity)."""
     desk = _desk()
     engine = BacktestEngine(cost_model=LinearCostModel(0.0, 0.0), periods_per_year=PERIODS_PER_YEAR)
     result = engine.run(desk_prices, desk)
@@ -37,20 +37,20 @@ def test_components_sum_to_net_position(desk_prices: np.ndarray) -> None:
 
 
 def test_signal_contributions_sum_to_gross_pnl(desk_prices: np.ndarray) -> None:
-    """Σ_i contribution_i[t] == rendement brut[t] (attribution exacte, base de 'contribution par signal')."""
+    """Σ_i contribution_i[t] == gross return[t] (exact attribution, basis of 'contribution by signal')."""
     desk = _desk()
     engine = BacktestEngine(cost_model=LinearCostModel(0.0, 0.0), periods_per_year=PERIODS_PER_YEAR)
     result = engine.run(desk_prices, desk)
     hist = desk.history()
     gross = result.ledger.returns
 
-    # contribution_i[t] = composante_i[t-1] · rendement_marché[t]
+    # contribution_i[t] = component_i[t-1] · market_return[t]
     contrib = hist.components[:-1] * hist.mkt_returns[1:].reshape(-1, 1)
     assert np.allclose(contrib.sum(axis=1), gross[1:])
 
 
 def test_net_equals_gross_minus_costs(desk_prices: np.ndarray) -> None:
-    """PnL net = PnL brut − coûts d'exécution (le desk se juge au net, jamais au brut)."""
+    """Net PnL = gross PnL − execution costs (the desk is judged on net, never on gross)."""
     desk = _desk()
     engine = BacktestEngine(cost_model=LinearCostModel(0.0, 0.0), periods_per_year=PERIODS_PER_YEAR)
     result = engine.run(desk_prices, desk)
@@ -60,4 +60,4 @@ def test_net_equals_gross_minus_costs(desk_prices: np.ndarray) -> None:
     model = ExecutionModel(fees_bps=10.0, slippage_bps=5.0, impact_kappa=0.01)
     net, costs = model.apply(gross, positions)
     assert np.allclose(net, gross - costs)
-    assert costs.sum() > 0.0  # le desk a tradé → coûts strictement positifs
+    assert costs.sum() > 0.0  # the desk traded → strictly positive costs

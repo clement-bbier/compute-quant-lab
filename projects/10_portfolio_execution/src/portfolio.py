@@ -1,12 +1,12 @@
-"""Construction de portefeuille : signaux → poids → position nette (pondération sous risque).
+"""Portfolio construction: signals → weights → net position (risk-budgeted weighting).
 
-Décision de design (PoC) : **inverse-vol** ``w_i = (b_i/σ_i) / Σ_j(b_j/σ_j)``, derrière une
-abstraction ``WeightScheme`` qui ouvre la porte au **risk-parity / ERC** au palier institutionnel
-sans toucher au reste (OCP). ``b_i`` = budget de risque (uniforme par défaut).
+Design decision (PoC): **inverse-vol** ``w_i = (b_i/σ_i) / Σ_j(b_j/σ_j)``, behind a
+``WeightScheme`` abstraction that opens the door to **risk-parity / ERC** at the institutional tier
+without touching the rest (OCP). ``b_i`` = risk budget (uniform by default).
 
-Le ``PortfolioConstructor`` est **pur** : il prend des volatilités déjà estimées point-in-time
-(par le ``DeskStrategy``) et les signaux courants, applique un **plancher de vol** (anti-domination
-d'un signal à vol quasi nulle) puis un **écrêtage de levier brut** (``gross_cap``, limite desk).
+``PortfolioConstructor`` is **pure**: it takes volatilities already estimated point-in-time
+(by ``DeskStrategy``) and the current signals, applies a **vol floor** (anti-domination
+by a near-zero-vol signal) then **gross leverage clipping** (``gross_cap``, desk limit).
 """
 
 from __future__ import annotations
@@ -19,22 +19,22 @@ from core.backtest.protocols import FloatArray
 
 
 def inverse_vol_weights(vols: FloatArray, risk_budget: FloatArray | None = None) -> FloatArray:
-    """Poids inverse-volatilité normalisés (décision de design validée).
+    """Normalized inverse-volatility weights (validated design decision).
 
-    ``w_i = (b_i / σ_i) / Σ_j (b_j / σ_j)`` — un signal moins volatil reçoit plus de poids ;
-    le budget de risque ``b_i`` (uniforme si ``None``) module l'allocation. Les poids somment à 1.
+    ``w_i = (b_i / σ_i) / Σ_j (b_j / σ_j)`` — a less volatile signal gets more weight;
+    the risk budget ``b_i`` (uniform if ``None``) modulates the allocation. Weights sum to 1.
 
     Parameters
     ----------
     vols : FloatArray
-        Volatilités strictement positives par signal (déjà planchées par l'appelant).
+        Strictly positive volatilities per signal (already floored by the caller).
     risk_budget : FloatArray, optional
-        Budget de risque relatif par signal ; uniforme (tous égaux) par défaut.
+        Relative risk budget per signal; uniform (all equal) by default.
 
     Returns
     -------
     FloatArray
-        Poids normalisés, de même longueur que ``vols``, de somme 1.
+        Normalized weights, same length as ``vols``, summing to 1.
     """
     budget = (
         np.ones_like(vols) if risk_budget is None else np.asarray(risk_budget, dtype=np.float64)
@@ -45,42 +45,43 @@ def inverse_vol_weights(vols: FloatArray, risk_budget: FloatArray | None = None)
 
 @runtime_checkable
 class WeightScheme(Protocol):
-    """Stratégie d'allocation : volatilités (+ budget) → poids. Seam d'extension (OCP)."""
+    """Allocation strategy: volatilities (+ budget) → weights. Extension seam (OCP)."""
 
     def weights(self, vols: FloatArray, risk_budget: FloatArray | None = None) -> FloatArray: ...
 
 
 class InverseVolScheme:
-    """Allocation inverse-vol (PoC). Délègue à :func:`inverse_vol_weights`."""
+    """Inverse-vol allocation (PoC). Delegates to :func:`inverse_vol_weights`."""
 
     def weights(self, vols: FloatArray, risk_budget: FloatArray | None = None) -> FloatArray:
         return inverse_vol_weights(vols, risk_budget)
 
 
 class ERCScheme:
-    """Equal Risk Contribution (risk-parity corrélation-aware) — seam du palier institutionnel.
+    """Equal Risk Contribution (correlation-aware risk-parity) — institutional-tier seam.
 
-    Non implémenté au PoC : nécessite une covariance point-in-time et une optimisation itérative
-    (§3 institutionnel). Présent pour matérialiser le point d'extension sans le coder prématurément.
+    Not implemented at the PoC stage: requires a point-in-time covariance and an iterative
+    optimization (§3 institutional). Present to materialize the extension point without
+    coding it prematurely.
     """
 
     def weights(self, vols: FloatArray, risk_budget: FloatArray | None = None) -> FloatArray:
         raise NotImplementedError(
-            "ERCScheme (risk-parity) relève du palier institutionnel : voir CONVERGENCE.md."
+            "ERCScheme (risk-parity) belongs to the institutional tier: see CONVERGENCE.md."
         )
 
 
 class PortfolioConstructor:
-    """Combine des volatilités estimées + signaux courants en une position nette de desk.
+    """Combines estimated volatilities + current signals into a net desk position.
 
     Parameters
     ----------
     scheme : WeightScheme, optional
-        Schéma d'allocation ; ``InverseVolScheme`` par défaut.
+        Allocation scheme; ``InverseVolScheme`` by default.
     vol_floor : float
-        Plancher appliqué aux volatilités avant pondération (anti-domination, anti div/0).
+        Floor applied to volatilities before weighting (anti-domination, anti div/0).
     gross_cap : float
-        Borne d'exposition brute |position nette| ≤ ``gross_cap`` (limite desk).
+        Gross exposure bound |net position| ≤ ``gross_cap`` (desk limit).
     """
 
     def __init__(
@@ -91,19 +92,19 @@ class PortfolioConstructor:
         gross_cap: float,
     ) -> None:
         if vol_floor <= 0.0:
-            raise ValueError(f"vol_floor ({vol_floor}) doit être > 0 (évite la division par zéro).")
+            raise ValueError(f"vol_floor ({vol_floor}) must be > 0 (avoids division by zero).")
         if gross_cap <= 0.0:
-            raise ValueError(f"gross_cap ({gross_cap}) doit être > 0.")
+            raise ValueError(f"gross_cap ({gross_cap}) must be > 0.")
         self.scheme: WeightScheme = scheme or InverseVolScheme()
         self.vol_floor = vol_floor
         self.gross_cap = gross_cap
 
     def weights(self, vols: FloatArray, risk_budget: FloatArray | None = None) -> FloatArray:
-        """Poids du schéma après plancher de vol (``σ_i ← max(σ_i, vol_floor)``)."""
+        """Scheme weights after the vol floor (``σ_i ← max(σ_i, vol_floor)``)."""
         floored = np.maximum(np.asarray(vols, dtype=np.float64), self.vol_floor)
         return self.scheme.weights(floored, risk_budget)
 
     def net_position(self, weights: FloatArray, signals: FloatArray) -> float:
-        """Position nette = ``clip(Σ w_i·s_i, ±gross_cap)`` (combinaison linéaire écrêtée)."""
+        """Net position = ``clip(Σ w_i·s_i, ±gross_cap)`` (clipped linear combination)."""
         raw = float(np.dot(weights, signals))
         return max(-self.gross_cap, min(self.gross_cap, raw))

@@ -1,16 +1,16 @@
-"""Analyse de la structure par terme de la courbe forward compute (pure).
+"""Analysis of the compute forward curve's term structure (pure).
 
-La forme de la courbe forward (contango/backwardation) porte de l'information
-directionnelle. Ce module en extrait, **sans I/O**, trois descripteurs point-in-time :
+The forward curve's shape (contango/backwardation) carries directional
+information. This module extracts, **with no I/O**, three point-in-time descriptors:
 
-- **pente** : régression linéaire prix ~ échéance (``np.polyfit`` degré 1) ;
-- **courbure** : butterfly ``F_court − 2·F_milieu + F_long`` (convexité de la courbe) ;
-- **forme** : contango / backwardation / plat selon un seuil ``flat_tol`` nommé.
+- **slope**: linear regression price ~ maturity (``np.polyfit`` degree 1);
+- **curvature**: butterfly ``F_short − 2·F_mid + F_long`` (curve convexity);
+- **shape**: contango / backwardation / flat according to a named ``flat_tol`` threshold.
 
-⚠️ Frontière réel/simulé (rule ``forward-real-simulated``) : le résultat
-:class:`TermStructure` porte un champ ``simulated`` **obligatoire** (sans défaut). La
-forward compute étant simulée (futures CME non listés), un résultat sans étiquetage
-explicite est interdit — la garantie est portée par le type.
+Warning: real/simulated boundary (rule ``forward-real-simulated``): the
+:class:`TermStructure` result carries a **required** ``simulated`` field (no default). The
+compute forward being simulated (CME futures not listed), a result without explicit
+labeling is forbidden — the guarantee is enforced by the type.
 """
 
 from __future__ import annotations
@@ -23,16 +23,16 @@ import numpy as np
 
 Shape = Literal["contango", "backwardation", "flat"]
 
-#: Seuil par défaut de platitude de la pente ($/GPU·h par jour) sous lequel on classe 'flat'.
+#: Default flatness threshold on the slope ($/GPU·h per day) below which shape is classified 'flat'.
 DEFAULT_FLAT_TOL = 1e-5
 
 
 @dataclass(frozen=True)
 class TermStructure:
-    """Descripteurs de la courbe forward à un instant. ``simulated`` est OBLIGATOIRE.
+    """Forward curve descriptors at a given instant. ``simulated`` is REQUIRED.
 
-    ``slope`` en $/GPU·h par jour, ``curvature`` en $/GPU·h (butterfly). ``shape``
-    résume la forme. ``as_of`` horodate le fix (point-in-time).
+    ``slope`` in $/GPU·h per day, ``curvature`` in $/GPU·h (butterfly). ``shape``
+    summarizes the form. ``as_of`` timestamps the fix (point-in-time).
     """
 
     front_price: float
@@ -45,7 +45,7 @@ class TermStructure:
 
 @dataclass(frozen=True)
 class TermStructureAnalyzer:
-    """Analyseur pur de courbe forward (Strategy, paramètre de seuil injectable)."""
+    """Pure forward curve analyzer (Strategy, injectable threshold parameter)."""
 
     flat_tol: float = DEFAULT_FLAT_TOL
 
@@ -57,31 +57,31 @@ class TermStructureAnalyzer:
         simulated: bool,
         as_of: dt.datetime,
     ) -> TermStructure:
-        """Calcule pente, courbure et forme de la courbe ``(maturities, prices)``.
+        """Computes slope, curvature and shape of the ``(maturities, prices)`` curve.
 
         Parameters
         ----------
         maturities
-            Échéances (jours), croissantes, longueur >= 3.
+            Maturities (days), increasing, length >= 3.
         prices
-            Prix forward alignés sur ``maturities`` ($/GPU·h).
+            Forward prices aligned with ``maturities`` ($/GPU·h).
         simulated
-            Drapeau réel/simulé propagé dans le résultat (obligatoire).
+            Real/simulated flag propagated into the result (required).
         as_of
-            Instant du fix (UTC), horodaté dans le résultat.
+            Fix instant (UTC), timestamped in the result.
 
         Returns
         -------
         TermStructure
-            Descripteurs + drapeau ``simulated``.
+            Descriptors + ``simulated`` flag.
         """
         m = np.asarray(maturities, dtype=float)
         p = np.asarray(prices, dtype=float)
         if m.ndim != 1 or m.size < 3 or m.shape != p.shape:
-            raise ValueError("maturities/prices doivent être 1D alignés, longueur >= 3.")
+            raise ValueError("maturities/prices must be 1D and aligned, length >= 3.")
 
         slope = float(np.polyfit(m, p, 1)[0])
-        # Butterfly sur (premier, médian, dernier) point de la courbe : convexité.
+        # Butterfly on (first, median, last) point of the curve: convexity.
         mid = p.size // 2
         curvature = float(p[0] - 2.0 * p[mid] + p[-1])
 

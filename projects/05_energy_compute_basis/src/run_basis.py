@@ -1,15 +1,15 @@
-"""Entrée exécutable : mesure le basis énergie ↔ compute inter-régions et le logue.
+"""Executable entry point: measures the inter-region energy ↔ compute basis and logs it.
 
-Usage :
+Usage:
     uv run python projects/05_energy_compute_basis/src/run_basis.py
 
-Pipeline : (1) énergie régionale FR/DE (ENTSO-E réel si token, sinon repli synthétique
-étiqueté) + indice compute global P04 ; (2) un ``SparkSpreadPricer`` (P01) par région
-portant son PUE ; (3) ``BasisCalculator`` point-in-time ; (4) ``detect_dislocations``
-(seuil + demi-vie AR(1)) ; (5) **run MLflow** loggué (params + SHA git) ; (6) synthèse
-``results/SYNTHESIS.md``.
+Pipeline: (1) FR/DE regional energy (real ENTSO-E if token set, else labeled synthetic
+fallback) + P04 global compute index; (2) one ``SparkSpreadPricer`` (P01) per region
+carrying its PUE; (3) point-in-time ``BasisCalculator``; (4) ``detect_dislocations``
+(threshold + AR(1) half-life); (5) logged **MLflow run** (params + git SHA); (6)
+``results/SYNTHESIS.md`` synthesis.
 
-Frontière réel/synthétique : ``energy_source`` / ``compute_source`` sont loggués en params.
+Real/synthetic boundary: ``energy_source`` / ``compute_source`` are logged as params.
 """
 
 from __future__ import annotations
@@ -19,11 +19,11 @@ import os
 import sys
 from pathlib import Path
 
-# Convention labo : tracking MLflow fichier local. MLflow 2026 exige cet opt-in.
+# Lab convention: local file-based MLflow tracking. MLflow 2026 requires this opt-in.
 os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 _ROOT = Path(__file__).resolve().parents[3]
 os.environ.setdefault("MLFLOW_TRACKING_URI", (_ROOT / "experiments" / "mlruns").as_uri())
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # rend `basis`, `data`… importables
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # makes `basis`, `data`… importable
 
 import mlflow  # noqa: E402
 
@@ -40,14 +40,14 @@ EXPERIMENT = "p05_energy_compute_basis"
 GPU = "H100"
 REFERENCE = "DE"
 WINDOW_START = "2025-01-01"
-DEFAULT_PERIODS = 31 * 24  # un mois horaire
+DEFAULT_PERIODS = 31 * 24  # one hourly month
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
 
 def build_source(
     index, regions: tuple[RegionConfig, ...], *, allow_remote: bool
 ) -> tuple[DataFramePriceSource, str, str]:
-    """Charge énergie + compute et assemble la source de prix P01 (+ étiquettes de source)."""
+    """Loads energy + compute and assembles the P01 price source (+ source labels)."""
     energy_df, energy_source = load_regional_energy(
         index, [r.code for r in regions], allow_remote=allow_remote
     )
@@ -59,7 +59,7 @@ def build_source(
 def analyse(
     source: DataFramePriceSource, regions: tuple[RegionConfig, ...], reference: str, gpu: str
 ) -> tuple[BasisResult, dict[str, DislocationSummary]]:
-    """Price chaque région et calcule basis + dislocations (par région ≠ référence)."""
+    """Prices each region and computes basis + dislocations (per region ≠ reference)."""
     pricers = {r.code: build_regional_pricer(r) for r in regions}
     result = BasisCalculator(pricers, reference=reference).compute(source, gpu)
     dislocations = {region: detect_dislocations(series) for region, series in result.basis.items()}
@@ -113,20 +113,20 @@ def write_synthesis(
     energy_source: str,
     compute_source: str,
 ) -> Path:
-    """Écrit ``results/SYNTHESIS.md`` : amplitude du basis, sensibilité PUE, limites."""
+    """Writes ``results/SYNTHESIS.md``: basis amplitude, PUE sensitivity, limitations."""
     results_dir.mkdir(parents=True, exist_ok=True)
     pue_map = ", ".join(f"{r.code}={r.pue}" for r in regions)
     lines = [
-        "# P05 — Synthèse du basis énergie ↔ compute",
+        "# P05 — Energy ↔ compute basis synthesis",
         "",
-        f"- Régions : {', '.join(r.code for r in regions)} (référence = {reference})",
-        f"- Fenêtre : {result.window[0]} → {result.window[1]} (UTC)",
-        f"- Sources : énergie = **{energy_source}**, compute = **{compute_source}** (compute GLOBAL)",
-        f"- PUE régional (hypothèse) : {pue_map}",
+        f"- Regions: {', '.join(r.code for r in regions)} (reference = {reference})",
+        f"- Window: {result.window[0]} → {result.window[1]} (UTC)",
+        f"- Sources: energy = **{energy_source}**, compute = **{compute_source}** (GLOBAL compute)",
+        f"- Regional PUE (assumption): {pue_map}",
         "",
-        "## Amplitude & persistance du basis",
+        "## Basis amplitude & persistence",
         "",
-        "| basis | moyenne (€/GPU·h) | écart-type | amplitude p95 | % temps disloqué | épisodes | demi-vie (h) |",
+        "| basis | mean (€/GPU·h) | std dev | p95 amplitude | % time dislocated | episodes | half-life (h) |",
         "|---|---|---|---|---|---|---|",
     ]
     for region, series in result.basis.items():
@@ -139,19 +139,19 @@ def write_synthesis(
         )
     lines += [
         "",
-        "## Sensibilité PUE",
+        "## PUE sensitivity",
         "",
-        "Le basis est, à FX et prix compute égaux, porté par `power_kw·(pue_r·energy_r − "
-        "pue_ref·energy_ref)/1000` : ↑ PUE d'une région ⇒ ↑ son coût ⇒ ↓ son spread ⇒ ↓ son "
-        "basis. La sensibilité est testée (`test_pue_sensitivity_is_monotone`).",
+        "At equal FX and compute price, the basis is driven by `power_kw·(pue_r·energy_r − "
+        "pue_ref·energy_ref)/1000`: ↑ a region's PUE ⇒ ↑ its cost ⇒ ↓ its spread ⇒ ↓ its "
+        "basis. Sensitivity is tested (`test_pue_sensitivity_is_monotone`).",
         "",
-        "## Limites d'exécution (PoC)",
+        "## Execution limitations (PoC)",
         "",
-        "- **PUE régional** = hypothèse forte, peu observable ; principal levier du basis ici.",
-        "- **Compute global** (une seule courbe) : le revenu s'annule entre régions → le basis "
-        "est essentiellement un *basis énergie × PUE*, pas un vrai spread compute régional.",
-        "- **Coûts/latence de transfert ignorés** : ne pas conclure à un arbitrage exécutable.",
-        "- Suite institutionnelle : routing optimisé, contraintes de capacité, signal tradable.",
+        "- **Regional PUE** = a strong, poorly observable assumption; the main driver of the basis here.",
+        "- **Global compute** (a single curve): revenue cancels out between regions → the basis "
+        "is essentially an *energy × PUE basis*, not a true regional compute spread.",
+        "- **Transfer costs/latency ignored**: do not conclude this is an executable arbitrage.",
+        "- Institutional next steps: optimized routing, capacity constraints, tradable signal.",
         "",
     ]
     path = results_dir / "SYNTHESIS.md"
@@ -166,7 +166,7 @@ def main(
     allow_remote: bool = True,
     experiment: str = EXPERIMENT,
 ) -> tuple[BasisResult, dict[str, DislocationSummary]]:
-    """Orchestre le pipeline complet et logue un run MLflow reproductible."""
+    """Orchestrates the full pipeline and logs a reproducible MLflow run."""
     regions = DEFAULT_REGIONS
     index = hourly_index(WINDOW_START, periods)
 
@@ -186,7 +186,7 @@ def main(
     for region, summary in dislocations.items():
         half_life = "n/a" if summary.half_life_hours is None else f"{summary.half_life_hours:.2f} h"
         log.info(
-            "basis %s−%s : moy=%.5f, p95=%.5f, disloqué=%.1f%%, demi-vie=%s",
+            "basis %s−%s: mean=%.5f, p95=%.5f, dislocated=%.1f%%, half-life=%s",
             region,
             REFERENCE,
             result.basis[region].mean(),
@@ -194,7 +194,7 @@ def main(
             summary.fraction_dislocated * 100,
             half_life,
         )
-    log.info("Synthèse écrite : %s | run loggué (experiment '%s').", path, experiment)
+    log.info("Synthesis written: %s | run logged (experiment '%s').", path, experiment)
     return result, dislocations
 
 

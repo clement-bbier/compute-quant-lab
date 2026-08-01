@@ -1,99 +1,99 @@
-# Compute Spot Benchmark — méthodologie publiable
+# Compute Spot Benchmark — publishable methodology
 
-> Le **prix de référence d'une GPU-heure**, par modèle, avec la **dispersion inter-venues**.
-> Un auditeur externe doit pouvoir reconstruire l'indice à partir de cette page.
+> The **reference price of a GPU-hour**, per model, with **cross-venue dispersion**.
+> An external auditor should be able to reconstruct the index from this page.
 
-## 1. Ce que mesure le benchmark
+## 1. What the benchmark measures
 
-À un instant de fix `t`, pour un modèle GPU (ex. H100), le benchmark publie :
+At a fix instant `t`, for a GPU model (e.g. H100), the benchmark publishes:
 
-1. **Indice canonique** `index(t)` — un prix unique `$/GPU·h` agrégeant les marketplaces.
-2. **Dispersion inter-venues** — à quel point les venues s'écartent de cette référence
-   (spread absolu, spread %, coefficient de variation) + **quelle venue est en moyenne
-   moins chère** sur la fenêtre.
+1. **Canonical index** `index(t)` — a single `$/GPU·h` price aggregating the marketplaces.
+2. **Cross-venue dispersion** — how far venues deviate from this reference
+   (absolute spread, spread %, coefficient of variation) + **which venue is on average
+   cheaper** over the window.
 
-> **Frontière edge.** Le benchmark publie une **mesure**, pas une **décision**. La
-> granularité est le **fix quotidien** ; aucun signal de timing live (« louer sur X
-> maintenant ») n'est diffusé — cela relève d'une recherche privée séparée.
+> **Edge boundary.** The benchmark publishes a **measurement**, not a **decision**. The
+> granularity is the **daily fix**; no live timing signal ("rent on X
+> now") is distributed — that belongs to separate private research.
 
-## 2. Données sous-jacentes (réelles, point-in-time)
+## 2. Underlying data (real, point-in-time)
 
-- Source : snapshots des prix on-demand de marketplaces GPU (Vast.ai, RunPod) accumulés
-  24/7, stockés dans un **cold store Parquet versionné** (`core.storage`, append-only,
-  idempotent). Provenance `real_spot` — jamais simulé.
-- Unité : **USD par GPU·heure**. Horodatages **UTC** tz-aware.
-- ⚠️ **Historique court au début.** Le prix du compute n'a pas d'historique public profond :
-  on l'accumule. L'indice est donc maigre au démarrage (cf. `results/benchmark_summary.md`),
-  et grossit chaque jour. C'est assumé, pas masqué.
+- Source: on-demand price snapshots from GPU marketplaces (Vast.ai, RunPod) accumulated
+  24/7, stored in a **versioned Parquet cold store** (`core.storage`, append-only,
+  idempotent). Provenance `real_spot` — never simulated.
+- Unit: **USD per GPU-hour**. **UTC** tz-aware timestamps.
+- ⚠️ **Short history at the start.** Compute pricing has no deep public history:
+  it's being accumulated. The index is therefore thin at launch (cf. `results/benchmark_summary.md`),
+  and grows every day. This is acknowledged, not hidden.
 
-## 3. Construction de l'indice (méthode canonique)
+## 3. Index construction (canonical method)
 
-Réutilise `core.ingestion.build_spot_index` (standard GPU Markets / Silicon Data, settlement
-des futures compute CME). Pour un fix à `as_of` :
+Reuses `core.ingestion.build_spot_index` (GPU Markets / Silicon Data standard, CME
+compute futures settlement). For a fix at `as_of`:
 
-1. **Filtrage** : ne retenir que `gpu_model` voulu, `lease_type = on_demand`, hors list
-   prices hyperscalers (AWS/GCP/Azure exclus de l'estimateur), et **point-in-time** —
-   uniquement `snapshotted_at ≤ as_of`.
-2. **Staleness (no carry-forward)** : ne garder que les relevés dans la fenêtre de 24 h
-   précédant le fix. Une venue dont le dernier relevé est périmé est **ignorée**, pas reportée.
-3. **Réduction par venue** : par marketplace, on prend la cohorte de relevés la plus fraîche
-   et sa **médiane** (robuste au bruit d'une offre isolée ; disponibilité sommée).
-4. **Rejet d'outliers** : filtre **MAD** (2.5 écarts absolus médians) sur les taux par venue.
-5. **Agrégation** : **moyenne tronquée 20 %** des taux retenus → `index(t)`.
+1. **Filtering**: keep only the desired `gpu_model`, `lease_type = on_demand`, excluding
+   hyperscaler list prices (AWS/GCP/Azure excluded from the estimator), and **point-in-time** —
+   only `snapshotted_at ≤ as_of`.
+2. **Staleness (no carry-forward)**: keep only readings within the 24 h window
+   preceding the fix. A venue whose latest reading is stale is **ignored**, not carried forward.
+3. **Per-venue reduction**: per marketplace, take the freshest cohort of readings
+   and its **median** (robust to noise from an isolated offer; availability summed).
+4. **Outlier rejection**: **MAD** filter (2.5 median absolute deviations) on per-venue rates.
+5. **Aggregation**: **20% trimmed mean** of the retained rates → `index(t)`.
 
-Chaque point porte ses métadonnées d'audit : `method`, `n_sources`, `oldest_obs_at`.
-La méthode est **injectable** (`IndexConfig`) : estimateur, filtre, fenêtre permutables.
+Each point carries its audit metadata: `method`, `n_sources`, `oldest_obs_at`.
+The method is **injectable** (`IndexConfig`): estimator, filter, window are swappable.
 
-### Grille de fix
-- **Produit publié** : fix **quotidien** à 00:30 UTC (`daily_fix_grid`). Le fix d'un jour
-  *settle après coup* : la fenêtre de staleness de 24 h capture la journée écoulée.
-- **Démo** : cadence par snapshot observé (`observed_fix_grid`) pour visualiser un historique
-  maigre — clairement étiquetée « démo », ce n'est pas la granularité produit.
+### Fix grid
+- **Published product**: **daily** fix at 00:30 UTC (`daily_fix_grid`). A day's fix
+  *settles after the fact*: the 24 h staleness window captures the elapsed day.
+- **Demo**: cadence per observed snapshot (`observed_fix_grid`) to visualize a thin
+  history — clearly labeled "demo", this is not the product granularity.
 
-## 4. Dispersion inter-venues
+## 4. Cross-venue dispersion
 
-Sur les venues **retenues par l'indice** (après rejet d'outliers), à chaque fix :
+On the venues **retained by the index** (after outlier rejection), at each fix:
 
-- `spread_abs = max − min` (`$/GPU·h`) ; `spread_pct = spread_abs / index(t)` ;
-- `cv` = écart-type population / moyenne (coefficient de variation) ;
-- `cheapest_venue` / `dearest_venue` (nommées).
-- **Mono-venue** (`n_venues < 2`, ex. un modèle sur une seule marketplace) → dispersion
-  **indéfinie** et flaggée (`is_defined = False`) : on ne fabrique pas une dispersion fictive.
+- `spread_abs = max − min` (`$/GPU·h`); `spread_pct = spread_abs / index(t)`;
+- `cv` = population standard deviation / mean (coefficient of variation);
+- `cheapest_venue` / `dearest_venue` (named).
+- **Single-venue** (`n_venues < 2`, e.g. a model on a single marketplace) → dispersion
+  **undefined** and flagged (`is_defined = False`): we don't manufacture a fictional dispersion.
 
-**Niveaux moyens par venue** (`venue_levels`) : sur la fenêtre, niveau moyen `$/h` et
-**escompte moyen vs indice** par venue nommée (négatif = moins cher que la référence). C'est
-la réponse descriptive à « qui est moins cher en moyenne » — statique, jamais un signal live.
+**Average levels per venue** (`venue_levels`): over the window, average `$/h` level and
+**average discount vs. index** per named venue (negative = cheaper than the reference). This is
+the descriptive answer to "who is cheaper on average" — static, never a live signal.
 
-### Garde-fou anti-dérive
-`dispersion` ré-implémente la réduction par-venue de l'indice (`core` étant en lecture seule).
-Un test d'invariant garantit l'absence de dérive :
+### Anti-drift safeguard
+`dispersion` re-implements the index's per-venue reduction (`core` being read-only).
+An invariant test guarantees no drift:
 `estimator(filter(venue_rates_at(...))) == build_spot_index(...).price`.
 
-## 5. Reproductibilité
+## 5. Reproducibility
 
-`run_build_benchmark.py` logge un run **MLflow** (`compute_benchmark`) : paramètres
-d'agrégation (méthode, staleness, fréquence de fix, fenêtre, modèles), métriques (nb de fix,
-spread % moyen, état de l'historique), **SHA git** + **version DVC** des données, tag
-`provenance=real_spot`. Le cold store versionné étant immuable, un run rejoué sur la même
-version DVC est reproductible. Synthèse écrite dans `results/benchmark_summary.md`.
+`run_build_benchmark.py` logs an **MLflow** run (`compute_benchmark`): aggregation
+parameters (method, staleness, fix frequency, window, models), metrics (number of fixes,
+mean spread %, history state), **git SHA** + **DVC version** of the data, tag
+`provenance=real_spot`. Since the versioned cold store is immutable, a run replayed on the same
+DVC version is reproducible. Summary written to `results/benchmark_summary.md`.
 
-## 6. Lancer
+## 6. Run it
 
 ```bash
-# data/snapshots est versionné en git ordinaire sur main. Pour la collecte la plus
-# récente (accumulée en continu par le cron CI) :
+# data/snapshots is versioned as plain git on main. For the most recent
+# collection (accumulated continuously by the CI cron):
 git checkout data-snapshots -- data/snapshots
 
 uv run pytest -q projects/13_compute_benchmark/tests          # tests
 uv run python projects/13_compute_benchmark/run_build_benchmark.py   # run + results/
-uv run streamlit run projects/13_compute_benchmark/dashboard/app.py  # dashboard démo
+uv run streamlit run projects/13_compute_benchmark/dashboard/app.py  # demo dashboard
 ```
 
-## 7. Limites connues
+## 7. Known limitations
 
-- Historique court (quelques fix au démarrage) → série maigre ; séries et moyennes peu
-  significatives statistiquement tant que l'accumulation est jeune.
-- 2 venues seulement aujourd'hui (Vast.ai, RunPod) → la moyenne tronquée et le MAD ne filtrent
-  pas encore ; l'indice = moyenne des deux médianes de venue. Robustesse réelle au-delà de 3 venues.
-- Survivorship des venues : une marketplace qui disparaît biaise l'historique (à surveiller).
-- `on_demand` uniquement (spot/reserved non agrégés — standard, jamais mélanger les baux).
+- Short history (a few fixes at launch) → thin series; series and averages are not very
+  statistically significant while accumulation is young.
+- Only 2 venues today (Vast.ai, RunPod) → the trimmed mean and MAD don't filter
+  anything yet; the index = average of the two venue medians. Real robustness kicks in beyond 3 venues.
+- Venue survivorship: a marketplace disappearing biases the history (to monitor).
+- `on_demand` only (spot/reserved not aggregated — standard practice, never mix lease types).

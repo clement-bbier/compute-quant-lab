@@ -1,23 +1,23 @@
-# P07 — Synthèse : signal macro exogène (lead sur le spread)
+# P07 — Synthesis: exogenous macro signal (lead over the spread)
 
-> Données **SIMULÉES** (repli déterministe, seed fixe) : démonstration de
-> méthode point-in-time, pas une prétention de réalisme. Connecteur réel
-> météo/gaz = item `data-engineer` (cf. CONVERGENCE).
+> **SIMULATED** data (deterministic fallback, fixed seed): a demonstration of
+> point-in-time method, not a claim of realism. Real weather/gas
+> connector = `data-engineer` item (cf. CONVERGENCE).
 
-## Lead observé
-- Meilleure feature : **gas_price_lag0**
-- Lead optimal : **2 jour(s)** (le DGP injecte un lead de 3 j).
-- |corrélation| au lead : **0.651**
+## Observed lead
+- Best feature: **gas_price_lag0**
+- Optimal lead: **2 day(s)** (the DGP injects a 3-day lead).
+- |correlation| at lead: **0.651**
 
-## Confirmation OLS (split temporel strict, pas de shuffle)
+## OLS confirmation (strict temporal split, no shuffling)
 - coef = -0.0035, p-value = 3.72e-45
-- R² in-sample = 0.457, **R² out-of-sample = 0.346**
+- in-sample R² = 0.457, **out-of-sample R² = 0.346**
 - n_train = 328, n_test = 141
 
-## Pièges look-ahead couverts
-- Lag de publication explicite (knowledge_ts = value_ts + lag) — test rouge.
-- Révisions tardives : seul le millésime publié à temps est vu (vintages).
-- Alignement / fuseau UTC tz-aware (rejet du datetime naïf).
-- Mesure du lead anti-overfit : cross-corrélation + OLS out-of-sample.
+## Look-ahead pitfalls covered
+- Explicit publication lag (knowledge_ts = value_ts + lag) — red-first test.
+- Late revisions: only the vintage published in time is seen (vintages).
+- UTC tz-aware alignment (naive datetime rejected).
+- Anti-overfit lead measurement: cross-correlation + out-of-sample OLS.
 
-Run MLflow : `6459de3055b64ce38d7b0a1c4f0eca05` — brut exogène : local_cache (data/raw/, gitignoré par design).
+MLflow run: `6863042e4aa14ca3bb65151c981a7d97` — raw exogenous data: local_cache (data/raw/, gitignored by design).

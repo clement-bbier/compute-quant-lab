@@ -1,17 +1,17 @@
-"""Entrée exécutable : construit et logue une courbe forward compute SIMULÉE.
+"""Executable entry point: builds and logs a SIMULATED compute forward curve.
 
-Usage :
+Usage:
     uv run python projects/04_compute_index_curve/run_build_curve.py
 
-Pipeline : (1) spot courant via l'indice si des snapshots réels existent
-(``data/snapshots/``), sinon spot de démonstration ; (2) calibration des paramètres de
-Schwartz sur l'historique du log-spot ; (3) simulation de la courbe forward (moteur Rust
-si buildé, sinon MC Python) ; (4) **run MLflow** loggué (params + SHA git).
+Pipeline: (1) current spot via the index if real snapshots exist
+(``data/snapshots/``), else demo spot; (2) calibration of the Schwartz parameters
+on the log-spot history; (3) simulation of the forward curve (Rust engine
+if built, else Python MC); (4) logged **MLflow run** (params + git SHA).
 
-⚠️ La courbe produite est TOUJOURS ``simulated=True`` : les futures compute CME (settlement
-sur l'indice Silicon Data SDH100RT) ne sont pas listés. Tant que la série de snapshots est
-mince, l'historique de calibration ci-dessous est synthétique (clairement étiqueté) ; il
-suffira de le remplacer par la série réelle de l'indice une fois la collecte accumulée.
+Warning: the produced curve is ALWAYS ``simulated=True``: the compute futures (settlement
+on the Silicon Data SDH100RT index) are not listed. While the snapshot series remains
+thin, the calibration history below is synthetic (clearly labeled); it will
+suffice to replace it with the real index series once collection has accumulated.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import os
 import sys
 from pathlib import Path
 
-# Convention labo : tracking MLflow fichier local. MLflow 2026 exige cet opt-in.
+# Lab convention: local file-based MLflow tracking. MLflow 2026 requires this opt-in.
 os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 _ROOT = Path(__file__).resolve().parents[2]
 os.environ.setdefault("MLFLOW_TRACKING_URI", (_ROOT / "experiments" / "mlruns").as_uri())
@@ -42,23 +42,23 @@ MATURITIES = [0.0, 7.0, 30.0, 90.0, 180.0, 360.0]
 
 
 def _current_spot() -> float:
-    """Spot courant via l'indice sur les snapshots réels, sinon valeur de démonstration."""
+    """Current spot via the index on real snapshots, else a demo value."""
     snapshots = CsvSnapshotStore(SNAPSHOT_DIR).load()
     if snapshots:
         try:
             now = max(s.snapshotted_at for s in snapshots)
             point = build_spot_index(snapshots, now, GPU_MODEL)
             logger.info(
-                "Spot réel de l'indice : %.4f $/GPU·h (%s)", point.price_usd_per_hour, point.method
+                "Real index spot: %.4f $/GPU·h (%s)", point.price_usd_per_hour, point.method
             )
             return point.price_usd_per_hour
         except InsufficientDataError:
-            logger.warning("Snapshots présents mais insuffisants : spot de démonstration.")
+            logger.warning("Snapshots present but insufficient: falling back to demo spot.")
     return 2.30
 
 
 def _demo_log_history(spot: float, n: int = 180, seed: int = 7) -> list[float]:
-    """Historique synthétique mean-reverting du log-spot (placeholder, étiqueté démo)."""
+    """Synthetic mean-reverting log-spot history (placeholder, demo-labeled)."""
     import numpy as np
 
     rng = np.random.default_rng(seed)
@@ -78,15 +78,15 @@ def main() -> None:
     curve = build_forward_curve(history, spot=spot, maturities_days=MATURITIES)
 
     logger.info(
-        "Courbe forward SIMULÉE (%s, seed=%s, n_paths=%s) :",
+        "SIMULATED forward curve (%s, seed=%s, n_paths=%s):",
         curve.model_name,
         curve.seed,
         curve.n_paths,
     )
     for point in curve.points:
-        logger.info("  τ=%6.1f j -> %.4f $/GPU·h", point.maturity_days, point.forward_price)
+        logger.info("  τ=%6.1f d -> %.4f $/GPU·h", point.maturity_days, point.forward_price)
     logger.info(
-        "Run loggué sous %s (experiment 'compute_forward_curve').",
+        "Run logged under %s (experiment 'compute_forward_curve').",
         os.environ["MLFLOW_TRACKING_URI"],
     )
 
@@ -108,7 +108,7 @@ def main() -> None:
     (RESULTS_DIR / "run_summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    logger.info("Résumé écrit : %s", RESULTS_DIR / "run_summary.json")
+    logger.info("Summary written: %s", RESULTS_DIR / "run_summary.json")
 
 
 if __name__ == "__main__":

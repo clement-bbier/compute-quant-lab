@@ -1,7 +1,7 @@
-"""Tests du signal directionnel dérivé de la pente (convention roll-yield).
+"""Tests of the directional signal derived from the slope (roll-yield convention).
 
-Convention validée (commodités non stockables) : **backwardation → long (+1)**,
-**contango → short (-1)**, pente dans la bande neutre → **0**.
+Validated convention (non-storable commodities): **backwardation → long (+1)**,
+**contango → short (-1)**, slope within the neutral band → **0**.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def test_flat_gives_neutral_signal() -> None:
 
 @pytest.mark.parametrize("shape", ["contango", "backwardation"])
 def test_small_slope_inside_neutral_band_is_zero(shape: str) -> None:
-    # |slope| sous la bande neutre -> pas de pari, même si la forme penche.
+    # |slope| below the neutral band -> no bet, even if the shape leans one way.
     sig = directional_signal(_ts(1e-9, shape), neutral_band=1e-6)
     assert sig.value == 0
 

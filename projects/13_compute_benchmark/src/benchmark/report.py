@@ -1,10 +1,10 @@
-"""Assemblage du benchmark : par modèle (indice + dispersion + niveaux) + état honnête de l'historique.
+"""Benchmark assembly: per model (index + dispersion + levels) + honest history state.
 
-Couche pure, partagée par ``run_build_benchmark.py`` (run MLflow + écriture ``results/``)
-et ``dashboard/app.py`` (rendu Streamlit) — pour qu'ils restent minces et cohérents (DRY).
-``summarize_history`` rend explicite la **maigreur** de l'historique compte accumulé
-(nombre de relevés, de venues, span temporel), conformément au cadrage « assumer que
-l'indice est maigre au début, il grossit ».
+Pure layer, shared by ``run_build_benchmark.py`` (MLflow run + ``results/`` writing)
+and ``dashboard/app.py`` (Streamlit rendering) — so they stay thin and consistent (DRY).
+``summarize_history`` makes explicit the **thinness** of the accumulated compute history
+(number of readings, venues, time span), consistent with the framing "acknowledge that
+the index is thin at the start, it grows".
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from core.ingestion.protocols import Snapshot
 
 @dataclass(frozen=True)
 class HistoryState:
-    """Photo honnête de l'historique réel accumulé (pour ne rien survendre)."""
+    """Honest snapshot of the accumulated real history (so nothing is oversold)."""
 
     n_snapshots: int
     n_venues: int
@@ -35,7 +35,7 @@ class HistoryState:
 
 @dataclass(frozen=True)
 class ModelBenchmark:
-    """Benchmark complet d'un modèle GPU : série d'indice, dispersion par fix, niveaux venues."""
+    """Complete benchmark for a GPU model: index series, per-fix dispersion, venue levels."""
 
     gpu_model: str
     index: IndexSeries
@@ -45,14 +45,14 @@ class ModelBenchmark:
 
 @dataclass(frozen=True)
 class BenchmarkReport:
-    """Résultat global multi-modèles + état de l'historique sous-jacent."""
+    """Overall multi-model result + state of the underlying history."""
 
     models: list[ModelBenchmark]
     history: HistoryState
     fix_times: list[dt.datetime]
 
     def mean_spread_pct(self) -> float | None:
-        """Spread % inter-venues moyen sur tous les fix où la dispersion est définie."""
+        """Mean cross-venue spread % over all fixes where dispersion is defined."""
         defined = [
             d.spread_pct
             for m in self.models
@@ -63,7 +63,7 @@ class BenchmarkReport:
 
 
 def summarize_history(snapshots: Sequence[Snapshot]) -> HistoryState:
-    """Résume l'historique : nb de relevés, venues nommées, instants distincts, span horaire."""
+    """Summarizes the history: number of readings, named venues, distinct instants, time span."""
     if not snapshots:
         return HistoryState(0, 0, (), 0, 0.0, None, None)
     times = [s.snapshotted_at for s in snapshots]
@@ -81,7 +81,7 @@ def summarize_history(snapshots: Sequence[Snapshot]) -> HistoryState:
 
 
 def multi_venue_models(snapshots: Sequence[Snapshot], *, min_venues: int = 2) -> list[str]:
-    """Modèles présents dans ``>= min_venues`` venues (candidats à la dispersion)."""
+    """Models present in ``>= min_venues`` venues (candidates for dispersion)."""
     venues_by_model: dict[str, set[str]] = defaultdict(set)
     for s in snapshots:
         venues_by_model[s.gpu_model].add(s.source)
@@ -95,12 +95,12 @@ def build_report(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> BenchmarkReport:
-    """Assemble le benchmark de ``models`` sur la grille ``grid`` (dispersion alignée sur l'indice)."""
+    """Assembles the benchmark for ``models`` over the ``grid`` (dispersion aligned with the index)."""
     model_benchmarks: list[ModelBenchmark] = []
     for model in models:
         index = build_index_series(snapshots, grid, model, config=config)
-        # Dispersion calculée uniquement aux fix qui ont produit un point d'indice
-        # (alignement strict + aucune exception sur les fenêtres creuses).
+        # Dispersion computed only at fixes that produced an index point
+        # (strict alignment + no exception on sparse windows).
         dispersion = [
             dispersion_at(snapshots, point.as_of, model, config=config) for point in index.points
         ]

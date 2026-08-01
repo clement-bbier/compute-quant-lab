@@ -1,4 +1,4 @@
-"""Tests du backfill ERCOT (extraction long + idempotence d'écriture)."""
+"""Tests for the ERCOT backfill (long extraction + write idempotence)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from infra.collectors.ercot_backfill import backfill, extract_long
 
 
 class _FakeTransport:
-    """Transport ERCOT factice : renvoie des frames canoniques figés."""
+    """Fake ERCOT transport: returns fixed canonical frames."""
 
     def _idx(self) -> pd.DatetimeIndex:
         return pd.date_range("2024-06-15T18:00", periods=2, freq="1h", tz="UTC")
@@ -62,7 +62,7 @@ def test_backfill_writes_then_idempotent(tmp_path: Path) -> None:
     store = EnergyColdStore(tmp_path)
     transport = _FakeTransport()
     n1 = backfill(transport, store, "2024-06-15", "2024-06-16", chunk_days=1)
-    assert n1 == 8  # 2 RTM + 2 load + 2 capacité + 2 net-load
+    assert n1 == 8  # 2 RTM + 2 load + 2 capacity + 2 net-load
     n2 = backfill(transport, store, "2024-06-15", "2024-06-16", chunk_days=1)
-    assert n2 == 0  # ré-exécution = no-op (idempotent)
+    assert n2 == 0  # re-run = no-op (idempotent)
     assert set(store.read()["series"]) == _SERIES

@@ -1,4 +1,4 @@
-"""Tests du stockage append-only idempotent des snapshots de prix compute."""
+"""Tests of the idempotent append-only storage for compute price snapshots."""
 
 from __future__ import annotations
 
@@ -17,11 +17,11 @@ def test_append_is_idempotent(tmp_path) -> None:
     c = Snapshot(_TS, "lambda", "H100", 2.1)
 
     store.append([a, b])
-    store.append([a, c])  # a est un doublon -> ignoré
+    store.append([a, c])  # a is a duplicate -> ignored
 
     assert len(store.load()) == 3
 
-    store.append([a, b, c])  # tout en doublon -> aucune croissance
+    store.append([a, b, c])  # all duplicates -> no growth
     assert len(store.load()) == 3
 
 
@@ -45,4 +45,4 @@ def test_dedup_key_distinguishes_lease_type(tmp_path) -> None:
     spot = Snapshot(_TS, "vastai", "H100", 1.5, lease_type="spot")
 
     store.append([on_demand, spot])
-    assert len(store.load()) == 2  # bail différent -> pas un doublon
+    assert len(store.load()) == 2  # different lease -> not a duplicate

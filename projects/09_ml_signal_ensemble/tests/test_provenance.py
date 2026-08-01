@@ -1,7 +1,7 @@
-"""Frontière réel/simulé : le flag ``simulated`` est obligatoire (rule forward-real-simulated).
+"""Real/simulated boundary: the ``simulated`` flag is mandatory (forward-real-simulated rule).
 
-Un dataset synthétique non étiqueté est un bug : le test échoue si l'on peut construire une
-provenance sans se prononcer sur le caractère simulé, ou si le générateur n'étiquette pas.
+An unlabeled synthetic dataset is a bug: the test fails if a provenance can be built
+without stating whether it's simulated, or if the generator fails to label it.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from synthetic import DataProvenance, generate
 
 def test_provenance_requires_simulated_flag() -> None:
     with pytest.raises(TypeError):
-        DataProvenance(source="x")  # type: ignore[call-arg]  # simulated manquant → interdit
+        DataProvenance(source="x")  # type: ignore[call-arg]  # missing simulated -> forbidden
 
 
 def test_generated_dataset_is_labelled_simulated() -> None:

@@ -1,4 +1,4 @@
-"""Tests du moteur d'alerte (règles déclaratives + point d'injection unique)."""
+"""Tests for the alert engine (declarative rules + single injection point)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _signal(*, action: Action = Action.RENT_NOW, price: float = 2.0) -> Procurem
 
 @dataclass
 class FakeSource:
-    """SignalSource de test : rend une recommandation fixée (ignore le marché)."""
+    """Test SignalSource: returns a fixed recommendation (ignores the market)."""
 
     signal: ProcurementSignal
     name: str = "fake"
@@ -76,7 +76,7 @@ def test_engine_silent_when_no_rule_matches():
 
 
 def test_engine_action_rule_reacts_to_injected_signal():
-    # L'edge injecté pilote l'alerte d'action : RENT_NOW déclenche, WAIT non.
+    # The injected edge drives the action alert: RENT_NOW triggers, WAIT doesn't.
     waiting = AlertEngine(FakeSource(_signal(action=Action.WAIT)), InMemoryNotifier())
     assert waiting.evaluate(_market(), [ActionIs(Action.RENT_NOW)]) == []
 
@@ -86,7 +86,7 @@ def test_engine_action_rule_reacts_to_injected_signal():
 
 
 def test_event_fired_at_defaults_to_market_as_of():
-    # Déterministe et point-in-time : pas de dt.now() caché.
+    # Deterministic and point-in-time: no hidden dt.now().
     engine = AlertEngine(FakeSource(_signal()), InMemoryNotifier())
     events = engine.evaluate(_market(), [PriceBelow(99.0)])
     assert events[0].fired_at == AS_OF

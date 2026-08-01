@@ -1,4 +1,4 @@
-"""Tests d'intégration de la construction d'indice spot (point-in-time + configurable)."""
+"""Integration tests of spot index construction (point-in-time + configurable)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from core.ingestion.protocols import Snapshot
 
 def test_default_index_matches_market_standard(index_snapshots, as_of) -> None:
     pt = build_spot_index(index_snapshots, as_of, "H100")
-    # 4 venues retenues [2.00, 2.10, 2.20, 2.30] -> trimmed mean (k=0) = 2.15
+    # 4 venues retained [2.00, 2.10, 2.20, 2.30] -> trimmed mean (k=0) = 2.15
     assert pt.price_usd_per_hour == pytest.approx(2.15)
     assert pt.n_sources == 4
     assert pt.method == "trimmed_mean20+mad2.5"
@@ -28,12 +28,12 @@ def test_default_index_matches_market_standard(index_snapshots, as_of) -> None:
 
 def test_oldest_retained_observation_is_tracked(index_snapshots, as_of) -> None:
     pt = build_spot_index(index_snapshots, as_of, "H100")
-    # coreweave à as_of - 3 h est le plus vieux relevé conservé (auditabilité staleness)
+    # coreweave at as_of - 3h is the oldest retained reading (staleness auditability)
     assert pt.oldest_obs_at == as_of - dt.timedelta(hours=3)
 
 
 def test_no_lookahead_future_observation_ignored(index_snapshots, as_of) -> None:
-    # Une observation postérieure à as_of ne doit jamais modifier le fix (point-in-time).
+    # An observation posterior to as_of must never modify the fix (point-in-time).
     leak = Snapshot(as_of + dt.timedelta(hours=2), "vastai", "H100", 100.0)
     base = build_spot_index(index_snapshots, as_of, "H100")
     after = build_spot_index([*index_snapshots, leak], as_of, "H100")
@@ -41,7 +41,7 @@ def test_no_lookahead_future_observation_ignored(index_snapshots, as_of) -> None
 
 
 def test_stale_venue_not_carried_forward(as_of) -> None:
-    # No carry-forward : une venue dont le seul relevé est périmé est ignorée.
+    # No carry-forward: a venue whose only reading is stale is ignored.
     fresh = Snapshot(as_of - dt.timedelta(hours=1), "vastai", "H100", 2.0)
     stale = Snapshot(as_of - dt.timedelta(hours=30), "old", "H100", 1.5)
     pt = build_spot_index([fresh, stale], as_of, "H100")
@@ -56,7 +56,7 @@ def test_insufficient_data_raises(as_of) -> None:
 
 
 def test_estimator_is_configurable(index_snapshots, as_of) -> None:
-    # Même pipeline, estimateur permuté par injection -> résultat et méthode différents.
+    # Same pipeline, estimator swapped via injection -> different result and method.
     cfg = IndexConfig(estimator=AvailabilityWeightedMean(), outlier_filter=MadOutlierFilter(2.5))
     pt = build_spot_index(index_snapshots, as_of, "H100", config=cfg)
     # (2.00*100 + 2.20*50 + 2.10*200 + 2.30*10) / 360 = 753/360
@@ -72,8 +72,8 @@ def test_default_config_is_market_standard() -> None:
 
 
 def test_intra_venue_distribution_aggregated_not_arbitrary(as_of) -> None:
-    # Une venue avec N offres au MÊME timestamp -> médiane robuste de la cohorte,
-    # jamais une offre prise au hasard (le bug corrigé). 100.0 est un outlier intra-venue.
+    # A venue with N offers at the SAME timestamp -> robust median of the cohort,
+    # never an arbitrarily picked offer (the fixed bug). 100.0 is an intra-venue outlier.
     ts = as_of - dt.timedelta(hours=1)
     offers = [
         Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 1),
@@ -88,7 +88,7 @@ def test_intra_venue_distribution_aggregated_not_arbitrary(as_of) -> None:
 
 
 def test_intra_venue_availability_is_summed(as_of) -> None:
-    # La disponibilité d'une venue agrège tout son carnet (somme), pas une offre.
+    # A venue's availability aggregates its whole order book (sum), not a single offer.
     from core.ingestion.estimators import AvailabilityWeightedMean, NoOutlierFilter
 
     ts = as_of - dt.timedelta(hours=1)
@@ -99,5 +99,5 @@ def test_intra_venue_availability_is_summed(as_of) -> None:
     ]
     cfg = IndexConfig(estimator=AvailabilityWeightedMean(), outlier_filter=NoOutlierFilter())
     pt = build_spot_index(offers, as_of, "H100", config=cfg)
-    # vastai dispo=8 @2.0, runpod dispo=2 @4.0 -> (2*8 + 4*2)/10 = 2.4
+    # vastai avail=8 @2.0, runpod avail=2 @4.0 -> (2*8 + 4*2)/10 = 2.4
     assert pt.price_usd_per_hour == pytest.approx(2.4)

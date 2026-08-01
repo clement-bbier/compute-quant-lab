@@ -1,17 +1,17 @@
-"""Moteur d'alerte — squelette PoC avec **un seul point d'injection**.
+"""Alert engine — PoC skeleton with **a single injection point**.
 
-Le moteur consomme un :class:`~signal_iface.SignalSource` (injecté), en tire une
-:class:`~signal_iface.ProcurementSignal`, puis évalue des **règles déclaratives** :
+The engine consumes an injected :class:`~signal_iface.SignalSource`, derives a
+:class:`~signal_iface.ProcurementSignal` from it, then evaluates **declarative rules**:
 
-- :class:`PriceBelow` — « prix sous un seuil » : **publique pure**, ne requiert aucun edge ;
-- :class:`ActionIs` — « la reco vaut RENT_NOW » : pilotée par la source injectée (naïve
-  publique par défaut, ou l'edge privé substitué localement).
+- :class:`PriceBelow` — "price below a threshold": **pure public**, requires no edge;
+- :class:`ActionIs` — "the recommendation is RENT_NOW": driven by the injected source
+  (naive public by default, or the private edge substituted locally).
 
-Squelette assumé : la **livraison** (email / webhook) n'est pas implémentée en PoC. Les
-:class:`Notifier` fournis sont des stubs (mémoire pour les tests/dashboard, log pour le
-suivi) ; brancher un canal réel = nouvelle implémentation du Protocol (OCP), sans toucher
-au moteur. Tout est **déterministe et point-in-time** : l'horodatage d'un événement est
-``market.as_of`` (pas de ``datetime.now()`` caché).
+Assumed skeleton: **delivery** (email / webhook) is not implemented in the PoC. The
+provided :class:`Notifier` implementations are stubs (in-memory for tests/dashboard, log for
+monitoring); wiring up a real channel = a new Protocol implementation (OCP), without touching
+the engine. Everything is **deterministic and point-in-time**: an event's timestamp is
+``market.as_of`` (no hidden ``datetime.now()``).
 """
 
 from __future__ import annotations
@@ -28,21 +28,21 @@ from views import MarketView
 
 @runtime_checkable
 class Rule(Protocol):
-    """Condition de déclenchement, évaluée sur une :class:`ProcurementSignal`."""
+    """Trigger condition, evaluated on a :class:`ProcurementSignal`."""
 
     @property
     def label(self) -> str:
-        """Étiquette auditable de la règle (tracée dans l'événement)."""
+        """Auditable label of the rule (traced in the event)."""
         ...
 
     def matches(self, signal: ProcurementSignal) -> bool:
-        """Vrai si la règle déclenche pour ``signal``."""
+        """True if the rule triggers for ``signal``."""
         ...
 
 
 @dataclass(frozen=True)
 class PriceBelow:
-    """Règle publique pure : déclenche si le prix de référence ``<= threshold``."""
+    """Pure public rule: triggers if the reference price ``<= threshold``."""
 
     threshold: float
 
@@ -56,7 +56,7 @@ class PriceBelow:
 
 @dataclass(frozen=True)
 class ActionIs:
-    """Règle pilotée par la source injectée : déclenche si ``action`` correspond."""
+    """Rule driven by the injected source: triggers if ``action`` matches."""
 
     action: Action
 
@@ -70,7 +70,7 @@ class ActionIs:
 
 @dataclass(frozen=True)
 class AlertEvent:
-    """Alerte déclenchée — instantané auditable de ce qui a fait feu."""
+    """Triggered alert — auditable snapshot of what fired."""
 
     gpu_model: str
     venue: str
@@ -82,16 +82,16 @@ class AlertEvent:
 
 @runtime_checkable
 class Notifier(Protocol):
-    """Canal de notification (stub en PoC : mémoire, log ; réel = nouvelle impl, OCP)."""
+    """Notification channel (PoC stub: in-memory, log; real = new impl, OCP)."""
 
     def notify(self, event: AlertEvent) -> None:
-        """Émet ``event`` sur le canal."""
+        """Emits ``event`` on the channel."""
         ...
 
 
 @dataclass
 class InMemoryNotifier:
-    """Stub : accumule les événements en mémoire (tests, dashboard)."""
+    """Stub: accumulates events in memory (tests, dashboard)."""
 
     events: list[AlertEvent] = field(default_factory=list)
 
@@ -101,13 +101,13 @@ class InMemoryNotifier:
 
 @dataclass
 class LoggingNotifier:
-    """Stub : journalise l'alerte (``core.utils.logging``, jamais ``print``)."""
+    """Stub: logs the alert (``core.utils.logging``, never ``print``)."""
 
     logger: logging.Logger = field(default_factory=lambda: get_logger("ws.alerts"))
 
     def notify(self, event: AlertEvent) -> None:
         self.logger.info(
-            "ALERTE [%s] %s : %s à %.2f $/GPU·h (%s)",
+            "ALERT [%s] %s: %s at %.2f $/GPU·h (%s)",
             event.rule_label,
             event.gpu_model,
             event.venue,
@@ -118,15 +118,15 @@ class LoggingNotifier:
 
 @dataclass
 class AlertEngine:
-    """Évalue des règles sur la recommandation d'un :class:`SignalSource` injecté.
+    """Evaluates rules against the recommendation of an injected :class:`SignalSource`.
 
     Parameters
     ----------
     source
-        Producteur de recommandation — **le point d'injection** (naïf public par défaut,
-        edge privé substitué localement).
+        Recommendation producer — **the injection point** (naive public by default,
+        private edge substituted locally).
     notifier
-        Canal d'émission des alertes déclenchées (stub en PoC).
+        Channel for emitting triggered alerts (stub in PoC).
     """
 
     source: SignalSource
@@ -139,21 +139,21 @@ class AlertEngine:
         *,
         now: dt.datetime | None = None,
     ) -> list[AlertEvent]:
-        """Déclenche les règles satisfaites pour le marché ``market``.
+        """Triggers the rules satisfied for the ``market``.
 
         Parameters
         ----------
         market
-            Photo point-in-time du modèle (cf. :func:`views.read_market`).
+            Point-in-time snapshot of the model (cf. :func:`views.read_market`).
         rules
-            Règles à évaluer (``PriceBelow``, ``ActionIs``, …).
+            Rules to evaluate (``PriceBelow``, ``ActionIs``, …).
         now
-            Horodatage des événements ; défaut = ``market.as_of`` (déterministe, point-in-time).
+            Timestamp of the events; default = ``market.as_of`` (deterministic, point-in-time).
 
         Returns
         -------
         list[AlertEvent]
-            Les alertes déclenchées (aussi transmises au ``notifier``).
+            The triggered alerts (also forwarded to the ``notifier``).
         """
         signal = self.source.assess(market)
         fired_at = now if now is not None else market.as_of

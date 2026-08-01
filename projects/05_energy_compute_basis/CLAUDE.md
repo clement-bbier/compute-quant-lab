@@ -1,47 +1,49 @@
-# Projet 05 — Energy ↔ Compute Basis
+# Project 05 — Energy ↔ Compute Basis
 
-> Contexte LOCAL. Glossaire et conventions globales : CLAUDE.md racine. Méthodo détaillée
-> et état : [README.md](README.md). Patch zone protégée : [CONVERGENCE.md](CONVERGENCE.md).
+> LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
+> and status: [README.md](README.md). Protected-zone patches: [CONVERGENCE.md](CONVERGENCE.md).
 
-## Thèse spécifique
-Le spark spread varie **par région** : prix élec régional (FR/DE, ENTSO-E) × **PUE** local
-× efficience matérielle. Le **basis** inter-régions (différence des spreads régionaux, ajustée
-PUE) ouvre un arbitrage géographique : placer la charge GPU là où le spread est le plus large.
-P05 mesure ce basis point-in-time, quantifie ses dislocations et leur persistance, et expose
-honnêtement ses limites.
+## Project-specific thesis
+The spark spread varies **by region**: regional electricity price (FR/DE, ENTSO-E) ×
+local **PUE** × hardware efficiency. The inter-region **basis** (difference of regional
+spreads, PUE-adjusted) opens a geographic arbitrage: place the GPU load where the spread
+is widest. P05 measures this basis point-in-time, quantifies its dislocations and their
+persistence, and honestly exposes its limitations.
 
-## Modules possédés
-- `projects/05_energy_compute_basis/` uniquement.
-- Lecture seule : tout `core/` (P01 `core.pricing`, P04 `core.ingestion`, `core.utils`),
-  zone protégée racine. Tout besoin sur la zone protégée → [CONVERGENCE.md](CONVERGENCE.md).
+## Modules owned
+- `projects/05_energy_compute_basis/` only.
+- Read-only: all of `core/` (P01 `core.pricing`, P04 `core.ingestion`, `core.utils`),
+  root protected zone. Any need touching the protected zone → [CONVERGENCE.md](CONVERGENCE.md).
 
 ## Architecture (SOLID / DI)
-- `RegionConfig` (PUE, FX, efficience) = config injectée, pas de nombre magique.
-- `build_regional_pricer(cfg)` → `SparkSpreadPricer` (P01) **par région** (le PUE vit dans le
-  `PowerModel`, donc un pricer par région).
-- `BasisCalculator(pricers, reference=...)` **pur** : price chaque région, aligne par jointure
-  interne (point-in-time), `basis[r] = spread[r] − spread[reference]`.
-- `detect_dislocations(basis)` : épisodes `|basis| > seuil` (amplitude p95, fraction du temps)
-  + persistance = **demi-vie AR(1)** de retour à la moyenne.
-- I/O (ENTSO-E, indice compute P04, MLflow) isolé dans `src/data.py` + `src/run_basis.py` ;
-  `src/basis.py` reste pur (aucune I/O cachée).
+- `RegionConfig` (PUE, FX, efficiency) = injected config, no magic numbers.
+- `build_regional_pricer(cfg)` → `SparkSpreadPricer` (P01) **per region** (PUE lives in the
+  `PowerModel`, hence one pricer per region).
+- `BasisCalculator(pricers, reference=...)` **pure**: prices each region, aligns via inner
+  join (point-in-time), `basis[r] = spread[r] − spread[reference]`.
+- `detect_dislocations(basis)`: episodes where `|basis| > threshold` (p95 amplitude, fraction
+  of time) + persistence = **AR(1) half-life** of mean reversion.
+- I/O (ENTSO-E, P04 compute index, MLflow) isolated in `src/data.py` + `src/run_basis.py`;
+  `src/basis.py` stays pure (no hidden I/O).
 
-## Frontière réel / synthétique (non négociable)
-Énergie ENTSO-E FR/DE = **réelle** si token, sinon **repli synthétique déterministe** étiqueté.
-Indice compute = réel (marketplace P04) ou repli synthétique étiqueté. Aucune série simulée
-servie comme réelle ; l'étiquette `energy_source` / `compute_source` est loggée dans MLflow.
+## Real / synthetic boundary (non-negotiable)
+ENTSO-E FR/DE energy = **real** if a token is set, otherwise a labeled **deterministic
+synthetic fallback**. Compute index = real (P04 marketplace) or labeled synthetic fallback.
+No simulated series is ever served as real; the `energy_source` / `compute_source` label is
+logged in MLflow.
 
-## Risques assumés (PoC)
-PUE régional = hypothèse forte (peu observable). Compute souvent **global** → le basis est
-surtout porté par l'énergie × PUE (le revenu compute s'annule entre régions à FX/compute égaux).
-Coûts/latence de transfert ignorés au PoC → ne pas sur-interpréter un arbitrage « gratuit ».
+## Assumed risks (PoC)
+Regional PUE = a strong, poorly observable assumption. Compute is often **global** → the
+basis is mostly driven by energy × PUE (compute revenue cancels out between regions at
+equal FX/compute prices). Transfer costs/latency ignored at PoC stage → don't over-interpret
+a "free" arbitrage.
 
-## État d'avancement
+## Progress status
 - [x] `RegionConfig` + `build_regional_pricer` (tests)
-- [x] `BasisCalculator` point-in-time (basis multi-région, sensibilité PUE, anti look-ahead)
-- [x] `detect_dislocations` (seuil + demi-vie AR(1))
-- [x] Orchestration `run_basis.py` + run MLflow + `results/SYNTHESIS.md`
+- [x] Point-in-time `BasisCalculator` (multi-region basis, PUE sensitivity, anti look-ahead)
+- [x] `detect_dislocations` (threshold + AR(1) half-life)
+- [x] `run_basis.py` orchestration + MLflow run + `results/SYNTHESIS.md`
 
-## Hors périmètre (palier institutionnel)
-Routing de charge optimisé, coûts/latence de transfert, contraintes de capacité, signal
-tradable inter-régions exécutable.
+## Out of scope (institutional tier)
+Optimized load routing, transfer costs/latency, capacity constraints, executable
+tradable inter-region signal.

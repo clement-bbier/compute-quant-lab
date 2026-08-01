@@ -1,19 +1,19 @@
-"""Stratégie composite du desk : fond N signaux en UNE position nette (injectée dans P08).
+"""Composite desk strategy: blends N signals into ONE net position (injected into P08).
 
-Le moteur P08 est mono-série : ``signal(view) -> float``. Le ``DeskStrategy`` est donc une
-``Strategy`` composite qui, à chaque t :
-1. interroge chaque producteur (mock au PoC) via la ``GuardedView`` ≤ t → vue directionnelle ``s_i,t`` ;
-2. estime, **point-in-time**, la volatilité réalisée de chaque signal sur une fenêtre ≤ t
-   (rendement réalisé laggé ``s_i,{t-1}·rendement_marché[t]``) ;
-3. en déduit des poids (``PortfolioConstructor``) et renvoie la position nette ``Σ w_i·s_i`` écrêtée.
+The P08 engine is single-series: ``signal(view) -> float``. ``DeskStrategy`` is therefore a
+composite ``Strategy`` that, at each t:
+1. queries each producer (mock at the PoC stage) via the ``GuardedView`` ≤ t → directional view ``s_i,t``;
+2. estimates, **point-in-time**, the realized volatility of each signal over a window ≤ t
+   (lagged realized return ``s_i,{t-1}·market_return[t]``);
+3. derives weights from that (``PortfolioConstructor``) and returns the clipped net position ``Σ w_i·s_i``.
 
-Anti look-ahead : tout ce qui entre dans la décision à t vient de la ``GuardedView`` (≤ t) ; la
-vol utilise des rendements réalisés dont le plus récent ne dépend que de ``prix[t]`` (observé à t).
-Déterminisme : l'état est réinitialisé à ``t == 0`` (deux runs sur la même série coïncident).
+Anti look-ahead: everything feeding the decision at t comes from the ``GuardedView`` (≤ t); the
+vol uses realized returns whose most recent value only depends on ``price[t]`` (observed at t).
+Determinism: state is reset at ``t == 0`` (two runs on the same series match exactly).
 
-Pour l'attribution « contribution par signal », le desk mémorise à chaque pas les
-**positions-composantes** ``c_i = w_i·s_i`` (re-normalisées après écrêtage pour que ``Σ_i c_i``
-égale exactement la position nette).
+For "contribution by signal" attribution, the desk records at each step the
+**component positions** ``c_i = w_i·s_i`` (re-normalized after clipping so that ``Σ_i c_i``
+exactly equals the net position).
 """
 
 from __future__ import annotations
@@ -27,16 +27,16 @@ from core.backtest.protocols import FloatArray, PointInTimeView
 from portfolio import PortfolioConstructor
 from signals import SignalProducer
 
-#: Nombre minimal de rendements réalisés avant d'estimer une vol (sinon équipondération).
+#: Minimum number of realized returns before estimating a vol (equal-weighted otherwise).
 _MIN_VOL_OBS: int = 2
 
 
 @dataclass(frozen=True)
 class DeskHistory:
-    """Historique par pas de temps du desk (pour l'attribution et la reproductibilité).
+    """Per-timestep desk history (for attribution and reproducibility).
 
-    Toutes les matrices ont la forme ``(n_pas, n_signaux)`` ; ``positions``/``mkt_returns``
-    sont de longueur ``n_pas``.
+    All matrices have shape ``(n_steps, n_signals)``; ``positions``/``mkt_returns``
+    have length ``n_steps``.
     """
 
     mkt_returns: FloatArray
@@ -47,16 +47,16 @@ class DeskHistory:
 
 
 class DeskStrategy:
-    """Combine des producteurs de signaux en une position nette (implémente ``Strategy`` de P08).
+    """Combines signal producers into a net position (implements P08's ``Strategy``).
 
     Parameters
     ----------
     producers : list[SignalProducer]
-        Producteurs de signaux injectés (mocks au PoC ; P02/P06/P09 en convergence).
+        Injected signal producers (mocks at the PoC stage; P02/P06/P09 at convergence).
     constructor : PortfolioConstructor
-        Politique de pondération + plancher de vol + écrêtage de levier.
+        Weighting policy + vol floor + leverage clipping.
     vol_lookback : int
-        Fenêtre d'estimation de la volatilité réalisée par signal (≥ 2).
+        Estimation window for per-signal realized volatility (≥ 2).
     """
 
     def __init__(
@@ -67,20 +67,20 @@ class DeskStrategy:
         vol_lookback: int,
     ) -> None:
         if not producers:
-            raise ValueError("au moins un producteur de signaux est requis.")
+            raise ValueError("at least one signal producer is required.")
         if vol_lookback < _MIN_VOL_OBS:
-            raise ValueError(f"vol_lookback ({vol_lookback}) doit être ≥ {_MIN_VOL_OBS}.")
+            raise ValueError(f"vol_lookback ({vol_lookback}) must be ≥ {_MIN_VOL_OBS}.")
         self.producers = producers
         self.constructor = constructor
         self.vol_lookback = vol_lookback
         self._reset()
 
-    # -- état séquentiel (reset à t == 0) --------------------------------------------------
+    # -- sequential state (reset at t == 0) ------------------------------------------------
 
     def _reset(self) -> None:
         k = len(self.producers)
         self._prev_signals = np.zeros(k, dtype=np.float64)
-        self._returns_buffer: list[FloatArray] = []  # rendements réalisés par signal, par pas
+        self._returns_buffer: list[FloatArray] = []  # realized returns per signal, per step
         self._rec_mkt: list[float] = []
         self._rec_signals: list[FloatArray] = []
         self._rec_weights: list[FloatArray] = []
@@ -88,31 +88,31 @@ class DeskStrategy:
         self._rec_positions: list[float] = []
 
     def _estimate_vols(self) -> FloatArray:
-        """Vol réalisée par signal sur la fenêtre ``vol_lookback`` (équipondération en warmup)."""
+        """Realized vol per signal over the ``vol_lookback`` window (equal-weighted during warmup)."""
         k = len(self.producers)
         if len(self._returns_buffer) < _MIN_VOL_OBS:
             return np.ones(k, dtype=np.float64)
         window = np.array(self._returns_buffer[-self.vol_lookback :])  # (m, k)
         return window.std(axis=0, ddof=1)
 
-    # -- contrat Strategy de P08 -----------------------------------------------------------
+    # -- P08 Strategy contract --------------------------------------------------------------
 
     def signal(self, view: PointInTimeView) -> float:
-        """Position nette à t, décidée sur des données ≤ t (point-in-time, déterministe)."""
+        """Net position at t, decided on data ≤ t (point-in-time, deterministic)."""
         t = view.t
         if t == 0:
             self._reset()
             mkt_ret = 0.0
         else:
             mkt_ret = view.latest() / view.at(t - 1) - 1.0
-            # rendement réalisé sur [t-1, t] de chaque signal = position tenue (s_{t-1}) · marché.
+            # realized return over [t-1, t] of each signal = held position (s_{t-1}) · market.
             self._returns_buffer.append(self._prev_signals * mkt_ret)
 
         current = np.array([p.signal(view) for p in self.producers], dtype=np.float64)
         weights = self.constructor.weights(self._estimate_vols())
         position = self.constructor.net_position(weights, current)
 
-        # Composantes re-normalisées après écrêtage : Σ_i c_i == position nette (attribution exacte).
+        # Components re-normalized after clipping: Σ_i c_i == net position (exact attribution).
         raw = float(np.dot(weights, current))
         scale = position / raw if raw != 0.0 else 0.0
         components = weights * current * scale
@@ -136,7 +136,7 @@ class DeskStrategy:
         self._rec_positions.append(position)
 
     def history(self) -> DeskHistory:
-        """Historique accumulé du dernier run (pour attribution et logging MLflow)."""
+        """Accumulated history of the last run (for attribution and MLflow logging)."""
         return DeskHistory(
             mkt_returns=np.array(self._rec_mkt, dtype=np.float64),
             signals=np.array(self._rec_signals, dtype=np.float64),

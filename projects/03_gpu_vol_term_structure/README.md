@@ -1,62 +1,62 @@
 # P03 — GPU Volatility & Term Structure
 
-Couche **Stratégie** du labo : traiter la **volatilité** des prix GPU comme un actif et
-exploiter la **structure par terme** de la courbe forward (contango/backwardation) comme
-signal directionnel. Consomme les produits fondateurs de **P04** (indice spot + forward).
+Lab **Strategy** layer: treat GPU price **volatility** as an asset and
+exploit the **term structure** of the forward curve (contango/backwardation) as a
+directional signal. Consumes the foundational products of **P04** (spot index + forward).
 
-## Sources de données
+## Data sources
 
-| Jambe | Réel / Simulé | Source | Unité | Statut |
+| Leg | Real / Simulated | Source | Unit | Status |
 |---|---|---|---|---|
-| Indice spot | **Réel** | `core.ingestion.build_spot_index` sur snapshots accumulés | $/GPU·h | branché (token-gated) |
-| Courbe forward | **SIMULÉE** | P04 — Schwartz 1-facteur seedé sur le spot | $/GPU·h / échéance | branché (repli MC Python) |
+| Spot index | **Real** | `core.ingestion.build_spot_index` on accumulated snapshots | $/GPU·h | wired (token-gated) |
+| Forward curve | **SIMULATED** | P04 — 1-factor Schwartz seeded on spot | $/GPU·h / maturity | wired (Python MC fallback) |
 
-> ⚠️ **Frontière réel/simulé** : la term structure et le signal dérivent d'une forward
-> `simulated=True`. `TermStructure.simulated` est un champ **obligatoire** (sans défaut) ;
-> un test échoue s'il est absent. Jamais servi comme un prix de marché observé.
+> Warning: **Real/simulated boundary**: the term structure and signal derive from a
+> `simulated=True` forward. `TermStructure.simulated` is a **required** field (no default);
+> a test fails if it is absent. Never served as an observed market price.
 
-## Méthodologie
+## Methodology
 
-### Volatilité (numpy pur, causale)
-- **Réalisée** : écart-type glissant des log-returns sur fenêtre trailing (warmup → NaN).
-- **EWMA** (RiskMetrics) : `σ²_t = λ·σ²_{t-1} + (1-λ)·r²_t`, réactive, λ par défaut 0.94.
-- Annualisation par `periods_per_year` nommé (compute tradé 24/7 → 365).
-- **Anti look-ahead** : `vol[t]` ne dépend que des returns d'indice ≤ t (testé par
-  invariance à la troncature). GARCH = point d'extension du `VolEstimator` (Protocol).
+### Volatility (pure numpy, causal)
+- **Realized**: rolling standard deviation of log-returns over a trailing window (warmup → NaN).
+- **EWMA** (RiskMetrics): `σ²_t = λ·σ²_{t-1} + (1-λ)·r²_t`, reactive, default λ 0.94.
+- Annualization via named `periods_per_year` (compute traded 24/7 → 365).
+- **Anti look-ahead**: `vol[t]` depends only on index returns ≤ t (tested by
+  invariance to truncation). GARCH = extension point of the `VolEstimator` (Protocol).
 
-### Structure par terme (pure)
-- **Pente** : régression linéaire prix ~ échéance (`np.polyfit` degré 1).
-- **Courbure** : butterfly `F_court − 2·F_milieu + F_long`.
-- **Forme** : contango (pente > seuil), backwardation (pente < −seuil), sinon plat.
+### Term structure (pure)
+- **Slope**: linear regression price ~ maturity (`np.polyfit` degree 1).
+- **Curvature**: butterfly `F_short − 2·F_mid + F_long`.
+- **Shape**: contango (slope > threshold), backwardation (slope < −threshold), else flat.
 
-### Signal directionnel (convention roll-yield)
-Commodités non stockables (analogie élec) : **backwardation → long (+1)**, **contango →
-short (−1)**, bande neutre → **0**. Hérite du drapeau `simulated` de la term structure.
+### Directional signal (roll-yield convention)
+Non-storable commodities (electricity analogy): **backwardation → long (+1)**, **contango →
+short (−1)**, neutral band → **0**. Inherits the `simulated` flag from the term structure.
 
-## Plage, profondeur & limites (état PoC)
-- **Historique compute court** : la série propriétaire démarre à la première collecte ;
-  tant qu'elle est mince, `run_analysis.py` tourne sur un spot **synthétique étiqueté démo**
-  (seed fixe) et bascule sur l'indice réel dès `data/snapshots/` assez profond.
-- **Forward simulée** : la forme de la courbe reflète le **modèle** (mean-reversion
-  Schwartz), pas une anticipation de marché observée. Tout résultat est conditionnel.
+## Range, depth & limitations (PoC status)
+- **Short compute history**: the proprietary series starts at the first collection;
+  while it remains thin, `run_analysis.py` runs on a **demo-labeled synthetic** spot
+  (fixed seed) and switches to the real index once `data/snapshots/` is deep enough.
+- **Simulated forward**: the curve's shape reflects the **model** (Schwartz
+  mean-reversion), not an observed market anticipation. Any result is conditional.
 
-## Lancer
+## Run
 
 ```bash
 uv sync --extra dev
-# Analyse complète (vol + term structure + signal) + run MLflow + results/ :
+# Full analysis (vol + term structure + signal) + MLflow run + results/ :
 uv run python projects/03_gpu_vol_term_structure/src/run_analysis.py
-# Tests (testpaths racine n'inclut pas encore P03 -> chemin explicite) :
+# Tests (root testpaths does not yet include P03 -> explicit path) :
 uv run pytest projects/03_gpu_vol_term_structure
 ```
 
-## Reproductibilité
+## Reproducibility
 
-- **MLflow** : `run_analysis.py` logue params (fenêtre vol, λ EWMA, `periods_per_year`,
-  modèle de courbe, `forward_simulated`) + métriques (vol réalisée/EWMA, pente, courbure,
-  signal) + SHA git via `core.utils.tracking` (`experiments/mlruns`, `mlflow ui`).
-- **Seed** fixe partout. MLflow 2026 → `MLFLOW_ALLOW_FILE_STORE=true` (géré par `tracking`).
+- **MLflow**: `run_analysis.py` logs params (vol window, EWMA λ, `periods_per_year`,
+  curve model, `forward_simulated`) + metrics (realized/EWMA vol, slope, curvature,
+  signal) + git SHA via `core.utils.tracking` (`experiments/mlruns`, `mlflow ui`).
+- **Seed** fixed everywhere. MLflow 2026 → `MLFLOW_ALLOW_FILE_STORE=true` (handled by `tracking`).
 
-## Handoff convergence
-Voir [CONVERGENCE.md](CONVERGENCE.md) : ajout de P03 à `testpaths`, promotion éventuelle des
-estimateurs de vol vers `core/`.
+## Convergence handoff
+See [CONVERGENCE.md](CONVERGENCE.md): adding P03 to `testpaths`, possible promotion of the
+vol estimators to `core/`.

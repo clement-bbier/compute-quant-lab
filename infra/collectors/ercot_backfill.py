@@ -1,19 +1,20 @@
-"""Backfill ERCOT historique : API hébergée GridStatus.io → cold store énergie.
+"""Historical ERCOT backfill: hosted GridStatus.io API to the energy cold store.
 
-Tire le prix RTM + les prévisions (charge, capacité STSA, net-load) sur une plage, en
-**format long point-in-time**, et les écrit dans :class:`EnergyColdStore` (Parquet,
-versionné en git ordinaire). La calibration P07 lira ce lac immuable (rule
-training-cold-store), jamais le live.
+Pulls RTM prices plus forecasts (load, STSA capacity, net load) over a date range, in
+**point-in-time long format**, and writes them to :class:`EnergyColdStore` (Parquet,
+versioned as plain git). The P07 calibration reads this immutable lake (see the
+training-cold-store rule), never the live feed.
 
-⚠️ Opérationnel : nécessite ``GRIDSTATUS_API_KEY``. **Quota** free = 500k lignes/mois →
-borner la plage (étés à spikes) ou agréger ; vérifier la **profondeur d'archive des
-prévisions** (le facteur limitant — cf. plan cold store).
+Warning: this is operational and requires ``GRIDSTATUS_API_KEY``. The free **quota** is
+500k rows/month, so bound the range (spiky summers) or aggregate; also check the
+**forecast archive depth** (the limiting factor — see the cold store plan).
 
-Usage : ``uv run python -m infra.collectors.ercot_backfill --start 2024-06-01 --end 2024-10-01``.
+Usage: ``uv run python -m infra.collectors.ercot_backfill --start 2024-06-01 --end 2024-10-01``.
 """
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -35,7 +36,7 @@ from core.storage.energy_store import (
 )
 
 _HUB = "HB_BUSAVG"
-#: (nom de série, parseur, méthode transport, colonne de valeur) pour les prévisions.
+#: (series name, parser, transport method, value column) for each forecast.
 _FORECASTS = [
     ("load_forecast", parse_load_forecast, "fetch_load_forecast", "forecast_load_mw"),
     ("available_capacity", parse_system_adequacy, "fetch_system_adequacy", "forecast_capacity_mw"),
@@ -44,10 +45,10 @@ _FORECASTS = [
 
 
 def extract_long(transport: ErcotTransport, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    """Extrait RTM + prévisions sur [start, end] en format long énergie (tz UTC préservé)."""
+    """Extract RTM + forecasts over [start, end] in energy long format (UTC tz preserved)."""
     frames: list[pd.DataFrame] = []
 
-    # Série réalisée (RTM) : publish_time = interval_start (connu en fin d'intervalle).
+    # Realized series (RTM): publish_time = interval_start (known at the end of the interval).
     rtm = parse_rtm_spp(transport.fetch_rtm_spp(start, end, _HUB))
     frames.append(
         pd.DataFrame(
@@ -61,7 +62,7 @@ def extract_long(transport: ErcotTransport, start: pd.Timestamp, end: pd.Timesta
         )
     )
 
-    # Prévisions : publish_time issu du rapport (point-in-time).
+    # Forecasts: publish_time comes from the report itself (point-in-time).
     for series_name, parse_fn, fetch_name, value_col in _FORECASTS:
         raw = getattr(transport, fetch_name)(start, end)
         parsed = parse_fn(raw).reset_index(drop=True)
@@ -88,7 +89,7 @@ def backfill(
     *,
     chunk_days: int = 7,
 ) -> int:
-    """Backfille [start, end] par tranches dans ``store`` ; renvoie le nb de lignes neuves."""
+    """Backfill [start, end] in chunks into ``store``; returns the number of new rows."""
     total = 0
     cursor = pd.Timestamp(start)
     stop = pd.Timestamp(end)
@@ -102,24 +103,24 @@ def backfill(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--start", required=True, help="Début de la plage (ex. 2024-06-01).")
-    parser.add_argument("--end", required=True, help="Fin de la plage, exclue (ex. 2024-10-01).")
-    parser.add_argument("--chunk-days", type=int, default=7, help="Taille des tranches (jours).")
+    parser.add_argument("--start", required=True, help="Range start (e.g. 2024-06-01).")
+    parser.add_argument("--end", required=True, help="Range end, exclusive (e.g. 2024-10-01).")
+    parser.add_argument("--chunk-days", type=int, default=7, help="Chunk size (days).")
     parser.add_argument(
         "--store-path",
         default="data/cold/ercot",
-        help="Répertoire du cold store énergie (défaut : data/cold/ercot).",
+        help="Energy cold store directory (default: data/cold/ercot).",
     )
     return parser.parse_args()
 
 
-def main() -> None:  # pragma: no cover (opérationnel, nécessite la clé + réseau)
-    """Point d'entrée opérationnel. Plage et destination réglables en ligne de commande."""
+def main() -> None:  # pragma: no cover (operational, requires the API key + network)
+    """Operational entry point. Range and destination are configurable on the command line."""
     args = _parse_args()
     transport = GridstatusIoTransport(limit=200_000)
     store = EnergyColdStore(Path(args.store_path))
     written = backfill(transport, store, args.start, args.end, chunk_days=args.chunk_days)
-    print(f"{written} lignes écrites dans {args.store_path} (git ordinaire).")
+    print(f"{written} rows written to {args.store_path} (plain git).")
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -1,14 +1,14 @@
-"""Calibration L0 §7 — assemble purged CV (P09) + label + baseline + éval.
+"""Calibration L0 §7 — assembles purged CV (P09) + label + baseline + eval.
 
-Pour chaque spec (couple label × seuil du budget L0) : on prédit le spike **hors
-échantillon** (purged K-fold + embargo de `core.models.validation`), on compare la
-PR-AUC du modèle à celle de la baseline climatologique (elle aussi hors échantillon),
-et on tranche par IC bootstrap + correction Benjamini-Hochberg sur le budget de specs.
+For each spec (label x threshold pair from the L0 budget): predicts the spike
+**out of sample** (purged K-fold + embargo from `core.models.validation`), compares
+the model's PR-AUC to that of the climatology baseline (also out of sample),
+and decides via bootstrap CI + Benjamini-Hochberg correction over the spec budget.
 
-Storage-agnostique : prend un panel de prédicteurs ``x`` et des labels en entrée
-(fournis depuis le cold store versionné au run, cf. rule training-cold-store). Le
-modèle est **injectable** (défaut : régression logistique) ; les prédicteurs (niveau
-de marge de réserve, gradient net-load) sont des colonnes de ``x``.
+Storage-agnostic: takes a panel of predictors ``x`` and labels as input
+(supplied from the versioned cold store at run time, cf. rule training-cold-store). The
+model is **injectable** (default: logistic regression); the predictors (reserve
+margin level, net-load gradient) are columns of ``x``.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from ercot_eval import beats_baseline, benjamini_hochberg
 
 
 class LogisticModel:
-    """Modèle directionnel par défaut (régression logistique), conforme à `Model`."""
+    """Default directional model (logistic regression), conforming to `Model`."""
 
     def __init__(self) -> None:
         self._clf = LogisticRegression(max_iter=1000)
@@ -42,7 +42,7 @@ class LogisticModel:
 def oos_baseline_predict(
     y: FloatArray, index: pd.DatetimeIndex, splitter: PurgedKFold
 ) -> FloatArray:
-    """Baseline climatologique **hors-échantillon** : ajustée sur le train, prédit le test."""
+    """**Out-of-sample** climatology baseline: fitted on train, predicts test."""
     proba = np.full(len(y), np.nan, dtype=np.float64)
     for train, test in splitter.split(len(y)):
         baseline = ClimatologyBaseline.fit(pd.Series(y[train], index=index[train]))
@@ -60,7 +60,7 @@ def run_spec(
     n_boot: int = 1000,
     seed: int = 0,
 ) -> dict[str, float | bool]:
-    """Une spec : PR-AUC OOS du modèle vs baseline climatologique OOS (purged + embargo)."""
+    """One spec: model's OOS PR-AUC vs OOS climatology baseline (purged + embargo)."""
     splitter = splitter or PurgedKFold(n_splits=5, horizon=1, embargo=0)
     proba_model = oos_predict(model_factory, x, y, splitter)
     proba_base = oos_baseline_predict(y, index, splitter)
@@ -79,11 +79,11 @@ def run_calibration(
     n_boot: int = 1000,
     seed: int = 0,
 ) -> dict[str, dict[str, float | bool]]:
-    """Calibration multi-specs L0 §7 : par spec « bat-il la baseline ? » + correction BH.
+    """L0 §7 multi-spec calibration: per-spec "does it beat the baseline?" + BH correction.
 
-    ``label_specs`` : nom de spec -> vecteur de labels (0/1). La correction
-    Benjamini-Hochberg s'applique sur les p-values des différences (budget de specs L0).
-    Chaque résultat reçoit ``bh_significant`` (vrai = retenu après contrôle du FDR).
+    ``label_specs``: spec name -> label vector (0/1). The Benjamini-Hochberg
+    correction is applied to the p-values of the differences (L0 spec budget).
+    Each result gets ``bh_significant`` (true = retained after FDR control).
     """
     results = {
         name: run_spec(

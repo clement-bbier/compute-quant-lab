@@ -1,16 +1,16 @@
-# P02 → Convergence
+# P02 -> Convergence
 
-Patchs touchant la **zone protégée** (`pyproject.toml`, `.claude/`, `core/`) ou d'autres modules :
-préparés ici, **non appliqués** dans le worktree P02. À appliquer par la session de convergence
-(pilote `integration`).
+Patches touching the **protected zone** (`pyproject.toml`, `.claude/`, `core/`) or other modules:
+prepared here, **not applied** in the P02 worktree. To be applied by the convergence session
+(`integration` pilot).
 
 ---
 
-## 1. `pyproject.toml` (racine)
+## 1. Root `pyproject.toml`
 
-### 1a. Tests P02 découverts par pytest
-`projects/02_spread_mean_reversion/tests/` n'est pas dans `testpaths` (P02 n'écrit que dans son
-module). Aligner sur la convention déjà ouverte par P04.
+### 1a. P02 tests discovered by pytest
+`projects/02_spread_mean_reversion/tests/` is not in `testpaths` (P02 only writes to its own
+module). Align with the convention already opened by P04.
 ```toml
 [tool.pytest.ini_options]
 testpaths = [
@@ -20,45 +20,45 @@ testpaths = [
     "projects/02_spread_mean_reversion/tests",
 ]
 ```
-> En attendant : lancer explicitement `uv run pytest projects/02_spread_mean_reversion -q`.
+> In the meantime: run explicitly with `uv run pytest projects/02_spread_mean_reversion -q`.
 
 ---
 
-## 2. Connecteur ENTSO-E dans `core/ingestion/` (jambe énergie générique)
-La jambe énergie réelle est aujourd'hui chargée depuis `projects/02_.../src/data_sources.py`
-(`load_energy_entsoe`, appel direct à `entsoe-py`). C'est une brique **réutilisable** (P03, P06… en
-auront besoin) : elle appartient à `core/ingestion/`. Proposition :
-- `core/ingestion/energy_market.py` : `EntsoeSource` (token `ENTSOE_API_TOKEN`), parsing → série
-  €/MWh UTC tz-aware, gap-filling documenté (rule `data-integrity`).
-- Versionner la série réelle en git ordinaire (`data/raw/energy/…`) avant tout backtest publié.
+## 2. ENTSO-E connector in `core/ingestion/` (generic energy leg)
+The real energy leg is currently loaded from `projects/02_.../src/data_sources.py`
+(`load_energy_entsoe`, direct call to `entsoe-py`). This is a **reusable** building block (P03, P06…
+will need it): it belongs in `core/ingestion/`. Proposal:
+- `core/ingestion/energy_market.py`: `EntsoeSource` (token `ENTSOE_API_TOKEN`), parsing -> EUR/MWh
+  UTC tz-aware series, documented gap-filling (rule `data-integrity`).
+- Version the real series as plain git (`data/raw/energy/…`) before any published backtest.
 
 ---
 
-## 3. Câblage Silicon Data (`core/ingestion/compute_index.py`)
-`SiliconDataSource.fetch` lève `NotImplementedError`. Pour un backtest sur **historique compute réel
-profond**, brancher l'API SDH100RT (token `SILICONDATA_API_TOKEN` + endpoint). À décider avec P04
-(propriétaire de `core/ingestion` jambe compute).
+## 3. Silicon Data wiring (`core/ingestion/compute_index.py`)
+`SiliconDataSource.fetch` raises `NotImplementedError`. For a backtest on a **deep real compute
+history**, wire up the SDH100RT API (token `SILICONDATA_API_TOKEN` + endpoint). To be decided with P04
+(owner of `core/ingestion` compute leg).
 
 ---
 
-## 4. `references/` (possédé par `feature/research`) — via `literature-scout`
-Distiller pour le palier institutionnel 3b :
-- Ornstein-Uhlenbeck / demi-vie de mean-reversion (Avellaneda & Lee ; Ernie Chan).
-- Engle-Granger (1987), Johansen — valeurs critiques et stabilité hors échantillon.
-- **Deflated Sharpe Ratio** (Bailey & López de Prado) : indispensable dès qu'on scanne des seuils z
-  (`n_trials` est tracé dans MLflow mais aucun ajustement n'est encore appliqué).
+## 4. `references/` (owned by `feature/research`) — via `literature-scout`
+Distill for the institutional tier (3b):
+- Ornstein-Uhlenbeck / mean-reversion half-life (Avellaneda & Lee; Ernie Chan).
+- Engle-Granger (1987), Johansen — critical values and out-of-sample stability.
+- **Deflated Sharpe Ratio** (Bailey & Lopez de Prado): essential as soon as z-thresholds are scanned
+  (`n_trials` is tracked in MLflow but no adjustment is applied yet).
 
 ---
 
-## 5. Employé manquant : agent `risk-validator` (croissance labo, prompt §8)
-Le `CLAUDE.md` racine §6 décrit `risk-validator` (adversaire) mais il **n'est pas enregistré** dans
-l'environnement (vérifié : absent de la liste des agents). L'audit `/backtest-pitfalls` de P02 a donc
-été fait manuellement. À créer via `agent-architect` / `/new-agent` (écrit dans `.claude/agents/`,
-zone protégée → convergence). Spec proposée : adversaire en lecture seule, traque look-ahead /
-overfitting / data-snooping / coûts irréalistes, refuse de croire tout Sharpe > 2 sans deflated
-Sharpe + walk-forward. Idem `infra-engineer` (également absent).
+## 5. Missing employee: `risk-validator` agent (lab growth, prompt §8)
+The root `CLAUDE.md` §6 describes `risk-validator` (adversary) but it is **not registered** in
+the environment (verified: absent from the agent list). The `/backtest-pitfalls` audit for P02 was
+therefore done manually. To be created via `agent-architect` / `/new-agent` (written to `.claude/agents/`,
+protected zone -> convergence). Proposed spec: read-only adversary, hunts look-ahead /
+overfitting / data-snooping / unrealistic costs, refuses to trust any Sharpe > 2 without deflated
+Sharpe + walk-forward. Same for `infra-engineer` (also absent).
 
-## 6. Rule candidate `.claude/rules/` (optionnel)
-Une rule path-scopée `projects/**/strategy*.py` rappelant : « toute stratégie implémente le
-`Strategy` Protocol de P08 et n'accède qu'à `view.history()`/`view.latest()` (≤ t) ». S'articule
-avec la rule `quant-no-lookahead` existante.
+## 6. Candidate rule `.claude/rules/` (optional)
+A path-scoped rule `projects/**/strategy*.py` reminding: "every strategy implements P08's
+`Strategy` Protocol and only accesses `view.history()`/`view.latest()` (<= t)". Ties in
+with the existing `quant-no-lookahead` rule.

@@ -1,43 +1,43 @@
-# Projet 06 — Compute Futures Pricing (théorique)
+# Project 06 — Compute Futures Pricing (theoretical)
 
-> Contexte LOCAL. Glossaire et conventions globales : CLAUDE.md racine. Méthodo
-> détaillée et lancement : [README.md](README.md). Patchs convergence : [CONVERGENCE.md](CONVERGENCE.md).
+> LOCAL context. Global glossary and conventions: root CLAUDE.md. Detailed methodology
+> and launch instructions: [README.md](README.md). Convergence patches: [CONVERGENCE.md](CONVERGENCE.md).
 
-## Thèse spécifique
-Les futures compute (CME, settlement sur l'indice Silicon Data SDH100RT) sont
-**annoncés mais non listés** (revue réglementaire). P06 les **price théoriquement** :
-modèle de cost-of-carry `F = S·e^{(r−y)τ}`, base `F − S`, sensibilités (à r, y, τ),
-à partir du spot compute réel (P04) et de la courbe forward SIMULÉE (P04, Schwartz).
-Edge : être prêt à valoriser la base le jour du listing.
+## Project-specific thesis
+Compute futures (CME, settling on the Silicon Data SDH100RT index) are
+**announced but not listed** (regulatory review). P06 prices them **theoretically**:
+cost-of-carry model `F = S·e^{(r−y)τ}`, base `F − S`, sensitivities (to r, y, τ),
+using the real compute spot (P04) and the SIMULATED forward curve (P04, Schwartz).
+Edge: be ready to value the base the day it lists.
 
-## Modules possédés
-- `core/pricing/derivatives/` (nouveau sous-paquet) · `projects/06_compute_futures_pricing/`.
-- Interdit : `core/pricing/__init__.py` et fichiers P01, zone protégée racine. → patches convergence.
+## Modules owned
+- `core/pricing/derivatives/` (new subpackage) · `projects/06_compute_futures_pricing/`.
+- Off-limits: `core/pricing/__init__.py` and P01 files, root protected zone. → convergence patches.
 
 ## Architecture (SOLID / DI)
-- **Contrats** (`derivatives/protocols.py`) : `CarryModel` (source de forward, drapeau
-  `simulated` dans le contrat), `FuturesPricer` (orchestrateur → `FuturesQuote`).
-- **Cœur** (`derivatives/carry.py`) : `carry_forward`, `implied_convenience_yield`
-  (inverse), `carry_sensitivities`, `CostOfCarryModel`. Fonctions pures.
-- **Cotation** (`derivatives/futures.py`) : `FuturesQuote` (`simulated` OBLIGATOIRE),
-  `CarryFuturesPricer` — infère **toujours** le yield implicite de la forward injectée.
-- **Adapter** (`src/p04_forward_adapter.py`, couche projet) : branche la forward
-  Schwartz P04 dans `CarryModel` (conversion années→jours), `simulated=True`.
+- **Contracts** (`derivatives/protocols.py`): `CarryModel` (forward source, `simulated`
+  flag in the contract), `FuturesPricer` (orchestrator → `FuturesQuote`).
+- **Core** (`derivatives/carry.py`): `carry_forward`, `implied_convenience_yield`
+  (inverse), `carry_sensitivities`, `CostOfCarryModel`. Pure functions.
+- **Quoting** (`derivatives/futures.py`): `FuturesQuote` (`simulated` MANDATORY),
+  `CarryFuturesPricer` — **always** infers the implicit yield from the injected forward.
+- **Adapter** (`src/p04_forward_adapter.py`, project layer): plugs the P04 Schwartz
+  forward into `CarryModel` (years→days conversion), `simulated=True`.
 
-## Frontière réel/simulé (non négociable)
-`FuturesQuote.simulated` est obligatoire (sans défaut), comme `Curve.simulated` chez P04.
-Tout output P06 est `simulated=True` : futures non listés. Spot = réel (`core.ingestion`)
-ou repli d'hypothèse **loggué**. Tests dédiés garantissent l'invariant (drapeau + cohérence).
+## Real/simulated boundary (non-negotiable)
+`FuturesQuote.simulated` is mandatory (no default), like P04's `Curve.simulated`.
+All P06 output is `simulated=True`: futures are not listed. Spot = real (`core.ingestion`)
+or a **logged** fallback assumption. Dedicated tests enforce the invariant (flag + consistency).
 
-## État d'avancement (PoC-now)
-- [x] Cœur cost-of-carry : forward, base, yield implicite, sensibilités (fonctions pures, typées)
-- [x] `FuturesQuote` à drapeau `simulated` obligatoire + `CarryFuturesPricer` (DI)
-- [x] Adapter forward P04 (cohérence carry ↔ Schwartz testée point par point)
-- [x] Démo `run_pricing.py` : spot réel (repli loggué), term structure, run MLflow rejouable
-- [ ] Brancher le spot réel (snapshots accumulés) et calibrer la forward sur l'indice réel
-- [ ] Palier institutionnel : surface multi-échéances, calendar spreads, options sur futures
+## Progress status (PoC-now)
+- [x] Cost-of-carry core: forward, base, implied yield, sensitivities (pure, typed functions)
+- [x] `FuturesQuote` with mandatory `simulated` flag + `CarryFuturesPricer` (DI)
+- [x] P04 forward adapter (carry ↔ Schwartz consistency tested point by point)
+- [x] `run_pricing.py` demo: real spot (logged fallback), term structure, reproducible MLflow run
+- [ ] Wire in the real spot (accumulated snapshots) and calibrate the forward on the real index
+- [ ] Institutional tier: multi-maturity surface, calendar spreads, options on futures
 
-## Résultats clés
-Base théorique générée bout-en-bout sur 4 échéances (carry exogène + forward P04),
-yield implicite extrait de la forward Schwartz, run MLflow rejouable (params + SHA git +
-DVC). 19 tests verts. Détails : [README.md](README.md). ⚠️ THÉORIQUE/SIMULÉ.
+## Key results
+End-to-end theoretical base generated over 4 maturities (exogenous carry + P04 forward),
+implied yield extracted from the Schwartz forward, reproducible MLflow run (params + git SHA +
+DVC). 19 passing tests. Details: [README.md](README.md). WARNING: THEORETICAL/SIMULATED.

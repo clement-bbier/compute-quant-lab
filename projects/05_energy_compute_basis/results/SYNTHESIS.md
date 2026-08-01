@@ -1,23 +1,23 @@
-# P05 — Synthèse du basis énergie ↔ compute
+# P05 — Energy ↔ compute basis synthesis
 
-- Régions : FR, DE (référence = DE)
-- Fenêtre : 2025-01-01 00:00:00+00:00 → 2025-01-31 23:00:00+00:00 (UTC)
-- Sources : énergie = **synthetic**, compute = **synthetic** (compute GLOBAL)
-- PUE régional (hypothèse) : FR=1.2, DE=1.45
+- Regions: FR, DE (reference = DE)
+- Window: 2025-01-01 00:00:00+00:00 → 2025-01-31 23:00:00+00:00 (UTC)
+- Sources: energy = **synthetic**, compute = **synthetic** (GLOBAL compute)
+- Regional PUE (assumption): FR=1.2, DE=1.45
 
-## Amplitude & persistance du basis
+## Basis amplitude & persistence
 
-| basis | moyenne (€/GPU·h) | écart-type | amplitude p95 | % temps disloqué | épisodes | demi-vie (h) |
+| basis | mean (€/GPU·h) | std dev | p95 amplitude | % time dislocated | episodes | half-life (h) |
 |---|---|---|---|---|---|---|
 | FR−DE | 0.01683 | 0.01632 | 0.04287 | 16.8% | 108 | 0.23 |
 
-## Sensibilité PUE
+## PUE sensitivity
 
-Le basis est, à FX et prix compute égaux, porté par `power_kw·(pue_r·energy_r − pue_ref·energy_ref)/1000` : ↑ PUE d'une région ⇒ ↑ son coût ⇒ ↓ son spread ⇒ ↓ son basis. La sensibilité est testée (`test_pue_sensitivity_is_monotone`).
+At equal FX and compute price, the basis is driven by `power_kw·(pue_r·energy_r − pue_ref·energy_ref)/1000`: ↑ a region's PUE ⇒ ↑ its cost ⇒ ↓ its spread ⇒ ↓ its basis. Sensitivity is tested (`test_pue_sensitivity_is_monotone`).
 
-## Limites d'exécution (PoC)
+## Execution limitations (PoC)
 
-- **PUE régional** = hypothèse forte, peu observable ; principal levier du basis ici.
-- **Compute global** (une seule courbe) : le revenu s'annule entre régions → le basis est essentiellement un *basis énergie × PUE*, pas un vrai spread compute régional.
-- **Coûts/latence de transfert ignorés** : ne pas conclure à un arbitrage exécutable.
-- Suite institutionnelle : routing optimisé, contraintes de capacité, signal tradable.
+- **Regional PUE** = a strong, poorly observable assumption; the main driver of the basis here.
+- **Global compute** (a single curve): revenue cancels out between regions → the basis is essentially an *energy × PUE basis*, not a true regional compute spread.
+- **Transfer costs/latency ignored**: do not conclude this is an executable arbitrage.
+- Institutional next steps: optimized routing, capacity constraints, tradable signal.

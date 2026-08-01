@@ -1,45 +1,45 @@
-# Projet 03 — GPU Volatility & Term Structure
+# Project 03 — GPU Volatility & Term Structure
 
-> Contexte LOCAL. Glossaire et conventions globales : CLAUDE.md racine. Méthodo et état :
+> LOCAL context. Global glossary and conventions: root CLAUDE.md. Methodology and status:
 > [README.md](README.md).
 
-## Thèse spécifique
-La **volatilité** des prix GPU est un actif en soi, et la **structure par terme** de la
-courbe forward (contango/backwardation) porte de l'information directionnelle. P03 estime
-la vol réalisée de l'indice spot compute et analyse la term structure de la forward SIMULÉE.
+## Specific thesis
+GPU price **volatility** is an asset in its own right, and the **term structure** of the
+forward curve (contango/backwardation) carries directional information. P03 estimates
+the realized vol of the compute spot index and analyzes the term structure of the SIMULATED forward.
 
-## Modules possédés
-- `projects/03_gpu_vol_term_structure/` UNIQUEMENT.
-- Interdit (lecture seule) : tout `core/`, zone protégée racine (`CLAUDE.md`, `.claude/`,
-  `.mcp.json`, `pyproject.toml`). Promotions vers `core/` → patches convergence.
+## Modules owned
+- `projects/03_gpu_vol_term_structure/` ONLY.
+- Forbidden (read-only): any `core/`, root protected zone (`CLAUDE.md`, `.claude/`,
+  `.mcp.json`, `pyproject.toml`). Promotions to `core/` → convergence patches.
 
-## Dépendances amont (P04, dans `main`)
-- **Indice spot RÉEL** : `core.ingestion.build_spot_index` (un fix point-in-time par `as_of`).
-- **Forward SIMULÉE** : `projects/04_compute_index_curve/src/forward` (Schwartz 1-facteur),
-  consommée via insertion `sys.path` (import `forward.build_curve`). ⚠️ jamais réelle.
+## Upstream dependencies (P04, in `main`)
+- **REAL spot index**: `core.ingestion.build_spot_index` (one fix point-in-time per `as_of`).
+- **SIMULATED forward**: `projects/04_compute_index_curve/src/forward` (1-factor Schwartz),
+  consumed via `sys.path` insertion (import `forward.build_curve`). Warning: never real.
 
-## Architecture (SOLID / DI, logique pure)
-- **Vol** : `VolEstimator` (Protocol) → `RealizedVol`, `EwmaVol` (numpy pur, causals).
-  GARCH = point d'extension documenté (pas de dép `arch` sans convergence).
-- **Term structure** : `TermStructureAnalyzer` pur → `TermStructure` (pente/courbure/forme).
-- **Signal** : `directional_signal` (convention roll-yield : backwardation→long).
-- **Glue** : `spot_series.build_spot_series` rejoue `build_spot_index` sur une grille.
+## Architecture (SOLID / DI, pure logic)
+- **Vol**: `VolEstimator` (Protocol) → `RealizedVol`, `EwmaVol` (pure numpy, causal).
+  GARCH = documented extension point (no `arch` dependency without convergence).
+- **Term structure**: pure `TermStructureAnalyzer` → `TermStructure` (slope/curvature/shape).
+- **Signal**: `directional_signal` (roll-yield convention: backwardation→long).
+- **Glue**: `spot_series.build_spot_series` replays `build_spot_index` over a grid.
 
-## Frontière réel/simulé (non négociable)
-`TermStructure.simulated` est OBLIGATOIRE (sans défaut), propagé dans `DirectionalSignal`.
-Tout ce qui dérive de la forward est `simulated=True`. Test dédié (`test_simulated_flag.py`)
-échoue si le drapeau est absent (rule `forward-real-simulated`).
+## Real/simulated boundary (non-negotiable)
+`TermStructure.simulated` is REQUIRED (no default), propagated into `DirectionalSignal`.
+Everything derived from the forward is `simulated=True`. Dedicated test (`test_simulated_flag.py`)
+fails if the flag is absent (rule `forward-real-simulated`).
 
-## État d'avancement (PoC-now)
-- [x] Estimateurs de vol réalisée + EWMA (numpy pur), anti look-ahead testé
-- [x] Analyse de term structure (pente/courbure/forme contango/backwardation)
-- [x] Signal directionnel roll-yield (backwardation→long)
-- [x] Glue série spot point-in-time (consomme `core.ingestion`)
-- [x] `run_analysis.py` : run MLflow loggué + synthèse `results/`
-- [ ] GARCH (palier institutionnel, convergence pour la dép `arch`)
-- [ ] Calibrer sur la série spot réelle une fois les snapshots accumulés
-- [ ] Promouvoir `VolEstimator`/estimateurs vers `core/` (convergence)
+## Progress status (PoC-now)
+- [x] Realized vol + EWMA estimators (pure numpy), anti look-ahead tested
+- [x] Term structure analysis (slope/curvature/contango-backwardation shape)
+- [x] Directional roll-yield signal (backwardation→long)
+- [x] Point-in-time spot series glue (consumes `core.ingestion`)
+- [x] `run_analysis.py`: logged MLflow run + `results/` synthesis
+- [ ] GARCH (institutional tier, convergence for the `arch` dependency)
+- [ ] Calibrate on the real spot series once snapshots have accumulated
+- [ ] Promote `VolEstimator`/estimators to `core/` (convergence)
 
-## Résultats clés
-Vol réalisée/EWMA de l'indice spot + forme de la term structure de la forward SIMULÉE
-(+ signal), run MLflow rejouable. Détails : [README.md](README.md) / [results/](results/).
+## Key results
+Realized/EWMA vol of the spot index + term structure shape of the SIMULATED forward
+(+ signal), replayable MLflow run. Details: [README.md](README.md) / [results/](results/).

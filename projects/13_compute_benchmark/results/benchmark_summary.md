@@ -1,33 +1,33 @@
-# Compute Spot Benchmark — synthèse du run
+# Compute Spot Benchmark — run summary
 
-Indice spot **réel** (provenance `real_spot`), point-in-time, UTC. Mesure publiée :
-prix de référence GPU-heure (fix quotidien canonique 00:30 UTC) + dispersion
-inter-venues descriptive. **Aucun signal de timing** (« louer sur X maintenant ») publié.
+**Real** spot index (provenance `real_spot`), point-in-time, UTC. Published measurement:
+GPU-hour reference price (canonical daily fix at 00:30 UTC) + descriptive
+cross-venue dispersion. **No timing signal** ("rent on X now") published.
 
-## État de l'historique (honnête — il est maigre au début, il grossit)
-- Relevés : **250** · venues : **2** (runpod, vastai)
-- Instants distincts : **4** · span : **5.7 h**
-- Fenêtre : 2026-06-22 12:56:58.007071+00:00 → 2026-06-22 18:36:00.036491+00:00
-- Fix quotidiens calculés sur la grille : **1**
+## History state (honest — thin at the start, it grows)
+- Readings: **250** · venues: **2** (runpod, vastai)
+- Distinct instants: **4** · span: **5.7 h**
+- Window: 2026-06-22 12:56:58.007071+00:00 → 2026-06-22 18:36:00.036491+00:00
+- Daily fixes computed on the grid: **1**
 
-## Agrégat
-- Modèles publiés : **6** (B200, H100, H200, RTX4090, RTX5090, V100)
-- Spread % inter-venues moyen (fix définis) : **64.06%**
+## Aggregate
+- Published models: **6** (B200, H100, H200, RTX4090, RTX5090, V100)
+- Mean cross-venue spread % (defined fixes): **64.06%**
 
-## Dernier fix par modèle
+## Latest fix per model
 
-| Modèle | Indice $/GPU·h | Venues | Spread % | Moins chère |
+| Model | Index $/GPU·h | Venues | Spread % | Cheapest |
 |---|---|---|---|---|
 | B200 | 4.8785 | 2 | 41.47% | vastai |
-| H100 | 2.5900 | 1 | n/a (mono-venue) | — |
+| H100 | 2.5900 | 1 | n/a (single venue) | — |
 | H200 | 1.9930 | 2 | 5.22% | vastai |
 | RTX4090 | 0.2544 | 2 | 67.25% | vastai |
 | RTX5090 | 0.5742 | 2 | 40.35% | vastai |
 | V100 | 0.1148 | 2 | 166.01% | vastai |
 
-## Niveaux moyens par venue (descriptif, fenêtre — PAS un signal de timing)
+## Average levels per venue (descriptive, window — NOT a timing signal)
 
-| Modèle | Venue | Niveau moyen $/h | Escompte moyen vs indice |
+| Model | Venue | Average level $/h | Average discount vs. index |
 |---|---|---|---|
 | B200 | runpod | 5.8900 | +20.73% |
 | B200 | vastai | 3.8670 | -20.73% |

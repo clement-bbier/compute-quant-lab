@@ -1,69 +1,69 @@
-# P04 — Indice spot compute + courbe forward simulée
+# P04 — Compute spot index + simulated forward curve
 
-Produit de données fondateur du labo : (1) un **indice spot compute** construit selon le
-standard des meilleurs acteurs du marché, (2) une **courbe forward SIMULÉE** (Monte-Carlo
-Rust) pour les futures compute CME annoncés mais non listés. Dont dépendront P03 (term
-structure) et P06 (dérivés).
+Lab's foundational data product: (1) a **compute spot index** built according to the
+standard set by the leading market players, (2) a **SIMULATED forward curve** (Rust
+Monte-Carlo) for the announced-but-unlisted CME compute futures. On which P03 (term
+structure) and P06 (derivatives) will depend.
 
-## Sources de données
+## Data sources
 
-| Jambe | Réel / Simulé | Source | Unité | Statut |
+| Leg | Real / Simulated | Source | Unit | Status |
 |---|---|---|---|---|
-| Indice spot (PoC) | **Réel** | Snapshots marketplace Vast.ai/RunPod accumulés (`data/snapshots/`) | $/GPU·h | branché (collecteur token-gated) |
-| Indice spot (canonique) | **Réel** | Silicon Data `SDH100RT` (settlement futures CME) | $/GPU·h | interface `SiliconDataSource` documentée, à brancher |
-| Courbe forward | **SIMULÉE** | Modèle Schwartz un-facteur seedé sur le spot | $/GPU·h par échéance | branché (Rust + oracle Python) |
+| Spot index (PoC) | **Real** | Accumulated Vast.ai/RunPod marketplace snapshots (`data/snapshots/`) | $/GPU·h | wired (token-gated collector) |
+| Spot index (canonical) | **Real** | Silicon Data `SDH100RT` (CME futures settlement) | $/GPU·h | `SiliconDataSource` interface documented, to be wired |
+| Forward curve | **SIMULATED** | 1-factor Schwartz model seeded on spot | $/GPU·h per maturity | wired (Rust + Python oracle) |
 
-> ⚠️ **Frontière réel/simulé** : toute courbe forward porte `Curve.simulated = True` (champ
-> obligatoire, sans défaut). Jamais servie comme un prix réel.
+> Warning: **Real/simulated boundary**: every forward curve carries `Curve.simulated = True` (required
+> field, no default). Never served as a real price.
 
-## Méthodologie de l'indice (standard marché)
+## Index methodology (market standard)
 
-Calage sur **GPU Markets** (public, reproductible) et **Silicon Data** (settlement CME) :
+Calibrated against **GPU Markets** (public, reproducible) and **Silicon Data** (CME settlement):
 
-- estimateur **trimmed mean 20 %** + rejet des outliers à **2.5 MAD** (`method='trimmed_mean20+mad2.5'`) ;
-- **no carry-forward**, fenêtre de staleness **24 h** (anti-survivorship) ;
-- exclusion des list prices hyperscalers de l'estimateur ; séparation des `lease_type` ;
-- fix strictement **point-in-time** (`snapshotted_at <= as_of`), âge du plus vieux relevé tracé.
+- **trimmed mean 20%** estimator + outlier rejection at **2.5 MAD** (`method='trimmed_mean20+mad2.5'`);
+- **no carry-forward**, **24h** staleness window (anti-survivorship);
+- exclusion of hyperscaler list prices from the estimator; separation by `lease_type`;
+- strictly **point-in-time** fix (`snapshotted_at <= as_of`), age of the oldest retained reading tracked.
 
-Tout est **configurable** (pattern Strategy) : estimateur, filtre d'outliers, fenêtre,
-sources exclues se permutent via `IndexConfig` sans modifier le cœur (`DEFAULT_INDEX_CONFIG`
-= le standard ci-dessus).
+Everything is **configurable** (Strategy pattern): estimator, outlier filter, window,
+excluded sources are swappable via `IndexConfig` without modifying the core (`DEFAULT_INDEX_CONFIG`
+= the standard above).
 
-## Courbe forward (Schwartz un-facteur)
+## Forward curve (1-factor Schwartz)
 
-`d ln S = κ(ln θ − ln S) dt + σ dW` (mean-reversion, commodité non stockable, analogie élec).
-Moteur **Monte-Carlo Rust** (`forward_engine`, PyO3/maturin) pour la perf, **oracle Python
-analytique** pour la parité (testée à 2 %). Calibration par défaut **OLS AR(1)** (standard
-Schwartz) avec repli demi-vie robuste pour historique court.
+`d ln S = κ(ln θ − ln S) dt + σ dW` (mean-reversion, non-storable commodity, electricity analogy).
+**Rust Monte-Carlo** engine (`forward_engine`, PyO3/maturin) for performance, **analytical
+Python oracle** for parity (tested at 2%). Default calibration is **OLS AR(1)** (standard
+Schwartz) with a robust half-life fallback for short history.
 
-## Plage, profondeur & anomalies (état PoC)
+## Range, depth & anomalies (PoC status)
 
-- **Profondeur snapshots** : la série propriétaire démarre à la **première exécution du
-  collecteur** ; aucune profondeur rétroactive (le prix du compute n'a pas d'historique).
-  À ce stade `data/snapshots/` est vide tant que `VASTAI_API_KEY` n'est pas fournie.
-- **Historique de calibration** : tant que la série est mince, `run_build_curve.py` calibre
-  sur un historique **synthétique étiqueté démo** ; à remplacer par la série réelle de
-  l'indice une fois la collecte accumulée.
-- **Anomalies traquées** : outliers (rejet MAD), offres fantômes/survivorship (no carry-forward),
-  look-ahead (filtre point-in-time + test dédié), réel/simulé (flag + test).
+- **Snapshot depth**: the proprietary series starts at the **first collector run**;
+  no retroactive depth (the price of compute has no history). At this stage
+  `data/snapshots/` is empty as long as `VASTAI_API_KEY` is not provided.
+- **Calibration history**: while the series remains thin, `run_build_curve.py` calibrates
+  on a **demo-labeled synthetic** history; to be replaced by the real index series once
+  collection has accumulated.
+- **Tracked anomalies**: outliers (MAD rejection), phantom offers/survivorship (no carry-forward),
+  look-ahead (point-in-time filter + dedicated test), real/simulated (flag + test).
 
-## Lancer
+## Run
 
 ```bash
 uv sync --extra dev
-# Moteur Rust (hors pyproject racine, zone protégée) :
+# Rust engine (outside root pyproject, protected zone) :
 uv run maturin develop -m projects/04_compute_index_curve/forward_engine/Cargo.toml
-# Collecte d'un snapshot réel (nécessite VASTAI_API_KEY) :
+# Collect a real snapshot (requires VASTAI_API_KEY) :
 uv run python -m infra.collectors.gpu_price_snapshot
-# Construire + logger une courbe forward (MLflow) :
+# Build + log a forward curve (MLflow) :
 uv run python projects/04_compute_index_curve/run_build_curve.py
 # Tests :
 uv run pytest projects/04_compute_index_curve
 ```
 
-## Reproductibilité
+## Reproducibility
 
-- **Données** : `data/snapshots` est versionné en git ordinaire — `git add`/`git commit`
-  après chaque accumulation (`data/raw/<source>` reste local, gitignoré par design).
-- **MLflow** : `build_forward_curve` logue modèle, moteur, calibrateur, seed, n_paths,
-  κ/θ/σ + SHA git (`experiments/mlruns`, `mlflow ui`). MLflow 2026 → `MLFLOW_ALLOW_FILE_STORE=true`.
+- **Data**: `data/snapshots` is versioned as plain git files — `git add`/`git commit`
+  after each accumulation (`data/raw/<source>` stays local, gitignored by design).
+- **MLflow**: `build_forward_curve` logs model, engine, calibrator, seed, n_paths,
+  κ/θ/σ + git SHA (`experiments/mlruns`, `mlflow ui`). MLflow 2026 → `MLFLOW_ALLOW_FILE_STORE=true`.

@@ -1,10 +1,10 @@
-"""Builder de label « spike RTM » ERCOT (fiche L0 §4-§5) — fonctions pures.
+"""ERCOT "RTM spike" label builder (L0 spec §4-§5) — pure functions.
 
-Label primaire L0 : prix RTM **horaire intégré** > 99e percentile **conditionnel à
-l'heure-de-jour**, fenêtre **trailing causale**. Robustesse : seuil absolu > $1500/MWh.
+Primary L0 label: **hourly-integrated** RTM price > 99th percentile **conditional on
+hour-of-day**, **causal trailing** window. Robustness check: absolute threshold > $1500/MWh.
 
-Storage-agnostique : consomme une série de prix (fournie depuis le cold store
-versionné au moment du run de calibration, cf. rule training-cold-store). Aucune I/O.
+Storage-agnostic: consumes a price series (supplied from the versioned cold store
+at calibration run time, cf. rule training-cold-store). No I/O.
 """
 
 from __future__ import annotations
@@ -14,18 +14,18 @@ import pandas as pd
 
 
 def to_hourly_integrated(price: pd.Series) -> pd.Series:
-    """Intègre une série de prix infra-horaire (RTM 15 min) en moyenne horaire.
+    """Integrates a sub-hourly (15-min RTM) price series into an hourly average.
 
-    La moyenne d'intervalles de durée égale = prix horaire intégré : filtre les blips
-    de microstructure (un pic isolé de 5 min ne déclenche pas un spike horaire).
+    The mean of equal-duration intervals = hourly-integrated price: filters out
+    microstructure blips (an isolated 5-min spike does not trigger an hourly spike).
     """
     if price.index.tz is None:
-        raise ValueError("index UTC tz-aware obligatoire")
+        raise ValueError("UTC tz-aware index required")
     return price.sort_index().resample("1h").mean().dropna()
 
 
 def spike_label_absolute(hourly: pd.Series, threshold_usd_mwh: float = 1500.0) -> pd.Series:
-    """Label spike absolu : prix horaire > seuil (robustesse L0, défaut $1500/MWh)."""
+    """Absolute spike label: hourly price > threshold (L0 robustness check, default $1500/MWh)."""
     return (hourly > threshold_usd_mwh).rename("spike")
 
 
@@ -35,26 +35,26 @@ def spike_label_hod_percentile(
     pct: float = 0.99,
     min_obs_per_hour: int = 30,
 ) -> pd.Series:
-    """Label spike **primaire** L0 : > ``pct`` conditionnel heure-de-jour, trailing causal.
+    """**Primary** L0 spike label: > ``pct`` conditional on hour-of-day, causal trailing.
 
-    Pour chaque instant ``t`` (heure-de-jour ``h``), le seuil est le quantile ``pct``
-    des prix **passés** (index strictement ``< t``) à la même heure-de-jour ``h``.
-    Strictement causal : aucune valeur à/après ``t`` n'entre dans son propre seuil
-    (anti look-ahead). ``False`` si l'historique de l'heure ``h`` est insuffisant
+    For each instant ``t`` (hour-of-day ``h``), the threshold is the ``pct`` quantile
+    of **past** prices (index strictly ``< t``) at the same hour-of-day ``h``.
+    Strictly causal: no value at/after ``t`` enters its own threshold
+    (anti-look-ahead). ``False`` if the history for hour ``h`` is insufficient
     (``< min_obs_per_hour``).
 
     Parameters
     ----------
     hourly
-        Prix horaire intégré (UTC tz-aware).
+        Hourly-integrated price (UTC tz-aware).
     pct
-        Quantile conditionnel (défaut 0.99, fiche L0).
+        Conditional quantile (default 0.99, per the L0 spec).
     min_obs_per_hour
-        Nombre minimal d'observations passées à la même heure-de-jour pour estimer
-        le seuil (sinon ``False``).
+        Minimum number of past observations at the same hour-of-day needed to
+        estimate the threshold (otherwise ``False``).
     """
     if not 0.0 < pct < 1.0:
-        raise ValueError("pct doit être dans (0, 1)")
+        raise ValueError("pct must be in (0, 1)")
     hourly = hourly.sort_index()
     hours = np.asarray(hourly.index.hour)
     values = hourly.to_numpy(dtype=float)

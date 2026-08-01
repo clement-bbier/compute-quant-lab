@@ -1,4 +1,4 @@
-"""Tests de la couche d'assemblage (report) : état de l'historique + agrégat multi-modèles."""
+"""Tests for the assembly layer (report): history state + multi-model aggregate."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def test_summarize_history_reports_honest_shape(two_day_snapshots) -> None:
     assert h.n_snapshots == 4
     assert h.n_venues == 2
     assert h.sources == ("runpod", "vastai")
-    assert h.n_distinct_timestamps == 2  # une cohorte par fenêtre de fix
+    assert h.n_distinct_timestamps == 2  # one cohort per fix window
     assert h.span_hours == pytest.approx(24.0)
 
 
@@ -29,7 +29,7 @@ def test_summarize_history_empty_is_safe() -> None:
 
 
 def test_multi_venue_models_keeps_only_models_in_two_or_more_venues(two_day_snapshots) -> None:
-    # H100 est dans deux venues ; un A100 mono-venue ne doit pas remonter.
+    # H100 is in two venues; a single-venue A100 must not surface.
     solo = Snapshot(two_day_snapshots[0].snapshotted_at, "vastai", "A100", 1.0)
     models = multi_venue_models([*two_day_snapshots, solo])
     assert models == ["H100"]

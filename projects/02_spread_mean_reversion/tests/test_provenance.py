@@ -1,7 +1,7 @@
-"""Garde-fou réel/simulé (rule ``forward-real-simulated``).
+"""Real/simulated guard (rule ``forward-real-simulated``).
 
-Toute série servie à la stratégie doit déclarer explicitement son origine : un test **échoue**
-si le drapeau ``simulated`` est absent. On n'expose jamais une série simulée comme réelle.
+Every series served to the strategy must explicitly declare its origin: a test **fails**
+if the ``simulated`` flag is missing. A simulated series is never exposed as real.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from data_sources import DataProvenance
 
 def test_provenance_requires_explicit_simulated_flag() -> None:
     with pytest.raises(TypeError):
-        DataProvenance(source="vastai")  # type: ignore[call-arg]  # 'simulated' manquant → refus
+        DataProvenance(source="vastai")  # type: ignore[call-arg]  # 'simulated' missing -> rejected
 
 
 def test_provenance_distinguishes_real_from_simulated() -> None:

@@ -1,12 +1,12 @@
-"""Orchestration de la courbe forward SIMULÉE : calibration → simulation → MLflow.
+"""Orchestration of the SIMULATED forward curve: calibration → simulation → MLflow.
 
-Enchaîne un :class:`~forward.protocols.ForwardCalibrator` (estimation κ, θ, σ sur
-l'historique du spot) puis un :class:`~forward.protocols.ForwardCurveModel` (simulation),
-et **logue le run dans MLflow** (modèle, moteur, calibrateur, seed, n_paths, params + SHA
-git via :func:`core.utils.tracking.run`) pour une rejouabilité totale.
+Chains a :class:`~forward.protocols.ForwardCalibrator` (estimation of κ, θ, σ on
+the spot history) then a :class:`~forward.protocols.ForwardCurveModel` (simulation),
+and **logs the run to MLflow** (model, engine, calibrator, seed, n_paths, params + git
+SHA via :func:`core.utils.tracking.run`) for full reproducibility.
 
-Le moteur est sélectionné par injection : Rust si la crate ``forward_engine`` est buildée,
-sinon repli MC Python — l'identité du moteur est tracée (``engine``).
+The engine is selected by injection: Rust if the ``forward_engine`` crate is built,
+else Python MC fallback — the engine's identity is tracked (``engine``).
 """
 
 from __future__ import annotations
@@ -24,22 +24,22 @@ from forward.protocols import ForwardCalibrator, ForwardCurveModel
 
 logger = logging.getLogger(__name__)
 
-#: Calibrateur par défaut : OLS AR(1) (standard Schwartz) avec repli demi-vie robuste.
+#: Default calibrator: OLS AR(1) (standard Schwartz) with robust half-life fallback.
 DEFAULT_CALIBRATOR: ForwardCalibrator = OlsAr1Calibrator(
     fallback=ImposedHalfLifeCalibrator(half_life_days=30.0)
 )
 
 
 def select_forward_model(seed: int = 0, n_paths: int = 100_000) -> tuple[ForwardCurveModel, str]:
-    """Choisit le moteur de simulation : Rust si dispo, sinon MC Python (repli)."""
+    """Chooses the simulation engine: Rust if available, else Python MC (fallback)."""
     try:
-        import forward_engine  # noqa: F401  (présence = crate buildée)
+        import forward_engine  # noqa: F401  (presence = crate built)
 
         from forward.engine import RustMonteCarloForward
 
         return RustMonteCarloForward(n_paths=n_paths, seed=seed), "rust"
     except ImportError:
-        logger.warning("Crate forward_engine indisponible : repli Monte-Carlo Python.")
+        logger.warning("forward_engine crate unavailable: falling back to Python Monte-Carlo.")
         return PythonMonteCarloForward(n_paths=n_paths, seed=seed), "python"
 
 
@@ -54,27 +54,27 @@ def build_forward_curve(
     dt_days: float = 1.0,
     experiment: str = "compute_forward_curve",
 ) -> Curve:
-    """Calibre, simule, logue et renvoie la courbe forward SIMULÉE.
+    """Calibrates, simulates, logs and returns the SIMULATED forward curve.
 
     Parameters
     ----------
     spot_log_history
-        Historique des log-prix spot (issu de l'indice) pour la calibration.
+        Log-spot price history (from the index) used for calibration.
     spot
-        Spot courant qui sème la courbe.
+        Current spot that seeds the curve.
     maturities_days
-        Échéances à pricer (jours).
+        Maturities to price (days).
     calibrator, model
-        Stratégies injectables. ``model=None`` sélectionne Rust/Python automatiquement.
+        Injectable strategies. ``model=None`` auto-selects Rust/Python.
     dt_days
-        Pas temporel de l'historique (jours).
+        Time step of the history (days).
     experiment
-        Nom de l'expérience MLflow.
+        MLflow experiment name.
 
     Returns
     -------
     Curve
-        Courbe ``simulated=True``, déjà loggée dans MLflow.
+        ``simulated=True`` curve, already logged to MLflow.
     """
     params = calibrator.calibrate(spot_log_history, dt_days)
     if model is None:
@@ -102,7 +102,7 @@ def build_forward_curve(
             mlflow.log_metric("forward_price", point.forward_price, step=int(point.maturity_days))
 
     logger.info(
-        "Courbe forward SIMULÉE : moteur=%s, calibrateur=%s, %d échéances.",
+        "SIMULATED forward curve: engine=%s, calibrator=%s, %d maturities.",
         engine,
         calibrator.name,
         len(curve.points),

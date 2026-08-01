@@ -1,8 +1,8 @@
-"""Logique pure du runner desk (hors I/O MLflow) : série simulée, PnL net, attribution, sensibilité.
+"""Pure logic of the desk runner (excluding MLflow I/O): simulated series, net PnL, attribution, sensitivity.
 
-On teste le cœur calculatoire de ``run_desk`` sans toucher à MLflow : la série de prix est
-étiquetée simulée, le PnL net se décompose proprement, et la sensibilité au coût d'impact κ
-est monotone (plus de κ ⇒ moins de PnL net).
+We test the computational core of ``run_desk`` without touching MLflow: the price series is
+labeled simulated, net PnL decomposes cleanly, and the sensitivity to impact cost κ
+is monotone (more κ ⇒ less net PnL).
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ _REQUIRED_METRICS = {"pnl_total", "sharpe", "max_drawdown", "turnover", "hit_rat
 
 
 def test_synthetic_prices_are_simulated() -> None:
-    """La série de prix desk est explicitement simulée et strictement positive (rule réel/simulé)."""
+    """The desk price series is explicitly simulated and strictly positive (real/simulated rule)."""
     prices, provenance = build_synthetic_prices(n=300, seed=42)
     assert provenance.simulated is True
     assert prices.shape == (300,)
@@ -33,14 +33,14 @@ def test_synthetic_prices_are_simulated() -> None:
 
 
 def test_default_producers_are_at_least_two_mocks() -> None:
-    """Le desk de démo agrège ≥ 2 signaux mockés (exigence PoC §3)."""
+    """The demo desk aggregates ≥ 2 mocked signals (PoC requirement §3)."""
     producers = DEFAULT_PRODUCERS()
     assert len(producers) >= 2
     assert all(p.provenance.simulated for p in producers)
 
 
 def test_run_desk_backtest_net_is_gross_minus_costs() -> None:
-    """Le résultat expose net = brut − coûts et toutes les métriques de risque obligatoires."""
+    """The result exposes net = gross − costs and all mandatory risk metrics."""
     prices, _ = build_synthetic_prices(n=400, seed=1)
     producers = [ConstantMock(1.0), MeanReversionMock(lookback=10), MomentumMock(lookback=20)]
     result = run_desk_backtest(
@@ -56,7 +56,7 @@ def test_run_desk_backtest_net_is_gross_minus_costs() -> None:
 
 
 def test_attribution_sums_to_gross_pnl() -> None:
-    """La somme des contributions par signal égale le PnL brut total (attribution exacte)."""
+    """The sum of per-signal contributions equals total gross PnL (exact attribution)."""
     prices, _ = build_synthetic_prices(n=400, seed=2)
     producers = [ConstantMock(1.0), MeanReversionMock(lookback=10), MomentumMock(lookback=20)]
     result = run_desk_backtest(
@@ -71,7 +71,7 @@ def test_attribution_sums_to_gross_pnl() -> None:
 
 
 def test_cost_sensitivity_is_monotone_in_kappa() -> None:
-    """Sensibilité au coût : un κ plus élevé ne peut pas augmenter le PnL net (impact convexe)."""
+    """Cost sensitivity: a higher κ cannot increase net PnL (convex impact)."""
     prices, _ = build_synthetic_prices(n=400, seed=3)
     producers = [ConstantMock(1.0), MeanReversionMock(lookback=10), MomentumMock(lookback=20)]
     rows = cost_sensitivity(
@@ -84,4 +84,4 @@ def test_cost_sensitivity_is_monotone_in_kappa() -> None:
         periods_per_year=PERIODS_PER_YEAR,
     )
     net_pnls = [row["net_pnl_total"] for row in rows]
-    assert net_pnls == sorted(net_pnls, reverse=True)  # décroissant en κ
+    assert net_pnls == sorted(net_pnls, reverse=True)  # decreasing in κ

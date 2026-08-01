@@ -1,8 +1,8 @@
-"""Démo reproductible du moteur P08 sur fixtures synthétiques → run MLflow complet.
+"""Reproducible demo of the P08 engine on synthetic fixtures → full MLflow run.
 
-Exécute la stratégie de mean-reversion sur la série synthétique, calcule les métriques
-de risque et logge un run MLflow complet (params + métriques + SHA git + version DVC
-+ figure du PnL) dans `results/mlruns`. Rejouable à l'identique (graine fixée).
+Runs the mean-reversion strategy on the synthetic series, computes the risk metrics,
+and logs a full MLflow run (params + metrics + git SHA + DVC version + PnL figure)
+into `results/mlruns`. Identically replayable (fixed seed).
 
     uv run python projects/08_backtest_risk_engine/run_demo.py
 """
@@ -22,7 +22,7 @@ from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE / "src"))
-import demo_fixtures  # noqa: E402  (ajout dynamique au sys.path ci-dessus)
+import demo_fixtures  # noqa: E402  (dynamically added to sys.path above)
 
 RESULTS_DIR = _HERE / "results"
 EXPERIMENT = "p08_backtest_demo"
@@ -44,13 +44,13 @@ def main() -> None:
         "periods_per_year": 252.0,
         "seed": demo_fixtures.DEMO_SEED,
         "n_obs": int(prices.shape[0]),
-        "n_trials": 1,  # multiple testing : 1 seule config essayée (pitfall overfitting)
+        "n_trials": 1,  # multiple testing: only 1 config tried (overfitting pitfall)
     }
 
     result = engine.run(prices, strategy, params=params)
 
-    # Tracking local fichier dans le module (convergence pourra relocaliser vers
-    # experiments/ et choisir un backend non-déprécié à l'échelle du labo).
+    # Local file-based tracking inside the module (convergence can later relocate
+    # to experiments/ and choose a non-deprecated backend lab-wide).
     os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
     mlflow.set_tracking_uri((RESULTS_DIR / "mlruns").as_uri())
     with tracked_run(EXPERIMENT, params):

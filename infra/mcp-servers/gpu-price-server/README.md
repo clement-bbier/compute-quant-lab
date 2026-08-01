@@ -1,28 +1,28 @@
-# Serveur MCP `gpu-price`
+# `gpu-price` MCP server
 
-Expose l'historique **réel** des prix de location GPU (snapshots accumulés dans `data/snapshots/`)
-via MCP (stdio). Lecture seule, point-in-time.
+Exposes the **real** history of GPU rental prices (snapshots accumulated in `data/snapshots/`)
+via MCP (stdio). Read-only, point-in-time.
 
-| Attribut | Valeur |
+| Attribute | Value |
 | --- | --- |
-| Unité | USD par GPU·heure ($/GPU·h) |
-| Fuseau | UTC, tz-aware (instant naïf rejeté) |
-| Fréquence | snapshot planifié (collecteur `infra/collectors/gpu_price_snapshot.py`) |
-| Sources | marketplaces (`source` : vastai, runpod, …) |
-| Réel/simulé | **réel** (spot observé) |
-| Backend | lac Parquet `core.storage.ParquetPriceStore` sous `data/snapshots/` |
+| Unit | USD per GPU-hour ($/GPU-h) |
+| Timezone | UTC, tz-aware (naive instants rejected) |
+| Frequency | scheduled snapshot (collector `infra/collectors/gpu_price_snapshot.py`) |
+| Sources | marketplaces (`source`: vastai, runpod, …) |
+| Real/simulated | **real** (observed spot) |
+| Backend | Parquet lake `core.storage.ParquetPriceStore` under `data/snapshots/` |
 
-## Outils
+## Tools
 
-- `list_gpu_models(as_of?)` — modèles connus (triés, bornés point-in-time).
-- `latest_price(gpu_model, lease_type="on_demand", as_of?)` — dernier prix par source + résumé.
-- `price_history(gpu_model, start?, as_of?, source?, lease_type?)` — série temporelle.
-- `summary_stats(gpu_model, lease_type?, as_of?)` — count/min/max/mean/median/std + par source.
-- `query(sql)` — SQL DuckDB **brut** sur la vue `prices`.
+- `list_gpu_models(as_of?)` — known models (sorted, bounded point-in-time).
+- `latest_price(gpu_model, lease_type="on_demand", as_of?)` — latest price per source + summary.
+- `price_history(gpu_model, start?, as_of?, source?, lease_type?)` — time series.
+- `summary_stats(gpu_model, lease_type?, as_of?)` — count/min/max/mean/median/std, overall and per source.
+- `query(sql)` — **raw** DuckDB SQL against the `prices` view.
 
-## ⚠️ Sécurité
+## Warning: Security
 
-`query` réutilise `core.storage.query` : **tout le pouvoir DuckDB** (`read_csv`, `COPY … TO`,
-`INSTALL httpfs`) reste accessible. Piloté par un LLM, ce serveur peut être détourné par
-prompt-injection (écriture/exfiltration de fichiers). **N'exposer qu'à des agents de confiance,
-sur poste local.** Aucun garde point-in-time sur `query` (lac brut).
+`query` reuses `core.storage.query`: **the full power of DuckDB** (`read_csv`, `COPY … TO`,
+`INSTALL httpfs`) remains accessible. Driven by an LLM, this server can be hijacked via
+prompt injection (file writes/exfiltration). **Only expose it to trusted agents, on a local
+machine.** There is no point-in-time guard on `query` (raw lake access).

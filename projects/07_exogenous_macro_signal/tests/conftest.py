@@ -1,4 +1,4 @@
-"""Rend le code de ``src/`` importable par les tests (dossier non packagé)."""
+"""Makes the code in ``src/`` importable by the tests (unpackaged folder)."""
 
 from __future__ import annotations
 

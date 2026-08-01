@@ -1,1 +1,1 @@
-"""Harnais de démo P08 — fixtures synthétiques + stratégie de démonstration."""
+"""P08 demo harness — synthetic fixtures + demonstration strategy."""

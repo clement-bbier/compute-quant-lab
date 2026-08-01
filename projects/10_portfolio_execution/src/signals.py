@@ -1,14 +1,14 @@
-"""Mocks de signaux déterministes (placeholders du PoC) + ré-export du contrat canonique.
+"""Deterministic signal mocks (PoC placeholders) + re-export of the canonical contract.
 
-Le contrat ``SignalProducer`` et la provenance vivent désormais dans ``core.signals`` (fondation
-promue par P12) ; on les **ré-exporte** ici pour la rétro-compatibilité. Les **vrais** producteurs
-(mean-reversion P02, basis futures P06, ML P09) sont dans ``core.signals`` et se branchent dans le
-desk via ``run_desk.REAL_PRODUCERS`` sans que le desk change de code (OCP).
+The ``SignalProducer`` contract and provenance now live in ``core.signals`` (foundation
+promoted by P12); they are **re-exported** here for backward compatibility. The **real**
+producers (mean-reversion P02, futures basis P06, ML P09) are in ``core.signals`` and are
+wired into the desk via ``run_desk.REAL_PRODUCERS`` without the desk changing any code (OCP).
 
-Les mocks ci-dessous restent pour les tests de régression du desk (cas analytiques, anti
-look-ahead, DI) : trois bouchons **sans état**, étiquetés simulés — ``ConstantMock`` (carry
-constant), ``MeanReversionMock`` (fade la déviation, style P02), ``MomentumMock`` (suit la
-tendance, style P06/P09). Leur pertinence économique est hors sujet.
+The mocks below remain for the desk's regression tests (analytical cases, anti
+look-ahead, DI): three **stateless** stubs, labeled simulated — ``ConstantMock`` (constant
+carry), ``MeanReversionMock`` (fades the deviation, P02-style), ``MomentumMock`` (follows the
+trend, P06/P09-style). Their economic relevance is out of scope.
 """
 
 from __future__ import annotations
@@ -27,15 +27,15 @@ __all__ = [
 
 
 def _clip_unit(value: float) -> float:
-    """Écrête une vue directionnelle à l'intervalle [-1, 1]."""
+    """Clips a directional view to the [-1, 1] interval."""
     return max(-1.0, min(1.0, value))
 
 
 def _zscore(view: PointInTimeView, lookback: int) -> float | None:
-    """Z-score de la valeur courante sur la fenêtre ``≤ t`` de taille ``lookback``.
+    """Z-score of the current value over the ``≤ t`` window of size ``lookback``.
 
-    Renvoie ``None`` si l'historique est trop court (< ``lookback``) ou si l'écart-type est
-    nul (fenêtre plate) : dans ces cas, aucun signal n'est défini → l'appelant reste neutre.
+    Returns ``None`` if the history is too short (< ``lookback``) or if the standard deviation is
+    zero (flat window): in these cases, no signal is defined → the caller stays neutral.
     """
     history = view.history()
     if history.size < lookback:
@@ -48,7 +48,7 @@ def _zscore(view: PointInTimeView, lookback: int) -> float | None:
 
 
 class ConstantMock:
-    """Signal directionnel constant (placeholder d'un biais de carry). ``value`` écrêté à [-1, 1]."""
+    """Constant directional signal (placeholder for a carry bias). ``value`` clipped to [-1, 1]."""
 
     def __init__(self, value: float, *, name: str = "constant_mock") -> None:
         self._value = _clip_unit(value)
@@ -56,37 +56,37 @@ class ConstantMock:
         self.provenance = SignalProvenance(name=name, simulated=True)
 
     def signal(self, view: PointInTimeView) -> float:
-        """Renvoie la valeur constante, indépendamment de l'instant (mais via la vue garde-fou)."""
+        """Returns the constant value, regardless of the timestamp (but via the guarded view)."""
         return self._value
 
 
 class MeanReversionMock:
-    """Fade la déviation : ``s = clip(-z, -1, 1)`` (placeholder P02). Sans état → déterministe."""
+    """Fades the deviation: ``s = clip(-z, -1, 1)`` (P02 placeholder). Stateless → deterministic."""
 
     def __init__(self, lookback: int, *, name: str = "mean_reversion_mock") -> None:
         if lookback < 2:
-            raise ValueError(f"lookback ({lookback}) doit être ≥ 2 (écart-type non défini sinon).")
+            raise ValueError(f"lookback ({lookback}) must be ≥ 2 (otherwise std is undefined).")
         self.lookback = lookback
         self.name = name
         self.provenance = SignalProvenance(name=name, simulated=True)
 
     def signal(self, view: PointInTimeView) -> float:
-        """Position cible directionnelle à t : on vend au-dessus de la moyenne, on achète en dessous."""
+        """Target directional position at t: sell above the mean, buy below it."""
         z = _zscore(view, self.lookback)
         return 0.0 if z is None else _clip_unit(-z)
 
 
 class MomentumMock:
-    """Suit la tendance : ``s = clip(z, -1, 1)`` (placeholder P06/P09). Opposé du mean-reversion."""
+    """Follows the trend: ``s = clip(z, -1, 1)`` (P06/P09 placeholder). Opposite of mean-reversion."""
 
     def __init__(self, lookback: int, *, name: str = "momentum_mock") -> None:
         if lookback < 2:
-            raise ValueError(f"lookback ({lookback}) doit être ≥ 2 (écart-type non défini sinon).")
+            raise ValueError(f"lookback ({lookback}) must be ≥ 2 (otherwise std is undefined).")
         self.lookback = lookback
         self.name = name
         self.provenance = SignalProvenance(name=name, simulated=True)
 
     def signal(self, view: PointInTimeView) -> float:
-        """Position cible directionnelle à t : on achète quand le prix est au-dessus de sa moyenne."""
+        """Target directional position at t: buy when price is above its mean."""
         z = _zscore(view, self.lookback)
         return 0.0 if z is None else _clip_unit(z)

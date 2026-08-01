@@ -1,73 +1,73 @@
 # P07 → Convergence
 
-Patchs touchant la **zone protégée** (`pyproject.toml`, `.claude/`, `.gitignore`,
-`CLAUDE.md` racine) ou des modules non possédés : préparés ici, **non appliqués**
-dans le worktree P07. À appliquer par la session de convergence (pilote `integration`).
-P07 n'a écrit que dans `core/features/` + `projects/07_exogenous_macro_signal/`.
+Patches touching the **protected zone** (`pyproject.toml`, `.claude/`, `.gitignore`,
+root `CLAUDE.md`) or unowned modules: prepared here, **not applied**
+in the P07 worktree. To be applied by the convergence session (`integration` pilot).
+P07 only wrote to `core/features/` + `projects/07_exogenous_macro_signal/`.
 
 ---
 
-## 1. `pyproject.toml` (racine) — tests P07 découverts par pytest
-Les tests P07 vivent dans les modules possédés (pas sous `tests/`). La gate globale
-`pytest -q` ne les collecte pas tant que `testpaths` ne les inclut pas (même cas que P08 §1a).
+## 1. `pyproject.toml` (root) — P07 tests discovered by pytest
+P07 tests live in owned modules (not under `tests/`). The global gate
+`pytest -q` does not collect them until `testpaths` includes them (same case as P08 §1a).
 ```toml
 [tool.pytest.ini_options]
 testpaths = [
     "tests",
     "core/backtest/tests",
     "projects/04_compute_index_curve/tests",
-    "core/features/tests",                       # ← P07
-    "projects/07_exogenous_macro_signal/tests",  # ← P07
+    "core/features/tests",                       # <- P07
+    "projects/07_exogenous_macro_signal/tests",  # <- P07
 ]
 ```
-> En attendant, P07 lance explicitement
+> In the meantime, P07 explicitly runs
 > `pytest core/features/tests projects/07_exogenous_macro_signal/tests`.
 
-## 2. `.gitignore` (racine) — pointeurs DVC du brut exogène (RÉSOLU, obsolète)
-Historique : `dvc add data/raw/exogenous/*.parquet` réussissait (cache peuplé, `.dvc`
-créés) mais le motif `data/raw/*` gitignorait aussi les pointeurs `.dvc`, empêchant leur
-commit (même blocage que P01 §3). **Résolu autrement** : DVC a été retiré du dépôt ;
-`data/raw/` reste un cache local gitignoré par design (jamais destiné à être committé,
-réel ou synthétique), donc ce blocage ne s'applique plus.
+## 2. `.gitignore` (root) — DVC pointers for raw exogenous data (RESOLVED, obsolete)
+History: `dvc add data/raw/exogenous/*.parquet` used to succeed (cache populated, `.dvc`
+files created), but the `data/raw/*` pattern also gitignored the `.dvc` pointers, preventing
+their commit (same blocker as P01 §3). **Resolved differently**: DVC was removed from the
+repo; `data/raw/` remains a local cache gitignored by design (never meant to be committed,
+real or synthetic), so this blocker no longer applies.
 
-## 3. Baseline tests : noyaux Rust à compiler (hérité P08 §1b)
-La suite globale ne se collecte pas dans un worktree neuf tant que `backtest_loop` (P08)
-et `_kernel` (P01) ne sont pas compilés. P07 a dû lancer, avant `pytest -q` :
+## 3. Baseline tests: Rust kernels to compile (inherited from P08 §1b)
+The global suite does not collect in a fresh worktree until `backtest_loop` (P08)
+and `_kernel` (P01) are compiled. Before `pytest -q`, P07 had to run:
 ```bash
 uv run maturin develop -m core/backtest/_loop/Cargo.toml
 uv run maturin develop -m core/pricing/_kernel/Cargo.toml
 uv run maturin develop -m projects/04_compute_index_curve/forward_engine/Cargo.toml
 ```
-> Confirme le besoin (déjà signalé P08) d'une étape « maturin develop » en CI **avant**
-> `pytest`/`mypy`. P07 n'ajoute aucun crate Rust (features 100 % Python).
+> Confirms the need (already flagged by P08) for a "maturin develop" step in CI **before**
+> `pytest`/`mypy`. P07 adds no Rust crate (features are 100% Python).
 
-## 4. Registre des sources (`CLAUDE.md` racine §3) — gaz / météo
-Faire passer « Marchés gaz/météo » de *backlog* à *en cours (P07, synthétique)* et acter
-le besoin d'un **connecteur réel** (prix gaz day-ahead, HDD/CDD météo) — ressort de
-`data-engineer`. Tokens → `.env` + `.worktreeinclude` (var `EXOGENOUS_API_TOKEN`, lue par
-`projects/07/src/sources.py`, aujourd'hui repli synthétique déterministe loggué).
+## 4. Source registry (root `CLAUDE.md` §3) — gas / weather
+Move "Gas/weather markets" from *backlog* to *in progress (P07, synthetic)* and record
+the need for a **real connector** (day-ahead gas price, HDD/CDD weather) — falls to
+`data-engineer`. Tokens → `.env` + `.worktreeinclude` (var `EXOGENOUS_API_TOKEN`, read by
+`projects/07/src/sources.py`, currently a logged deterministic synthetic fallback).
 
-## 5. `core/utils/` — promouvoir la normalisation UTC (owner : core/utils)
-`core.features.builders._to_utc_index` **duplique** `core.pricing._timeindex.to_utc_index`
-(règle d'intégrité « UTC tz-aware, pas de naïf »). À remonter dans `core.utils` (p. ex.
-`core.utils.timeindex.to_utc_index`) pour que pricing, features et futurs modules partagent
-une frontière unique testée.
+## 5. `core/utils/` — promote UTC normalization (owner: core/utils)
+`core.features.builders._to_utc_index` **duplicates** `core.pricing._timeindex.to_utc_index`
+(integrity rule "UTC tz-aware, never naive"). Should be promoted to `core.utils` (e.g.
+`core.utils.timeindex.to_utc_index`) so pricing, features, and future modules share
+a single tested boundary.
 
-## 6. Contribution utilisateur — `DEFAULT_PUBLICATION_LAGS`
-La table des lags de publication par défaut (`core/features/builders.py`) est **fixée par le
-directeur de recherche** (valeurs conservatrices + justification par variable). Au câblage du
-connecteur réel (item §4), recalibrer chaque lag sur le **vrai** calendrier de publication
-(jour-ouvré, fuseau, délai de révision) et, si la source expose des millésimes, alimenter
-directement les frames vintage (chemin révisions déjà géré par `as_of_snapshot`).
+## 6. User contribution — `DEFAULT_PUBLICATION_LAGS`
+The default publication-lag table (`core/features/builders.py`) is **set by the
+research director** (conservative values + per-variable justification). When wiring up
+the real connector (item §4), recalibrate each lag against the **actual** publication
+calendar (business day, timezone, revision delay) and, if the source exposes vintages,
+feed the vintage frames directly (revision path already handled by `as_of_snapshot`).
 
-## 7. Nouveaux employés / références (croissance labo, prompt §8)
-- `risk-validator` : attaquer chaque feature (look-ahead résiduel, corrélation spurieuse,
-  data snooping sur le faible historique compute réel).
-- `literature-scout` : drivers énergie (gaz, météo, HDD/CDD) et datacenter buildout → `references/`.
+## 7. New hires / references (lab growth, prompt §8)
+- `risk-validator`: attack each feature (residual look-ahead, spurious correlation,
+  data snooping on the thin real-compute history).
+- `literature-scout`: energy drivers (gas, weather, HDD/CDD) and datacenter buildout → `references/`.
 
-## 8. État de la DoD (prompt §11)
-- [x] Tests verts : anti look-ahead (lag, garde-fou rouge), alignement/fuseau, révisions, builders — 16 + 4.
-- [x] `ruff check .` & `mypy core` verts.
-- [x] Run MLflow loggué (params + lags + SHA) ; brut exogène en cache local (`data/raw/`, gitignoré par design, cf. §2).
-- [x] Synthèse `results/SYNTHESIS.md` + `run_summary.json` (lead, pouvoir prédictif, pièges).
-- [x] Rien écrit hors `core/features/` + `projects/07_…` (hors artefacts data/MLflow git-ignorés). Commit branche, ni merge ni push.
+## 8. DoD status (prompt §11)
+- [x] Green tests: anti-look-ahead (lag, red-first guard), alignment/timezone, revisions, builders — 16 + 4.
+- [x] `ruff check .` & `mypy core` green.
+- [x] MLflow run logged (params + lags + SHA); raw exogenous data in local cache (`data/raw/`, gitignored by design, cf. §2).
+- [x] Synthesis `results/SYNTHESIS.md` + `run_summary.json` (lead, predictive power, pitfalls).
+- [x] Nothing written outside `core/features/` + `projects/07_…` (aside from git-ignored data/MLflow artifacts). Branch committed, no merge or push.

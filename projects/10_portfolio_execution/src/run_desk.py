@@ -1,15 +1,15 @@
-"""Run headline P10 : signaux **réels** → portefeuille → exécution → backtest P08 → run MLflow.
+"""P10 headline run: **real** signals → portfolio → execution → P08 backtest → MLflow run.
 
-Pipeline desk de bout en bout sur les **vrais producteurs** de ``core.signals`` (mean-reversion
-P02, basis futures P06, ML P09) — branchés via ``REAL_PRODUCERS`` sans changer la logique du desk
-(OCP). ``DEFAULT_PRODUCERS`` (mocks) reste pour les tests de régression. La série de prix desk est
-**explicitement simulée** (rule ``forward-real-simulated``) : aucun alpha n'est revendiqué — un
-brut flatteur sur synthétique est un artefact (cf. results/SYNTHESIS.md). On valide le PIPELINE
-(pondération sous risque + coûts d'exécution → PnL net) sur de vrais signaux.
+End-to-end desk pipeline on the **real producers** from ``core.signals`` (mean-reversion
+P02, futures basis P06, ML P09) — wired in via ``REAL_PRODUCERS`` without changing the desk's
+logic (OCP). ``DEFAULT_PRODUCERS`` (mocks) remains for regression tests. The desk price series is
+**explicitly simulated** (rule ``forward-real-simulated``): no alpha is claimed — a flattering
+gross on synthetic data is an artifact (see results/SYNTHESIS.md). This validates the PIPELINE
+(risk-budgeted weighting + execution costs → net PnL) on real signals.
 
-Le run logge MLflow : params (pondération, coûts, κ, signaux utilisés, n_trials, simulated) +
-métriques de risque **nettes ET brutes** + contribution par signal + figure du PnL net. Rejouable
-(graine fixée). Lancer :
+The run logs to MLflow: params (weighting, costs, κ, signals used, n_trials, simulated) +
+risk metrics **both net AND gross** + per-signal contribution + net PnL figure. Replayable
+(fixed seed). Run:
 
     uv run python projects/10_portfolio_execution/src/run_desk.py
 """
@@ -45,7 +45,7 @@ from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
-from desk import DeskStrategy  # noqa: E402  (src ajouté au sys.path ci-dessus)
+from desk import DeskStrategy  # noqa: E402  (src added to sys.path above)
 from execution import ExecutionModel  # noqa: E402
 from portfolio import PortfolioConstructor  # noqa: E402
 from provenance import SignalProvenance  # noqa: E402
@@ -55,22 +55,22 @@ RESULTS_DIR = _HERE.parent / "results"
 EXPERIMENT = "p10_portfolio_execution"
 log = get_logger("run_desk")
 SEED = 42
-PERIODS_PER_YEAR = 252.0  # desk à pas journalier (démo)
+PERIODS_PER_YEAR = 252.0  # daily-step desk (demo)
 CAPITAL = 1.0
 
-# Paramètres desk fixés *a priori* (non optimisés) → n_trials = 1 (anti multiple-testing).
+# Desk params fixed *a priori* (not optimized) → n_trials = 1 (anti multiple-testing).
 VOL_LOOKBACK, VOL_FLOOR, GROSS_CAP = 60, 1e-4, 1.0
 FEES_BPS, SLIPPAGE_BPS, IMPACT_KAPPA = 10.0, 5.0, 0.02
 KAPPA_GRID = [0.0, 0.01, 0.02, 0.05, 0.1]
 
-# Paramètres des VRAIS signaux (fixés *a priori*, cohérents avec P02/P06/P09).
-MR_Z_ENTRY, MR_Z_EXIT, MR_LOOKBACK = 2.0, 0.5, 20  # P02 : z-score à hystérésis
-BASIS_TAU, BASIS_LOOKBACK = 0.25, 20  # P06 : maturité (années) + fenêtre du carry momentum
-ML_HORIZON, ML_N_SPLITS, ML_NEUTRAL_BAND, ML_N_MEMBERS = 5, 5, 0.05, 3  # P09 : OOS purged-CV
+# Params for the REAL signals (fixed *a priori*, consistent with P02/P06/P09).
+MR_Z_ENTRY, MR_Z_EXIT, MR_LOOKBACK = 2.0, 0.5, 20  # P02: hysteresis z-score
+BASIS_TAU, BASIS_LOOKBACK = 0.25, 20  # P06: maturity (years) + carry momentum window
+ML_HORIZON, ML_N_SPLITS, ML_NEUTRAL_BAND, ML_N_MEMBERS = 5, 5, 0.05, 3  # P09: OOS purged-CV
 
 
 def DEFAULT_PRODUCERS() -> list[SignalProducer]:
-    """Trois signaux mockés disjoints (carry, mean-reversion, momentum) — placeholders P02/P06/P09."""
+    """Three disjoint mocked signals (carry, mean-reversion, momentum) — placeholders for P02/P06/P09."""
     return [
         ConstantMock(1.0, name="carry_mock"),
         MeanReversionMock(lookback=20, name="mean_reversion_mock"),
@@ -85,13 +85,13 @@ def build_ml_proba(
     horizon: int,
     n_splits: int,
 ) -> FloatArray:
-    """Vecteur de probabilités ``P(montée)`` hors-échantillon de P09, aligné sur ``prices``.
+    """Out-of-sample ``P(up)`` probability vector for P09, aligned with ``prices``.
 
-    Reproduit fidèlement le pipeline P09 : features causales dérivées de la série (lags, moyennes
-    glissantes, momentums) + cible directionnelle, puis ``oos_predict`` (purged-CV + embargo) avec
-    le modèle injecté. Les lignes non prédictibles (warm-up des features, queue sans futur) restent
-    ``NaN`` → l'adaptateur P09 les neutralise en position plate. Honnêteté : la proba est OOS
-    (anti-overfit) mais **non strictement walk-forward causale** — design assumé de P09.
+    Faithfully reproduces the P09 pipeline: causal features derived from the series (lags, rolling
+    means, momentums) + directional target, then ``oos_predict`` (purged-CV + embargo) with
+    the injected model. Non-predictable rows (feature warm-up, tail with no future) stay
+    ``NaN`` → the P09 adapter neutralizes them to a flat position. Honesty: the probability is OOS
+    (anti-overfit) but **not strictly walk-forward causal** — design assumption inherited from P09.
     """
     n = prices.shape[0]
     idx = pd.date_range("2020-01-01", periods=n, freq="D")
@@ -105,7 +105,7 @@ def build_ml_proba(
     x = features.to_numpy(dtype=np.float64)[valid]
     y = labels.to_numpy(dtype=np.float64)[valid]
     if x.shape[0] < n_splits:
-        return proba  # pas assez d'échantillons valides → tout plat (honnête)
+        return proba  # not enough valid samples → stay flat (honest)
     splitter = PurgedKFold(n_splits=n_splits, horizon=horizon, embargo=horizon)
     proba[valid] = oos_predict(make_model, x, y, splitter)
     return proba
@@ -119,14 +119,14 @@ def REAL_PRODUCERS(
     ml_horizon: int = ML_HORIZON,
     ml_n_splits: int = ML_N_SPLITS,
 ) -> list[SignalProducer]:
-    """Les 3 **vrais** producteurs promus dans ``core.signals`` : P02, P06, P09.
+    """The 3 **real** producers promoted into ``core.signals``: P02, P06, P09.
 
-    - ``MeanReversionSignal`` (P02) : retour à la moyenne du spread (z-score à hystérésis).
-    - ``FuturesBasisSignal`` (P06) : carry/roll momentum de la base future↔spot (cost-of-carry).
-    - ``MLEnsembleSignal`` (P09) : signal directionnel ML hors-échantillon (ensemble seed-bagging).
+    - ``MeanReversionSignal`` (P02): mean reversion of the spread (hysteresis z-score).
+    - ``FuturesBasisSignal`` (P06): carry/roll momentum of the future↔spot basis (cost-of-carry).
+    - ``MLEnsembleSignal`` (P09): out-of-sample directional ML signal (seed-bagging ensemble).
 
-    Au PoC, la série desk est synthétique ⇒ tous les signaux restent étiquetés ``simulated=True``.
-    ``ml_make_model`` permet d'injecter un modèle léger en test ; par défaut, ensemble XGBoost.
+    At the PoC stage, the desk series is synthetic ⇒ all signals remain labeled ``simulated=True``.
+    ``ml_make_model`` allows injecting a lightweight model in tests; XGBoost ensemble by default.
     """
     make_model: Callable[[], Model] = ml_make_model or (
         lambda: SeedBaggingEnsemble(
@@ -151,7 +151,7 @@ def REAL_PRODUCERS(
 
 
 def _ou(n: int, *, theta: float, sigma: float, rng: np.random.Generator) -> FloatArray:
-    """Processus d'Ornstein-Uhlenbeck stationnaire (oscillation → matière à la mean-reversion)."""
+    """Stationary Ornstein-Uhlenbeck process (oscillation → grist for mean-reversion)."""
     x = np.empty(n, dtype=np.float64)
     x[0] = 0.0
     for t in range(1, n):
@@ -160,10 +160,10 @@ def _ou(n: int, *, theta: float, sigma: float, rng: np.random.Generator) -> Floa
 
 
 def build_synthetic_prices(n: int, seed: int) -> tuple[FloatArray, SignalProvenance]:
-    """Série de prix desk **simulée** : tendance lente (momentum) + oscillation OU (mean-reversion).
+    """**Simulated** desk price series: slow trend (momentum) + OU oscillation (mean-reversion).
 
-    Strictement synthétique et étiquetée ``simulated=True`` : sert à valider le pipeline, jamais
-    vendue comme un sous-jacent réel.
+    Strictly synthetic and labeled ``simulated=True``: used to validate the pipeline, never
+    sold as a real underlying.
     """
     rng = np.random.default_rng(seed)
     trend = np.linspace(0.0, 15.0, n)
@@ -175,7 +175,7 @@ def build_synthetic_prices(n: int, seed: int) -> tuple[FloatArray, SignalProvena
 
 @dataclass(frozen=True)
 class DeskResult:
-    """Résultat du backtest desk : comptabilité brute/nette + métriques + attribution par signal."""
+    """Desk backtest result: gross/net accounting + metrics + per-signal attribution."""
 
     gross_returns: FloatArray
     net_returns: FloatArray
@@ -193,7 +193,7 @@ def _gross_run(
     constructor: PortfolioConstructor,
     periods_per_year: float,
 ) -> tuple[Ledger, DeskStrategy]:
-    """Run du moteur P08 **sans coût** (les coûts sont appliqués ensuite) → ledger brut + desk."""
+    """Run the P08 engine **without cost** (costs are applied afterwards) → gross ledger + desk."""
     desk = DeskStrategy(producers, constructor, vol_lookback=VOL_LOOKBACK)
     engine = BacktestEngine(
         cost_model=LinearCostModel(0.0, 0.0), periods_per_year=periods_per_year, capital=CAPITAL
@@ -202,7 +202,7 @@ def _gross_run(
 
 
 def _net_ledger(gross: Ledger, net_returns: FloatArray) -> Ledger:
-    """Reconstruit un ledger **net** (mêmes positions, rendements nets de coûts)."""
+    """Rebuilds a **net** ledger (same positions, returns net of costs)."""
     net_pnl = net_returns * CAPITAL
     return Ledger(
         returns=net_returns,
@@ -214,7 +214,7 @@ def _net_ledger(gross: Ledger, net_returns: FloatArray) -> Ledger:
 
 
 def _attribution(desk: DeskStrategy, producers: list[SignalProducer]) -> dict[str, float]:
-    """Contribution de chaque signal au PnL brut : Σ_t composante_i[t-1]·rendement_marché[t]."""
+    """Contribution of each signal to gross PnL: Σ_t component_i[t-1]·market_return[t]."""
     hist = desk.history()
     contrib = (hist.components[:-1] * hist.mkt_returns[1:].reshape(-1, 1)).sum(axis=0)
     return {p.name: float(c) for p, c in zip(producers, contrib)}
@@ -228,7 +228,7 @@ def run_desk_backtest(
     *,
     periods_per_year: float,
 ) -> DeskResult:
-    """Backtest desk complet : run brut P08 → coûts d'exécution → métriques nettes + attribution."""
+    """Full desk backtest: gross P08 run → execution costs → net metrics + attribution."""
     gross_ledger, desk = _gross_run(prices, producers, constructor, periods_per_year)
     net_returns, costs = execution.apply(gross_ledger.returns, gross_ledger.positions)
     metrics = DefaultMetrics(periods_per_year)
@@ -254,7 +254,7 @@ def cost_sensitivity(
     slippage_bps: float,
     periods_per_year: float,
 ) -> list[dict[str, float]]:
-    """Sensibilité du PnL net au coefficient d'impact κ (le run brut, lui, ne dépend pas des coûts)."""
+    """Sensitivity of net PnL to the impact coefficient κ (the gross run itself doesn't depend on costs)."""
     gross_ledger, _ = _gross_run(prices, producers, constructor, periods_per_year)
     metrics = DefaultMetrics(periods_per_year)
     rows: list[dict[str, float]] = []
@@ -285,7 +285,7 @@ def _build_params(prices: FloatArray, producers: list[SignalProducer]) -> dict[s
         "periods_per_year": PERIODS_PER_YEAR,
         "seed": SEED,
         "n_obs": int(prices.shape[0]),
-        "n_trials": 1,  # params fixés a priori : pas de recherche → pas de multiple-testing
+        "n_trials": 1,  # params fixed a priori: no search → no multiple-testing
         "signals": ",".join(p.name for p in producers),
         "signal_source": "real (P02/P06/P09 via core.signals)",
         "data_source": "synthetic_desk",
@@ -295,7 +295,7 @@ def _build_params(prices: FloatArray, producers: list[SignalProducer]) -> dict[s
 
 def main() -> None:
     prices, provenance = build_synthetic_prices(n=1500, seed=SEED)
-    producers = REAL_PRODUCERS(prices, seed=SEED)  # P02/P06/P09 réels (mocks → réels)
+    producers = REAL_PRODUCERS(prices, seed=SEED)  # real P02/P06/P09 (mocks → real)
     constructor = PortfolioConstructor(vol_floor=VOL_FLOOR, gross_cap=GROSS_CAP)
     execution = ExecutionModel(
         fees_bps=FEES_BPS, slippage_bps=SLIPPAGE_BPS, impact_kappa=IMPACT_KAPPA
@@ -351,7 +351,7 @@ def main() -> None:
         log.info(
             "  %-16s %12.6f %12.6f", name, result.gross_metrics[name], result.net_metrics[name]
         )
-    log.info("  contribution par signal (PnL brut) :")
+    log.info("  contribution by signal (gross PnL):")
     for name, value in result.attribution.items():
         log.info("    %-22s = %+.6f", name, value)
 

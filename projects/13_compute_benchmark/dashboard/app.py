@@ -1,13 +1,13 @@
-"""Dashboard Streamlit de **démo** du benchmark spot compute (lecture du cold store réel).
+"""Streamlit **demo** dashboard for the compute spot benchmark (reads the real cold store).
 
-Rend la **mesure** publiable : courbe de l'indice canonique + dispersion inter-venues
-(nuage des venues autour de l'indice, spread %, niveaux moyens nommés). Aucune
-recommandation de timing (« louer sur X maintenant ») — c'est la frontière edge.
+Renders the publishable **measurement**: canonical index curve + cross-venue dispersion
+(cloud of venues around the index, spread %, named average levels). No
+timing recommendation ("rent on X now") — that's the edge boundary.
 
-Lancer : ``uv run streamlit run projects/13_compute_benchmark/dashboard/app.py``.
-``data/snapshots`` est versionné en git ordinaire sur ``main``. Pour la collecte la plus
-récente (accumulée en continu par le cron CI), renseigner dans la barre latérale la racine
-d'un cold store peuplé via ``git checkout data-snapshots -- data/snapshots``.
+Run: ``uv run streamlit run projects/13_compute_benchmark/dashboard/app.py``.
+``data/snapshots`` is versioned as plain git on ``main``. For the most recent
+collection (accumulated continuously by the CI cron), enter in the sidebar the root
+of a cold store populated via ``git checkout data-snapshots -- data/snapshots``.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-# Rend le paquet projet `benchmark` (sous src/) importable.
+# Makes the project package `benchmark` (under src/) importable.
 _SRC = Path(__file__).resolve().parents[1] / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -42,14 +42,14 @@ CONFIG = DEFAULT_INDEX_CONFIG
 
 @st.cache_data(show_spinner=False)
 def _load(root: str) -> list[Snapshot]:
-    """Charge les snapshots du cold store (caché par racine)."""
+    """Load snapshots from the cold store (cached by root)."""
     return ParquetSnapshotStore(root).load()
 
 
 def _grid(snapshots: list[Snapshot], model: str, cadence: str) -> list[dt.datetime]:
-    """Grille de fix selon la cadence choisie (canonique quotidienne vs démo par snapshot)."""
+    """Fix grid based on the chosen cadence (canonical daily vs. per-snapshot demo)."""
     history = summarize_history(snapshots)
-    if cadence.startswith("Quotidien"):
+    if cadence.startswith("Daily"):
         if history.first_at is None or history.last_at is None:
             return []
         return daily_fix_grid(history.first_at, history.last_at + CONFIG.staleness)
@@ -57,7 +57,7 @@ def _grid(snapshots: list[Snapshot], model: str, cadence: str) -> list[dt.dateti
 
 
 def _venue_points(snapshots: list[Snapshot], grid: list[dt.datetime], model: str) -> pd.DataFrame:
-    """Taux par-venue retenus à chaque fix (nuage de dispersion autour de l'indice)."""
+    """Per-venue rates retained at each fix (dispersion cloud around the index)."""
     rows = []
     for as_of in grid:
         for r in CONFIG.outlier_filter.filter(
@@ -69,37 +69,37 @@ def _venue_points(snapshots: list[Snapshot], grid: list[dt.datetime], model: str
 
 def main() -> None:
     st.set_page_config(page_title="Compute Spot Benchmark", layout="wide")
-    st.title("Compute Spot Benchmark — prix de référence GPU-heure")
+    st.title("Compute Spot Benchmark — GPU-hour reference price")
     st.caption(
-        "Indice spot **réel** multi-venues, point-in-time (UTC). Mesure publiée : prix de "
-        "référence + dispersion inter-venues. Pas de signal de timing « louer sur X maintenant »."
+        "**Real** multi-venue spot index, point-in-time (UTC). Published measurement: reference "
+        'price + cross-venue dispersion. No timing signal ("rent on X now").'
     )
 
-    root = st.sidebar.text_input("Racine du cold store (Parquet)", value=str(SNAPSHOTS_DIR))
+    root = st.sidebar.text_input("Cold store root (Parquet)", value=str(SNAPSHOTS_DIR))
     snapshots = _load(root)
 
     history = summarize_history(snapshots)
     if not snapshots:
         st.warning(
-            "Cold store vide. Peupler le lac puis renseigner sa racine :\n\n"
+            "Cold store empty. Populate the lake then enter its root:\n\n"
             "`git checkout data-snapshots -- data/snapshots`."
         )
         return
 
     st.info(
-        f"⚠️ Historique réel : **{history.n_snapshots}** relevés · "
+        f"⚠️ Real history: **{history.n_snapshots}** readings · "
         f"**{history.n_venues}** venues ({', '.join(history.sources)}) · "
         f"**{history.n_distinct_timestamps}** instants · span **{history.span_hours:.1f} h**. "
-        "Maigre par construction au début — il grossit jour après jour."
+        "Thin by construction at the start — it grows day by day."
     )
 
     candidates = multi_venue_models(snapshots) or sorted({s.gpu_model for s in snapshots})
     col_model, col_cad = st.sidebar, st.sidebar
-    model = col_model.selectbox("Modèle GPU", candidates)
+    model = col_model.selectbox("GPU model", candidates)
     cadence = col_cad.radio(
         "Cadence",
-        ["Démo (par snapshot observé)", "Quotidien (canonique, settlement)"],
-        help="Le produit publié = fix quotidien ; la cadence démo montre l'historique maigre.",
+        ["Demo (per observed snapshot)", "Daily (canonical, settlement)"],
+        help="The published product = daily fix; the demo cadence shows the thin history.",
     )
 
     grid = _grid(snapshots, model, cadence)
@@ -109,7 +109,7 @@ def main() -> None:
 
     left, right = st.columns(2)
     with left:
-        st.subheader(f"Indice canonique — {model}")
+        st.subheader(f"Canonical index — {model}")
         fig = go.Figure()
         if not venue_df.empty:
             fig.add_trace(
@@ -129,39 +129,39 @@ def main() -> None:
                     y=index_df["price_usd_per_hour"],
                     mode="lines+markers",
                     line=dict(width=3),
-                    name="indice",
+                    name="index",
                 )
             )
         fig.update_layout(yaxis_title="$/GPU·h", xaxis_title="fix (UTC)", height=420)
         st.plotly_chart(fig, use_container_width=True)
         if series.skipped:
             st.caption(
-                f"{len(series.skipped)} fix sans venue fraîche (sautés, pas de carry-forward)."
+                f"{len(series.skipped)} fix(es) without a fresh venue (skipped, no carry-forward)."
             )
 
     with right:
-        st.subheader("Niveaux moyens par venue (descriptif)")
+        st.subheader("Average levels per venue (descriptive)")
         levels = venue_levels(snapshots, grid, model, config=CONFIG)
         if levels:
             st.dataframe(
                 pd.DataFrame(
                     {
                         "venue": [lv.source for lv in levels],
-                        "niveau moyen $/h": [round(lv.mean_rate, 4) for lv in levels],
-                        "escompte moyen vs indice": [
+                        "average level $/h": [round(lv.mean_rate, 4) for lv in levels],
+                        "average discount vs. index": [
                             f"{lv.mean_discount_vs_index:+.1%}" for lv in levels
                         ],
-                        "fix": [lv.n_fixes for lv in levels],
+                        "fixes": [lv.n_fixes for lv in levels],
                     }
                 ),
                 hide_index=True,
                 use_container_width=True,
             )
             st.caption(
-                "Mesure descriptive sur la fenêtre — **pas** un signal « louer sur X maintenant »."
+                'Descriptive measurement over the window — **not** a "rent on X now" signal.'
             )
         else:
-            st.write("Pas assez d'historique pour des niveaux par venue.")
+            st.write("Not enough history for per-venue levels.")
 
 
 if __name__ == "__main__":

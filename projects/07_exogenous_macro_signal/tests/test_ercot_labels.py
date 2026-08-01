@@ -1,4 +1,4 @@
-"""Tests du builder de label « spike RTM » ERCOT (fiche L0 §4-§5)."""
+"""Tests for the ERCOT "RTM spike" label builder (L0 spec §4-§5)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def test_to_hourly_integrated_means_subhourly() -> None:
     idx = pd.date_range("2024-01-01", periods=8, freq="15min", tz="UTC")
     s = pd.Series([10.0, 20.0, 30.0, 40.0, 100.0, 100.0, 100.0, 100.0], index=idx)
     hourly = to_hourly_integrated(s)
-    assert list(hourly.to_numpy()) == [25.0, 100.0]  # moyenne des 4 quarts d'heure
+    assert list(hourly.to_numpy()) == [25.0, 100.0]  # average of the 4 quarter-hours
 
 
 def test_spike_label_absolute() -> None:
@@ -34,22 +34,22 @@ def test_spike_label_absolute() -> None:
 
 
 def test_hod_percentile_insufficient_history_is_false() -> None:
-    s = _daily_at_hour(18, [50.0, 60.0, 5000.0])  # < 3 obs passées partout
+    s = _daily_at_hour(18, [50.0, 60.0, 5000.0])  # < 3 past obs everywhere
     lab = spike_label_hod_percentile(s, pct=0.99, min_obs_per_hour=3)
     assert not lab.any()
 
 
 def test_hod_percentile_flags_spike_vs_past_same_hour() -> None:
-    s = _daily_at_hour(18, [50.0] * 10 + [5000.0])  # 10 jours calmes puis spike
+    s = _daily_at_hour(18, [50.0] * 10 + [5000.0])  # 10 calm days then a spike
     lab = spike_label_hod_percentile(s, pct=0.99, min_obs_per_hour=3)
-    assert lab.iloc[-1]  # spike flaggé (5000 >> 99e pct du passé ~50)
-    assert not lab.iloc[:-1].any()  # aucun jour calme flaggé
+    assert lab.iloc[-1]  # spike flagged (5000 >> 99th pct of the ~50 past)
+    assert not lab.iloc[:-1].any()  # no calm day flagged
 
 
 def test_hod_percentile_is_causal_no_lookahead() -> None:
-    # Un spike FUTUR ne doit pas influencer le label d'un jour calme antérieur.
+    # A FUTURE spike must not influence the label of an earlier calm day.
     s = _daily_at_hour(18, [50.0, 50.0, 50.0, 50.0, 5000.0, 50.0])
     lab = spike_label_hod_percentile(s, pct=0.99, min_obs_per_hour=3)
-    assert not lab.iloc[3]  # jour calme : ne voit pas le spike du jour 4
-    assert lab.iloc[4]  # le spike, vs passé calme, est flaggé
-    assert not lab.iloc[5]  # calme=50 ; le passé inclut le spike → seuil haut → pas un spike
+    assert not lab.iloc[3]  # calm day: does not see day 4's spike
+    assert lab.iloc[4]  # the spike, vs the calm past, is flagged
+    assert not lab.iloc[5]  # calm=50; the past includes the spike -> high threshold -> not a spike

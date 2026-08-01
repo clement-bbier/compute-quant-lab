@@ -1,4 +1,4 @@
-"""Tests de l'évaluation L0 §7 (PR-AUC, beats_baseline, Benjamini-Hochberg)."""
+"""Tests for the L0 §7 evaluation (PR-AUC, beats_baseline, Benjamini-Hochberg)."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ def test_pr_auc_perfect_ranking() -> None:
 def test_beats_baseline_when_model_informative() -> None:
     rng = np.random.default_rng(0)
     n = 500
-    y = (rng.random(n) < 0.1).astype(int)  # ~10 % de spikes
-    score_model = y * 0.7 + rng.random(n) * 0.3  # informatif
-    score_baseline = np.full(n, 0.1)  # constant = taux de base
+    y = (rng.random(n) < 0.1).astype(int)  # ~10% spikes
+    score_model = y * 0.7 + rng.random(n) * 0.3  # informative
+    score_baseline = np.full(n, 0.1)  # constant = base rate
     res = beats_baseline(y, score_model, score_baseline, n_boot=300, seed=1)
     assert res["pr_auc_model"] > res["pr_auc_baseline"]
-    assert res["beats"] is True  # IC de la différence > 0
+    assert res["beats"] is True  # CI of the difference > 0
     assert res["diff_ci_low"] > 0.0
 
 
@@ -28,13 +28,13 @@ def test_does_not_beat_when_model_uninformative() -> None:
     rng = np.random.default_rng(2)
     n = 500
     y = (rng.random(n) < 0.1).astype(int)
-    noise = rng.random(n)  # aucun lien avec y
+    noise = rng.random(n)  # no relation to y
     res = beats_baseline(y, noise, np.full(n, 0.1), n_boot=300, seed=3)
-    assert res["beats"] is False  # un bruit ne bat pas la baseline
+    assert res["beats"] is False  # noise does not beat the baseline
 
 
 def test_benjamini_hochberg_rejects_small_pvalues() -> None:
-    # m=4, alpha=0.05 → seuils 0.0125/0.025/0.0375/0.05 ; rejette 0.001 et 0.02
+    # m=4, alpha=0.05 -> thresholds 0.0125/0.025/0.0375/0.05; rejects 0.001 and 0.02
     assert benjamini_hochberg([0.001, 0.5, 0.02, 0.8], alpha=0.05) == [True, False, True, False]
 
 

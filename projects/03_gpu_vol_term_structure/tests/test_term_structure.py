@@ -1,8 +1,8 @@
-"""Tests de l'analyse de structure par terme (pente, courbure, classification).
+"""Tests of term structure analysis (slope, curvature, classification).
 
-Courbes synthétiques à forme connue : contango (croissante), backwardation
-(décroissante), plate, convexe. On vérifie le signe de la pente, la classification
-et le signe de la courbure.
+Synthetic curves with known shape: contango (increasing), backwardation
+(decreasing), flat, convex. We check the sign of the slope, the classification
+and the sign of the curvature.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def test_convex_curve_has_positive_curvature(
 ) -> None:
     maturities, prices = convex_curve
     ts = TermStructureAnalyzer().analyze(maturities, prices, simulated=True, as_of=as_of)
-    # butterfly F_court - 2 F_milieu + F_long = 2.10 - 2*2.00 + 2.10 = 0.20 > 0
+    # butterfly F_short - 2 F_mid + F_long = 2.10 - 2*2.00 + 2.10 = 0.20 > 0
     assert ts.curvature > 0
 
 

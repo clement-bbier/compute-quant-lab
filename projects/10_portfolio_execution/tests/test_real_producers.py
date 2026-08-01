@@ -1,11 +1,11 @@
-"""Câblage des **vrais** signaux dans le desk : P02 / P06 / P09 via ``core.signals`` (P12).
+"""Wiring the **real** signals into the desk: P02 / P06 / P09 via ``core.signals`` (P12).
 
-On remplace les mocks par les producteurs réels promus dans ``core.signals`` et on prouve que le
-desk tourne dessus **sans changer sa logique** (OCP) : 3 producteurs réels, tous étiquetés simulés
-(série desk synthétique au PoC), PnL net = brut − coûts, attribution exacte, déterminisme.
+We replace the mocks with the real producers promoted into ``core.signals`` and prove the
+desk runs on them **without changing its logic** (OCP): 3 real producers, all labeled simulated
+(synthetic desk series at the PoC stage), net PnL = gross − costs, exact attribution, determinism.
 
-Un modèle ML **léger** est injecté pour garder les tests rapides (le run de démo, lui, utilise
-l'ensemble seed-bagging par défaut).
+A **lightweight** ML model is injected to keep the tests fast (the demo run itself uses
+the seed-bagging ensemble by default).
 """
 
 from __future__ import annotations
@@ -24,12 +24,12 @@ PERIODS_PER_YEAR = 252.0
 
 
 def _fast_ml():
-    """Fabrique un modèle ML rapide et déterministe (peu d'arbres) pour les tests."""
+    """Builds a fast, deterministic ML model (few trees) for tests."""
     return lambda: XGBoostDirectionModel(random_state=0, n_estimators=30, max_depth=3)
 
 
 def test_real_producers_are_three_real_signals() -> None:
-    """``REAL_PRODUCERS`` instancie exactement les 3 producteurs réels (P02, P06, P09)."""
+    """``REAL_PRODUCERS`` instantiates exactly the 3 real producers (P02, P06, P09)."""
     prices, _ = build_synthetic_prices(n=260, seed=1)
     producers = REAL_PRODUCERS(prices, seed=1, ml_make_model=_fast_ml())
     assert len(producers) == 3
@@ -40,14 +40,14 @@ def test_real_producers_are_three_real_signals() -> None:
 
 
 def test_real_producers_are_all_simulated() -> None:
-    """Au PoC, la série desk est synthétique → tout signal réel reste étiqueté simulé (frontière)."""
+    """At the PoC stage, the desk series is synthetic → every real signal stays labeled simulated (boundary)."""
     prices, _ = build_synthetic_prices(n=260, seed=2)
     producers = REAL_PRODUCERS(prices, seed=2, ml_make_model=_fast_ml())
     assert all(p.provenance.simulated for p in producers)
 
 
 def test_desk_runs_on_real_signals_net_is_gross_minus_costs() -> None:
-    """Le desk tourne sur les **vrais** signaux : net = brut − coûts, métriques présentes."""
+    """The desk runs on the **real** signals: net = gross − costs, metrics present."""
     prices, _ = build_synthetic_prices(n=320, seed=3)
     producers = REAL_PRODUCERS(prices, seed=3, ml_make_model=_fast_ml())
     result = run_desk_backtest(
@@ -62,7 +62,7 @@ def test_desk_runs_on_real_signals_net_is_gross_minus_costs() -> None:
 
 
 def test_attribution_sums_to_gross_pnl_on_real_signals() -> None:
-    """Attribution exacte : la somme des contributions des vrais signaux = PnL brut total."""
+    """Exact attribution: the sum of the real signals' contributions = total gross PnL."""
     prices, _ = build_synthetic_prices(n=320, seed=4)
     producers = REAL_PRODUCERS(prices, seed=4, ml_make_model=_fast_ml())
     result = run_desk_backtest(
@@ -77,7 +77,7 @@ def test_attribution_sums_to_gross_pnl_on_real_signals() -> None:
 
 
 def test_real_producers_are_deterministic() -> None:
-    """Deux constructions + runs identiques donnent le même résultat (seed fixée → reproductible)."""
+    """Two identical constructions + runs give the same result (fixed seed → reproducible)."""
     prices, _ = build_synthetic_prices(n=300, seed=5)
     constructor = PortfolioConstructor(vol_floor=1e-4, gross_cap=1.0)
     execution = ExecutionModel(fees_bps=10.0, slippage_bps=5.0, impact_kappa=0.02)

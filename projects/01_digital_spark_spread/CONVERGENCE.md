@@ -1,65 +1,65 @@
-# P01 — Notes de convergence (zone protégée)
+# P01 — Convergence notes (protected zone)
 
-> Patches à appliquer par la **session de convergence** uniquement. P01 n'écrit
-> que dans `core/pricing/**` et `projects/01_digital_spark_spread/**` ; tout ce
-> qui suit touche la zone protégée (`pyproject.toml`, `.github/`, `.gitignore`,
-> `.claude/`, `core/utils/`) et a donc été **signalé, pas appliqué**.
+> Patches to be applied by the **convergence session** only. P01 writes
+> only to `core/pricing/**` and `projects/01_digital_spark_spread/**`; everything
+> below touches the protected zone (`pyproject.toml`, `.github/`, `.gitignore`,
+> `.claude/`, `core/utils/`) and has therefore been **flagged, not applied**.
 
-## 1. `pyproject.toml` racine — build du noyau Rust
-Le subcrate maturin autonome est livré (`core/pricing/_kernel/` : `Cargo.toml`,
-`pyproject.toml` local, `src/lib.rs`). Il **compile** (cargo 1.94, pyo3 0.23 +
-numpy 0.23, profil release OK). Aujourd'hui le `.pyd` est un artefact **local**
-(copié depuis `_kernel/target/release/_kernel.dll` vers `core/pricing/_kernel.pyd`,
-git-ignoré).
-- **À faire** : unifier le build pour que `pip install -e .` / la wheel embarquent
-  `core.pricing._kernel` (maturin + hatchling, ou bascule maturin). Ajouter
-  `maturin` aux deps dev.
-- **Commande de référence** : `maturin develop --manifest-path core/pricing/_kernel/Cargo.toml`.
+## 1. Root `pyproject.toml` — Rust kernel build
+The standalone maturin subcrate is delivered (`core/pricing/_kernel/`: `Cargo.toml`,
+local `pyproject.toml`, `src/lib.rs`). It **compiles** (cargo 1.94, pyo3 0.23 +
+numpy 0.23, release profile OK). Today the `.pyd` is a **local** artifact
+(copied from `_kernel/target/release/_kernel.dll` to `core/pricing/_kernel.pyd`,
+git-ignored).
+- **To do**: unify the build so that `pip install -e .` / the wheel bundle
+  `core.pricing._kernel` (maturin + hatchling, or a maturin switch). Add
+  `maturin` to the dev deps.
+- **Reference command**: `maturin develop --manifest-path core/pricing/_kernel/Cargo.toml`.
 
-## 2. `.github/workflows/ci.yml` — toolchain Rust + parité (d)
-Ajouter Rust + `maturin develop` du subcrate + exécuter `pytest -k parity`.
-Sans cela, le test de parité Rust↔Python **skip** en CI (il passe en local après
-compilation : `np.allclose` bit-exact sur 10 000 points).
+## 2. `.github/workflows/ci.yml` — Rust toolchain + parity (d)
+Add Rust + `maturin develop` for the subcrate + run `pytest -k parity`.
+Without this, the Rust<->Python parity test **skips** in CI (it passes locally after
+compilation: `np.allclose` bit-exact on 10,000 points).
 
-## 3. `.gitignore` racine — DVC bloqué sur `data/interim` (RÉSOLU, obsolète)
-Historique : `dvc add data/interim/aligned_spark.parquet` échouait
-(`ERROR: bad DVC file name '...aligned_spark.parquet.dvc' is git-ignored`, le motif
-`/data/interim/*` ignorant aussi les pointeurs `*.dvc`). **Résolu autrement** :
-la convergence a retiré DVC du dépôt et versionne les données en git ordinaire
-(`aligned_spark.parquet` committable directement). `run_pricer.py` ne shell-out
-plus vers `dvc` ; ce blocage ne s'applique plus.
+## 3. Root `.gitignore` — DVC blocked on `data/interim` (RESOLVED, obsolete)
+History: `dvc add data/interim/aligned_spark.parquet` used to fail
+(`ERROR: bad DVC file name '...aligned_spark.parquet.dvc' is git-ignored`, the
+`/data/interim/*` pattern also ignoring `*.dvc` pointers). **Resolved differently**:
+convergence removed DVC from the repo and versions data as plain git
+(`aligned_spark.parquet` directly committable). `run_pricer.py` no longer shells out
+to `dvc`; this blocker no longer applies.
 
-## 4. `core/utils/tracking.py` — MLflow ≥ 3 (owner : core/utils)
-MLflow 3.14 met le file store en « maintenance mode » et lève une exception sans
-`MLFLOW_ALLOW_FILE_STORE=true`. P01 a posé l'opt-out **localement** dans
-`run_pricer.py` (stopgap). À porter dans le util (ou migrer vers
-`sqlite:///experiments/mlflow.db`, recommandation MLflow).
+## 4. `core/utils/tracking.py` — MLflow >= 3 (owner: core/utils)
+MLflow 3.14 puts the file store into "maintenance mode" and raises an exception without
+`MLFLOW_ALLOW_FILE_STORE=true`. P01 added the opt-out **locally** in
+`run_pricer.py` (stopgap). Should be ported to the util (or migrated to
+`sqlite:///experiments/mlflow.db`, the MLflow recommendation).
 
-## 5. `core/utils/{config,logging}.py` absents (owner : core/utils)
-Référencés par les rules mais inexistants (seul `tracking.py` existe). P01 les
-contourne (DI dans `core/`, `logging` stdlib dans les scripts projet). À créer.
+## 5. `core/utils/{config,logging}.py` missing (owner: core/utils)
+Referenced by the rules but nonexistent (only `tracking.py` exists). P01 works
+around this (DI in `core/`, stdlib `logging` in project scripts). To be created.
 
-## 6. `.claude/rules/` — rule unités/fuseau (candidat, prompt P01 §8)
-Proposer une rule path-scopée « cohérence unités/fuseau » sur `core/pricing/`.
-Point d'application naturel déjà en place : `core/pricing/_timeindex.to_utc_index`
-(rejet du naïf, normalisation UTC), testé.
+## 6. `.claude/rules/` — units/timezone rule (candidate, P01 prompt §8)
+Propose a path-scoped rule "units/timezone consistency" on `core/pricing/`.
+A natural enforcement point is already in place: `core/pricing/_timeindex.to_utc_index`
+(rejects naive datetimes, normalizes to UTC), tested.
 
-## 7. Emplacement des tests (info, pas un patch)
-Les tests du pricer sont dans la racine `tests/` (`test_pricer.py`,
-`test_pricer_parity.py`) car la gate `pytest -q` utilise `testpaths=["tests"]`.
-**Additifs** : les 3 tests existants restent verts, aucun fichier existant modifié.
-Pas de collision attendue avec P08 (fichiers de tests disjoints).
+## 7. Test location (info, not a patch)
+The pricer tests live in the root `tests/` (`test_pricer.py`,
+`test_pricer_parity.py`) because the `pytest -q` gate uses `testpaths=["tests"]`.
+**Additive**: the 3 existing tests remain green, no existing file modified.
+No collision expected with P08 (disjoint test files).
 
-## 8. Données réelles ENTSO-E
-`prepare_dataset.py` fetche le réel si `ENTSOE_API_TOKEN` est dans `.env` (à
-recopier via `.worktreeinclude`). En session, token absent → **repli synthétique
-déterministe** (loggué). Le swap vers le réel est automatique dès le token fourni.
+## 8. Real ENTSO-E data
+`prepare_dataset.py` fetches real data if `ENTSOE_API_TOKEN` is in `.env` (to
+be copied via `.worktreeinclude`). In-session, no token -> **deterministic synthetic
+fallback** (logged). The swap to real data is automatic as soon as the token is provided.
 
-## 9. État de la DoD (prompt §11)
-- [x] Tests verts dont anti look-ahead (b) + parité Rust/Python (d) — 18 passed.
-- [x] `ruff check .` & `mypy core` verts.
-- [x] Run MLflow loggué (params + métriques + SHA) via `core.utils.tracking`.
-- [x] Données versionnées — git ordinaire (DVC retiré, cf. §3) ; parquet produit.
-- [x] Synthèse écrite (`results/SYNTHESIS.md` + `run_summary.json`).
-- [x] Rien écrit hors `core/pricing/` + `projects/01…` (hors artefacts data/MLflow
-      générés par le run, git-ignorés). Patches zone protégée listés ci-dessus.
+## 9. DoD status (prompt §11)
+- [x] Tests green including anti look-ahead (b) + Rust/Python parity (d) — 18 passed.
+- [x] `ruff check .` & `mypy core` green.
+- [x] MLflow run logged (params + metrics + SHA) via `core.utils.tracking`.
+- [x] Data versioned — plain git (DVC removed, cf. §3); parquet produced.
+- [x] Synthesis written (`results/SYNTHESIS.md` + `run_summary.json`).
+- [x] Nothing written outside `core/pricing/` + `projects/01…` (excluding data/MLflow
+      artifacts generated by the run, git-ignored). Protected-zone patches listed above.

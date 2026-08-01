@@ -1,19 +1,19 @@
-"""Couche vue — la **mesure** publique (lecture pure du cold store).
+"""View layer — the public **measurement** (pure cold store read).
 
-Consomme le lac de prix versionné via le Protocol ``SnapshotStore`` (injecté) et en
-dérive deux objets que le produit affiche, **tous deux point-in-time** :
+Consumes the versioned price lake via the ``SnapshotStore`` Protocol (injected) and
+derives two objects that the product displays, **both point-in-time**:
 
-- :class:`MarketView` — photo à ``as_of`` : venues retenues triées + indice canonique ;
-- :func:`price_curve` — série de l'indice par modèle dans le temps.
+- :class:`MarketView` — snapshot at ``as_of``: retained venues sorted + canonical index;
+- :func:`price_curve` — the index series per model over time.
 
-Frontière edge : ceci ne fait **que mesurer** (« qui est le moins cher, à quel niveau »).
-La **décision** (« louer maintenant ») est un signal injecté, hors de ce module
-(cf. ``signal_iface``). Aucune réécriture de ``core/`` : pur consommateur.
+Edge boundary: this **only measures** ("who is cheapest, at what level"). The
+**decision** ("rent now") is an injected signal, outside this module
+(cf. ``signal_iface``). No rewriting of ``core/``: pure consumer.
 
-L'indice canonique et l'anti look-ahead sont **délégués** à
-:func:`core.ingestion.compute_index.build_spot_index` (déjà testé) ; seule la réduction
-par-venue (pour le *ranking* « moins cher ») est reprise ici, car ``core`` n'expose pas
-les taux par-venue. → handoff convergence : promouvoir un helper ``venue_rates`` dans
+The canonical index and anti look-ahead are **delegated** to
+:func:`core.ingestion.compute_index.build_spot_index` (already tested); only the
+per-venue reduction (for the "cheapest" *ranking*) is reimplemented here, since ``core`` does not
+expose per-venue rates. → convergence handoff: promote a ``venue_rates`` helper into
 ``core.ingestion``.
 """
 
@@ -35,17 +35,17 @@ from core.ingestion.compute_index import (
 )
 from core.ingestion.protocols import Snapshot, SnapshotStore, VenueRate, ensure_utc
 
-#: Colonnes de la courbe d'indice renvoyée par :func:`price_curve`.
+#: Columns of the index curve returned by :func:`price_curve`.
 CURVE_COLUMNS: list[str] = ["as_of", "index_price", "n_sources"]
 
 
 @dataclass(frozen=True)
 class MarketView:
-    """Photo point-in-time d'un modèle GPU : venues retenues + indice canonique.
+    """Point-in-time snapshot of a GPU model: retained venues + canonical index.
 
-    Les ``venues`` sont déjà **filtrées** (mêmes outliers rejetés que l'indice) et
-    **triées** par prix croissant : ``cheapest`` est donc la venue la moins chère
-    *crédible* à ``as_of`` (un relevé aberrant n'est jamais présenté comme la moins chère).
+    ``venues`` are already **filtered** (same outliers rejected as the index) and
+    **sorted** by ascending price: ``cheapest`` is therefore the *credible* cheapest
+    venue at ``as_of`` (an aberrant reading is never presented as the cheapest).
     """
 
     as_of: dt.datetime
@@ -56,16 +56,16 @@ class MarketView:
 
     def __post_init__(self) -> None:
         if not self.venues:
-            raise ValueError("MarketView sans venue : état illégal (utiliser read_market).")
+            raise ValueError("MarketView with no venue: illegal state (use read_market).")
 
     @property
     def cheapest(self) -> VenueRate:
-        """Venue la moins chère parmi les venues retenues (``venues`` est trié)."""
+        """Cheapest venue among the retained venues (``venues`` is sorted)."""
         return self.venues[0]
 
     @property
     def median_rate(self) -> float:
-        """Médiane des taux inter-venues retenus ($/GPU·h)."""
+        """Median of the retained cross-venue rates ($/GPU·h)."""
         return statistics.median(v.rate for v in self.venues)
 
 
@@ -75,11 +75,11 @@ def _venue_rates(
     gpu_model: str,
     config: IndexConfig,
 ) -> list[VenueRate]:
-    """Réduit les snapshots en un taux par venue (cohorte la plus fraîche).
+    """Reduces snapshots to one rate per venue (freshest cohort).
 
-    Reprend la logique de :func:`build_spot_index` (staleness + point-in-time + exclusion
-    hyperscalers + type de bail) afin d'exposer les taux *par-venue* nécessaires au ranking
-    produit, que ``core`` ne renvoie pas.
+    Reuses the logic of :func:`build_spot_index` (staleness + point-in-time + hyperscaler
+    exclusion + lease type) to expose the *per-venue* rates needed for the product
+    ranking, which ``core`` does not return.
     """
     as_of = ensure_utc(as_of)
     cutoff = as_of - config.staleness
@@ -117,32 +117,32 @@ def read_market(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> MarketView:
-    """Construit la :class:`MarketView` point-in-time de ``gpu_model`` à ``as_of``.
+    """Builds the point-in-time :class:`MarketView` for ``gpu_model`` at ``as_of``.
 
     Parameters
     ----------
     store
-        Source de snapshots (cold store réel ou double de test) — injectée (DI).
+        Snapshot source (real cold store or test double) — injected (DI).
     as_of
-        Instant du fix (UTC tz-aware). Aucune observation postérieure n'est utilisée.
+        Fix instant (UTC tz-aware). No later observation is used.
     gpu_model
-        Modèle agrégé (ex. ``"H100"``).
+        Aggregated model (e.g. ``"H100"``).
     config
-        Config d'agrégation (estimateur + filtre + staleness). Défaut : standard marché.
+        Aggregation config (estimator + filter + staleness). Default: market standard.
 
     Returns
     -------
     MarketView
-        Venues retenues triées + indice canonique.
+        Retained venues sorted + canonical index.
 
     Raises
     ------
     InsufficientDataError
-        Si aucune venue fraîche ne permet de calculer un fix (propagé de ``build_spot_index``).
+        If no fresh venue allows a fix to be computed (propagated from ``build_spot_index``).
     """
     as_of = ensure_utc(as_of)
     snapshots = store.load()
-    # Indice canonique + validation (no carry-forward, anti look-ahead) délégués à core.
+    # Canonical index + validation (no carry-forward, anti look-ahead) delegated to core.
     point = build_spot_index(snapshots, as_of, gpu_model, config=config)
     kept = config.outlier_filter.filter(_venue_rates(snapshots, as_of, gpu_model, config))
     venues = tuple(sorted(kept, key=lambda v: v.rate))
@@ -162,17 +162,17 @@ def price_curve(
     *,
     config: IndexConfig = DEFAULT_INDEX_CONFIG,
 ) -> pd.DataFrame:
-    """Série de l'indice canonique de ``gpu_model`` aux ``timestamps`` (point-in-time).
+    """Series of the canonical index for ``gpu_model`` at ``timestamps`` (point-in-time).
 
-    Chaque point est calculé par :func:`build_spot_index` sur les seules observations
-    ``<= t`` : la courbe est anti look-ahead par construction. Un instant sans donnée
-    suffisante rend ``index_price = NaN`` et ``n_sources = 0`` (dégradation propre, pas
-    de carry-forward).
+    Each point is computed by :func:`build_spot_index` on only the observations
+    ``<= t``: the curve is anti look-ahead by construction. An instant with insufficient
+    data yields ``index_price = NaN`` and ``n_sources = 0`` (graceful degradation, no
+    carry-forward).
 
     Returns
     -------
     pandas.DataFrame
-        Colonnes :data:`CURVE_COLUMNS` (``as_of``, ``index_price``, ``n_sources``).
+        Columns :data:`CURVE_COLUMNS` (``as_of``, ``index_price``, ``n_sources``).
     """
     snapshots = store.load()
     records: list[dict[str, object]] = []

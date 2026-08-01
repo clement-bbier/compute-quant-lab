@@ -1,68 +1,68 @@
 # P10 — Portfolio & Execution
 
-Couche **Desk** du labo : agréger des signaux en un portefeuille sous budget de risque,
-modéliser l'**exécution et les coûts**, et juger la stratégie au **PnL net**.
+**Desk** layer of the lab: aggregate signals into a portfolio under a risk budget,
+model **execution and costs**, and judge the strategy on **net PnL**.
 
-## Pourquoi cette couche
-P01–P09 produisent des *signaux* (spreads, futures, vol, ML…). Aucun ne dit **combien on met**
-ni **ce qu'il reste après frais**. P10 répond à ça : c'est la couche qui transforme une
-collection de vues en un portefeuille tradable et en mesure le PnL réaliste.
+## Why this layer
+P01–P09 produce *signals* (spreads, futures, vol, ML…). None of them says **how much to put on**
+or **what's left after fees**. P10 answers that: it's the layer that turns a
+collection of views into a tradable portfolio and measures its realistic PnL.
 
-## Découplage & parallélisme
-P10 consomme l'abstraction `Strategy` / `PointInTimeView` de **P08** (`core.backtest`). Les
-producteurs mockés restent pour les tests de régression ; les **vrais** signaux P02/P06/P09
-(promus dans `core.signals`, P12) sont branchés derrière le même Protocol `SignalProducer`,
-sans toucher au code du desk (OCP). P10 a donc pu tourner **en parallèle** des projets de signaux.
+## Decoupling & parallelism
+P10 consumes the `Strategy` / `PointInTimeView` abstraction from **P08** (`core.backtest`). The
+mocked producers remain for regression tests; the **real** P02/P06/P09 signals
+(promoted into `core.signals`, P12) are wired in behind the same `SignalProducer` Protocol,
+without touching the desk's code (OCP). This let P10 run **in parallel** with the signal projects.
 
 ## Architecture
 ```
-signaux P02/P06/P09 (réels) ──► DeskStrategy (Strategy composite P08)
-   (s_i ∈[-1,1])      │   à chaque t :
-                      │   1. s_i,t via GuardedView ≤ t        (signals.py)
-                      │   2. vol réalisée point-in-time        (desk.py)
-                      │   3. poids inverse-vol + budget        (portfolio.py)
-                      │   4. position nette = clip(Σ w_i s_i)
+signals P02/P06/P09 (real) ──► DeskStrategy (composite P08 Strategy)
+   (s_i ∈[-1,1])      │   at each t:
+                      │   1. s_i,t via GuardedView ≤ t          (signals.py)
+                      │   2. point-in-time realized vol          (desk.py)
+                      │   3. inverse-vol weights + budget        (portfolio.py)
+                      │   4. net position = clip(Σ w_i s_i)
                       ▼
-        moteur P08 (sans coût) ──► rendements BRUTS + positions
+        P08 engine (no cost) ──► GROSS returns + positions
                       ▼
-        ExecutionModel  ──► coûts (linéaire + κ·Δ²) ──► PnL NET   (execution.py)
+        ExecutionModel  ──► costs (linear + κ·Δ²) ──► NET PnL   (execution.py)
                       ▼
-        run MLflow : params + métriques nettes/brutes + attribution + figure  (run_desk.py)
+        MLflow run: params + net/gross metrics + attribution + figure  (run_desk.py)
 ```
 
-### Décisions de design
-- **Pondération** : inverse-vol `w_i = (b_i/σ_i)/Σ_j(b_j/σ_j)` au PoC, derrière `WeightScheme`
-  (seam OCP) qui ouvre la porte au **risk-parity / ERC** (corrélation-aware) en institutionnel.
-- **Exécution** : `coût(Δpos) = (frais+slippage)/1e4·|Δpos| + κ·Δpos²`. Le terme linéaire fait
-  **parité bit-pour-bit** avec `LinearCostModel`/`reference_loop` de P08 ; le terme quadratique
-  modélise un impact convexe (capacité : un gros rebalancement coûte plus que deux petits).
+### Design decisions
+- **Weighting**: inverse-vol `w_i = (b_i/σ_i)/Σ_j(b_j/σ_j)` at the PoC stage, behind `WeightScheme`
+  (OCP seam) which opens the door to **risk-parity / ERC** (correlation-aware) at the institutional tier.
+- **Execution**: `cost(Δpos) = (fees+slippage)/1e4·|Δpos| + κ·Δpos²`. The linear term achieves
+  **bit-for-bit parity** with P08's `LinearCostModel`/`reference_loop`; the quadratic term
+  models convex impact (capacity: one large rebalance costs more than two small ones).
 
-## Anti look-ahead & déterminisme
-- Tout ce qui entre dans la décision à `t` vient de la `GuardedView` (≤ t) de P08 : un signal
-  qui lit le futur **fait échouer le run** (`LookAheadError`). Testé (`test_desk_lookahead`).
-- La vol de pondération utilise des rendements réalisés **laggés** (`s_{t-1}·marché[t]`).
-- L'état du desk est réinitialisé à `t==0` → deux runs sur la même série coïncident.
+## Anti look-ahead & determinism
+- Everything feeding the decision at `t` comes from P08's `GuardedView` (≤ t): a signal
+  that reads the future **fails the run** (`LookAheadError`). Tested (`test_desk_lookahead`).
+- Weighting vol uses **lagged** realized returns (`s_{t-1}·market[t]`).
+- Desk state is reset at `t==0` → two runs on the same series match exactly.
 
-## Reproductibilité
-Run MLflow via `core.backtest.tracking.tracked_run` : params (pondération, coûts, κ, signaux,
-`n_trials`, `simulated`) + métriques **nettes et brutes** + contribution par signal + figure du
-PnL net + SHA git + version DVC. Graine fixée (`SEED=42`). Snapshot `results/last_run.json`.
+## Reproducibility
+MLflow run via `core.backtest.tracking.tracked_run`: params (weighting, costs, κ, signals,
+`n_trials`, `simulated`) + **net and gross** metrics + per-signal contribution + net PnL
+figure + git SHA + DVC version. Fixed seed (`SEED=42`). Snapshot in `results/last_run.json`.
 
-## Lancer
+## Run it
 ```bash
-# Prérequis : noyau Rust P08 compilé dans le worktree
+# Prerequisite: P08's Rust core compiled in the worktree
 uv run maturin develop -m core/backtest/_loop/Cargo.toml --release
 
 uv run pytest projects/10_portfolio_execution/tests   # 37 tests
 uv run python projects/10_portfolio_execution/src/run_desk.py
 ```
-> ⚠️ `pyproject.toml` `testpaths` pointe la fondation P01 ; lancer les tests P10 par **chemin
-> explicite** tant que la convergence n'a pas ajouté `projects/10_…/tests` (cf. CONVERGENCE.md).
+> Warning: `pyproject.toml`'s `testpaths` points at the P01 foundation; run P10 tests via
+> **explicit path** until convergence adds `projects/10_…/tests` (see CONVERGENCE.md).
 
-## État
-Pipeline validé bout-en-bout sur les **3 vrais signaux** P02/P06/P09 (37 tests verts,
-`ruff`/`mypy core` verts, run MLflow loggué). Le PnL net est **négatif** (−4.4654) : le brut
-positif sur série synthétique mean-reverting est un artefact (les signaux épousent le processus
-générateur), pas de l'alpha, et les coûts d'exécution l'enfoncent encore. Détail et verdict
-adversarial : [results/SYNTHESIS.md](results/SYNTHESIS.md),
-[results/RISK_REVIEW.md](results/RISK_REVIEW.md). Suite : [CONVERGENCE.md](CONVERGENCE.md).
+## Status
+Pipeline validated end-to-end on the **3 real signals** P02/P06/P09 (37 green tests,
+`ruff`/`mypy core` clean, MLflow run logged). Net PnL is **negative** (−4.4654): the positive
+gross on a mean-reverting synthetic series is an artifact (the signals track the generating
+process), not alpha, and execution costs push it down further. Details and adversarial
+verdict: [results/SYNTHESIS.md](results/SYNTHESIS.md),
+[results/RISK_REVIEW.md](results/RISK_REVIEW.md). Next: [CONVERGENCE.md](CONVERGENCE.md).

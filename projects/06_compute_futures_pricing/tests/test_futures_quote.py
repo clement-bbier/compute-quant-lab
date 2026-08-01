@@ -1,8 +1,8 @@
-"""Tests-first de la cotation et de l'orchestrateur (``futures`` + ``protocols``).
+"""Tests-first for quoting and the orchestrator (``futures`` + ``protocols``).
 
-Couvre la spec P06 §6 : (d) le drapeau ``simulated`` est OBLIGATOIRE (un test DOIT
-échouer s'il manque), et l'orchestrateur produit une cotation toujours simulée,
-cohérente avec le cœur carry. Vérifie aussi le contrat DI (``runtime_checkable``).
+Covers P06 spec §6: (d) the ``simulated`` flag is MANDATORY (a test MUST fail if
+it's missing), and the orchestrator produces a quote that is always simulated,
+consistent with the carry core. Also checks the DI contract (``runtime_checkable``).
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ TAU = 0.5
 
 
 def test_futures_quote_requires_simulated_flag() -> None:
-    # Frontière réel/simulé : impossible de construire une cotation sans déclarer
-    # explicitement qu'elle est simulée — la garantie est portée par le type.
+    # Real/simulated boundary: a quote cannot be constructed without explicitly
+    # declaring that it is simulated — the guarantee is enforced by the type.
     with pytest.raises(TypeError):
         FuturesQuote(  # type: ignore[call-arg]
             spot=SPOT,
@@ -47,7 +47,7 @@ def test_pricer_output_is_always_simulated() -> None:
     pricer = CarryFuturesPricer(CostOfCarryModel(rate=RATE, convenience_yield=YIELD), rate=RATE)
     quote = pricer.price(SPOT, TAU)
     assert isinstance(quote, FuturesQuote)
-    assert quote.simulated is True  # futures non listés
+    assert quote.simulated is True  # futures not listed
 
 
 def test_pricer_computes_forward_basis_and_implied_yield() -> None:
@@ -59,7 +59,7 @@ def test_pricer_computes_forward_basis_and_implied_yield() -> None:
     assert quote.maturity_years == TAU
     assert quote.forward == pytest.approx(expected_forward)
     assert quote.basis == pytest.approx(expected_forward - SPOT)
-    # Le pricer infère y depuis la forward ; pour le carry exogène il redonne y.
+    # The pricer infers y from the forward; for exogenous carry it returns y.
     assert quote.convenience_yield == pytest.approx(YIELD)
     assert quote.model_name == "cost_of_carry"
 

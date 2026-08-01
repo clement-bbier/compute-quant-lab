@@ -1,75 +1,76 @@
-# Projet 07 — Exogenous Macro Signal
+# Project 07 — Exogenous Macro Signal
 
-> Contexte LOCAL. Glossaire et conventions globales : CLAUDE.md racine.
+> LOCAL context. Global glossary and conventions: root CLAUDE.md.
 
-## Thèse spécifique
-Des variables **exogènes** (prix du gaz, météo HDD/CDD) **précèdent** les mouvements
-de la jambe énergie, donc du spark spread (P01). P07 fabrique ces features
-**point-in-time** dans `core/features/` (réutilisables par P09 ML) et mesure leur
-*lead* sur le spread — sans look-ahead ni sur-fitting.
+## Specific thesis
+**Exogenous** variables (gas price, HDD/CDD weather) **lead** the moves of the
+energy leg, and therefore the spark spread (P01). P07 builds these
+**point-in-time** features in `core/features/` (reusable by P09 ML) and measures
+their *lead* over the spread — without look-ahead or overfitting.
 
-## Risque n°1 : le LOOK-AHEAD (données macro retardées + révisées)
-Chaque observation porte deux horodatages : `value_ts` (période décrite) et
-`knowledge_ts = value_ts + lag de publication` (date de publication). Une feature à
-`t` n'utilise que `knowledge_ts <= t`. Les **révisions** = plusieurs millésimes par
-`value_ts` ; à `t` on ne voit que le dernier publié à temps. Modélisé dans
-`core.features.as_of_snapshot`, **testé en rouge** (`core/features/tests`).
+## Risk #1: LOOK-AHEAD (macro data delayed + revised)
+Each observation carries two timestamps: `value_ts` (period described) and
+`knowledge_ts = value_ts + publication lag` (publication date). A feature at
+`t` only uses `knowledge_ts <= t`. **Revisions** = several vintages per
+`value_ts`; at `t` we only see the latest one published in time. Modeled in
+`core.features.as_of_snapshot`, **tested red-first** (`core/features/tests`).
 
 ## Architecture
-- `core/features/` (module possédé, fondation) : `protocols.py` (contrats vintage,
+- `core/features/` (owned module, foundation): `protocols.py` (vintage contracts,
   `ExogenousSource`, `FeatureBuilder`), `builders.py` (`as_of_snapshot`,
-  `from_lagged_series`, garde-fou `assert_point_in_time`, transforms purs,
+  `from_lagged_series`, `assert_point_in_time` guard, pure transforms,
   `PointInTimeFeatureBuilder`).
-- `projects/07_…/src/` : `sources.py` (I/O, repli synthétique déterministe),
-  `analysis.py` (cross-corrélation + OLS de confirmation, purs), `run_signal.py`
+- `projects/07_…/src/`: `sources.py` (I/O, deterministic synthetic fallback),
+  `analysis.py` (cross-correlation + confirmation OLS, pure), `run_signal.py`
   (orchestration + MLflow).
 
-## Reproductibilité
-Run MLflow via `core.utils.tracking.run` (params : variables, lags de publication,
-fenêtres, seed ; tags SHA + DVC). Brut exogène → `data/raw/exogenous/`, cache local
-(gitignoré par design, jamais committé).
+## Reproducibility
+MLflow run via `core.utils.tracking.run` (params: variables, publication lags,
+windows, seed; SHA + DVC tags). Raw exogenous data → `data/raw/exogenous/`, local
+cache (gitignored by design, never committed).
 
-## Branche ERCOT (L0 grid-stress, données RÉELLES)
-Sous-pipeline distinct du signal gaz/HDD/CDD ci-dessus : mesure si la **marge de réserve**
-et le **gradient net-load** ERCOT (prédicteurs gelés du pré-enregistrement L0,
-`docs/superpowers/specs/2026-06-23-L0-ercot-grid-stress-preregistration.md`) prédisent un
-spike RTM, hors échantillon.
-- `src/ercot_dataset.py` (97 L) — reconstruit les prédicteurs point-in-time depuis le cold
-  store (`as_of ≈ 18h CPT J-1`), garde-fou anti look-ahead sur `publish_time <= as_of`.
-- `src/ercot_labels.py` (67 L) — labels spike (percentile intra-jour, seuil absolu).
-- `src/ercot_baseline.py` (46 L) — baseline climatologique de référence.
-- `src/ercot_calibration.py` (98 L) — purged K-fold + embargo (`core.models`), comparaison
-  à la baseline, IC bootstrap + correction Benjamini-Hochberg multi-specs.
-- `src/ercot_eval.py` (79 L) — métriques PR-AUC + tests statistiques.
-- `src/run_ercot_calibration.py` (70 L) — orchestration → run MLflow.
-- 448 LOC au total, 14 tests dédiés dans `tests/test_ercot_*.py`.
+## ERCOT branch (L0 grid-stress, REAL data)
+Sub-pipeline distinct from the gas/HDD/CDD signal above: measures whether the
+ERCOT **reserve margin** and **net-load gradient** (predictors frozen at L0
+pre-registration,
+`docs/superpowers/specs/2026-06-23-L0-ercot-grid-stress-preregistration.md`) predict
+an RTM spike, out of sample.
+- `src/ercot_dataset.py` (97 L) — rebuilds point-in-time predictors from the cold
+  store (`as_of ≈ 6pm CPT D-1`), anti-look-ahead guard on `publish_time <= as_of`.
+- `src/ercot_labels.py` (67 L) — spike labels (intraday percentile, absolute threshold).
+- `src/ercot_baseline.py` (46 L) — reference climatology baseline.
+- `src/ercot_calibration.py` (98 L) — purged K-fold + embargo (`core.models`), comparison
+  to the baseline, bootstrap CI + Benjamini-Hochberg multi-spec correction.
+- `src/ercot_eval.py` (79 L) — PR-AUC metrics + statistical tests.
+- `src/run_ercot_calibration.py` (70 L) — orchestration → MLflow run.
+- 448 LOC total, 14 dedicated tests in `tests/test_ercot_*.py`.
 
-Lit **exclusivement** le cold store ERCOT réel (`data/cold/ercot`, rule
-`training-cold-store`) — jamais de repli synthétique, contrairement au reste de P07.
-Ce worktree ne contient pas le cold store peuplé (`data/cold/` est vide hors `.gitkeep`) :
-les 14 tests passent sur fixtures, mais `run_ercot_calibration.py` a besoin d'un backfill
-réel au préalable (`infra/collectors/ercot_backfill.py --start ... --end ...`, nécessite
-`GRIDSTATUS_API_KEY`).
+Reads **exclusively** from the real ERCOT cold store (`data/cold/ercot`, rule
+`training-cold-store`) — never a synthetic fallback, unlike the rest of P07.
+This worktree does not contain the populated cold store (`data/cold/` is empty
+except for `.gitkeep`): the 14 tests pass on fixtures, but `run_ercot_calibration.py`
+needs a real backfill beforehand (`infra/collectors/ercot_backfill.py --start ... --end ...`,
+requires `GRIDSTATUS_API_KEY`).
 
-## État d'avancement (PoC-now ✅)
-- [x] Mécanique point-in-time (lag + révisions) dans `core/features/` + 16 tests.
-- [x] Anti look-ahead STRICT testé en rouge (lag de publication, garde-fou).
-- [x] Builders point-in-time (lags, moyennes mobiles, diffs) sur fixtures connues.
-- [x] Mesure du lead anti-overfit : cross-corrélation + OLS out-of-sample (split temporel).
-- [x] Run MLflow reproductible + brut exogène en cache local (`data/raw/`, cf. CONVERGENCE).
+## Progress status (PoC-now ✅)
+- [x] Point-in-time mechanics (lag + revisions) in `core/features/` + 16 tests.
+- [x] STRICT anti-look-ahead tested red-first (publication lag, guard).
+- [x] Point-in-time builders (lags, moving averages, diffs) on known fixtures.
+- [x] Anti-overfit lead measurement: cross-correlation + out-of-sample OLS (temporal split).
+- [x] Reproducible MLflow run + raw exogenous data in local cache (`data/raw/`, cf. CONVERGENCE).
 
-## Résultats clés (données SIMULÉES, seed=7)
-DGP injectant un lead de 3 j ; le pipeline retrouve **2 j exploitables** (le lag de
-publication d'1 j rogne 1 j d'avance) :
-- meilleure feature **gas_price_lag0**, lead **2 j**, **|corr| ≈ 0.65** ;
-- `hdd_lag0` confirme (≈ 0.65) ; `cdd` ≈ 0 (contrôle négatif cohérent) ;
-- OLS confirmation : coef < 0, p-value ≈ 4e-45, **R²_oos ≈ 0.35** (prédictif, non sur-fitté).
+## Key results (SIMULATED data, seed=7)
+DGP injecting a 3-day lead; the pipeline recovers **2 exploitable days** (the 1-day
+publication lag eats 1 day of lead time):
+- best feature **gas_price_lag0**, lead **2 days**, **|corr| ≈ 0.65**;
+- `hdd_lag0` confirms (≈ 0.65); `cdd` ≈ 0 (consistent negative control);
+- OLS confirmation: coef < 0, p-value ≈ 4e-45, **R²_oos ≈ 0.35** (predictive, not overfit).
 
-**Pièges couverts** : lag de publication (test rouge), révisions (vintages), fuseau UTC,
-régression fallacieuse (mesure sur les **variations**, pas les niveaux).
-**Hors périmètre (institutionnel)** : connecteur réel météo/gaz (`data-engineer`),
-nowcasting, modèle causal, panel large, gestion fine des révisions réelles.
+**Pitfalls covered**: publication lag (red-first test), revisions (vintages), UTC
+timezone, spurious regression (measured on **changes**, not levels).
+**Out of scope (institutional)**: real weather/gas connector (`data-engineer`),
+nowcasting, causal model, large panel, fine-grained handling of real revisions.
 
 ## Convergence
-Patchs zone protégée (testpaths, registre sources…) :
-voir [CONVERGENCE.md](CONVERGENCE.md).
+Patches to the protected zone (testpaths, source registry…):
+see [CONVERGENCE.md](CONVERGENCE.md).

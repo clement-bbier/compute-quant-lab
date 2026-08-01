@@ -1,9 +1,9 @@
-"""Run de démonstration du pricer du digital spark spread (P01), loggué MLflow.
+"""Demonstration run of the digital spark spread pricer (P01), logged to MLflow.
 
-Charge le dataset aligné (``data/interim/aligned_spark.parquet``), price le spread
-via le pricer vectoriel point-in-time (oracle Python ou noyau Rust si compilé),
-loggue params + métriques + SHA git dans MLflow, et dépose un résumé JSON dans
-``results/`` pour la synthèse.
+Loads the aligned dataset (``data/interim/aligned_spark.parquet``), prices the spread
+via the point-in-time vectorized pricer (Python oracle or Rust kernel if compiled),
+logs params + metrics + git SHA to MLflow, and drops a JSON summary in
+``results/`` for the synthesis.
 """
 
 from __future__ import annotations
@@ -14,11 +14,11 @@ import os
 import subprocess
 from pathlib import Path
 
-# MLflow ≥ 3 met le file store en « maintenance mode » : on opte explicitement
-# pour le backend fichier (convention locale du labo, cf. experiments/mlruns).
+# MLflow >= 3 puts the file store into "maintenance mode": we explicitly opt in
+# to the file backend (local lab convention, cf. experiments/mlruns).
 os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 
-import mlflow  # noqa: E402 - après l'opt-out file-store ci-dessus
+import mlflow  # noqa: E402 - after the file-store opt-out above
 import pandas as pd  # noqa: E402
 
 from core.pricing import (
@@ -39,7 +39,7 @@ RESULTS = Path(__file__).resolve().parents[1] / "results"
 
 REGION = "FR"
 GPU = "H100"
-# Hypothèses physiques (8x H100) et change — alignées sur la thèse du labo.
+# Physical assumptions (8x H100) and FX — aligned with the lab's thesis.
 TDP_W = 700.0
 PUE = 1.82
 N_GPUS = 8
@@ -68,7 +68,7 @@ def _metrics(result: SpreadResult) -> dict[str, float]:
 
 
 def _data_version(path: Path) -> str:
-    """Empreinte git du fichier de données (plain git, plus de DVC)."""
+    """Git fingerprint of the data file (plain git, no more DVC)."""
     try:
         return (
             subprocess.check_output(
@@ -84,7 +84,7 @@ def _data_version(path: Path) -> str:
 
 def main() -> None:
     if not DATA.exists():
-        raise SystemExit(f"Dataset absent : {DATA}. Lance d'abord prepare_dataset.py.")
+        raise SystemExit(f"Dataset missing: {DATA}. Run prepare_dataset.py first.")
 
     frame = pd.read_parquet(DATA)
     energy_source = frame.attrs.get("energy_source", "unknown")
@@ -103,14 +103,14 @@ def main() -> None:
         "pue": PUE,
         "n_gpus": N_GPUS,
         "fx_eur_per_usd": FX_EUR_PER_USD,
-        "kernel": type(pricer._kernel).__name__,  # noqa: SLF001 - introspection démo
+        "kernel": type(pricer._kernel).__name__,  # noqa: SLF001 - demo introspection
         "energy_source": energy_source,
         "window_start": str(result.window[0]),
         "window_end": str(result.window[1]),
         "data_version": _data_version(DATA),
     }
 
-    # MLflow en local sous experiments/mlruns (gitignored), via le util du labo.
+    # MLflow locally under experiments/mlruns (gitignored), via the lab's util.
     mlflow.set_tracking_uri((REPO_ROOT / "experiments" / "mlruns").as_uri())
     with run("p01_spark_spread_pricer", params):
         for key, value in metrics.items():
@@ -122,12 +122,12 @@ def main() -> None:
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     log.info(
-        "Spread moyen=%.4f €/GPU·h | %% positif=%.1f%% | n=%d",
+        "Mean spread=%.4f EUR/GPU·h | %% positive=%.1f%% | n=%d",
         metrics["spread_mean_eur"],
         100 * metrics["spread_positive_share"],
         int(metrics["n_obs"]),
     )
-    log.info("Résumé écrit : %s", RESULTS / "run_summary.json")
+    log.info("Summary written: %s", RESULTS / "run_summary.json")
 
 
 if __name__ == "__main__":

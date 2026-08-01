@@ -1,13 +1,13 @@
-"""Config régionale injectable + factory de pricer (P05).
+"""Injectable regional config + pricer factory (P05).
 
-Une région possède son **PUE**, son efficience matérielle (TDP, nombre de GPU) et son
-taux de change $/€. Comme le PUE vit dans le ``PowerModel`` de P01 (pas dans l'appel
-``price``), un PUE régional impose **un ``SparkSpreadPricer`` par région** : c'est le rôle
-de ``build_regional_pricer``.
+A region has its own **PUE**, hardware efficiency (TDP, GPU count) and $/€ exchange
+rate. Since PUE lives in P01's ``PowerModel`` (not in the ``price`` call), a regional
+PUE requires **one ``SparkSpreadPricer`` per region**: that's the role of
+``build_regional_pricer``.
 
-Aucun nombre magique dans la logique (rule python-quality) : les constantes régionales
-sont des champs nommés de ``RegionConfig`` ; ``DEFAULT_REGIONS`` n'est qu'un jeu de défauts
-documenté, surchargeable par injection.
+No magic numbers in the logic (rule python-quality): regional constants are named
+fields of ``RegionConfig``; ``DEFAULT_REGIONS`` is just a documented set of defaults,
+overridable via injection.
 """
 
 from __future__ import annotations
@@ -20,22 +20,22 @@ from core.pricing.protocols import SpreadKernel
 
 @dataclass(frozen=True)
 class RegionConfig:
-    """Paramètres d'une région pour le pricing du spark spread.
+    """Parameters of a region for spark spread pricing.
 
     Parameters
     ----------
     code
-        Identifiant région (clé de la colonne énergie, ex. ``"FR"``, ``"DE"``).
+        Region identifier (energy column key, e.g. ``"FR"``, ``"DE"``).
     pue
-        Power Usage Effectiveness (sans dimension, ≥ 1.0).
+        Power Usage Effectiveness (dimensionless, ≥ 1.0).
     tdp_w
-        Puissance IT (TDP) d'un GPU, en watts (> 0).
+        IT power draw (TDP) of a GPU, in watts (> 0).
     n_gpus
-        Nombre de GPU du serveur de référence (> 0).
+        Number of GPUs of the reference server (> 0).
     fx_eur_per_usd
-        Taux de change EUR par USD appliqué au revenu compute (> 0).
+        EUR per USD exchange rate applied to compute revenue (> 0).
     label
-        Étiquette lisible (datacentre / zone), traçabilité uniquement.
+        Human-readable label (datacenter / zone), traceability only.
     """
 
     code: str
@@ -47,28 +47,28 @@ class RegionConfig:
 
     def __post_init__(self) -> None:
         if self.pue < 1.0:
-            raise ValueError(f"pue doit être ≥ 1.0 (reçu {self.pue}) : conso totale ≥ conso IT.")
+            raise ValueError(f"pue must be ≥ 1.0 (got {self.pue}): total draw ≥ IT draw.")
         if self.tdp_w <= 0:
-            raise ValueError(f"tdp_w doit être > 0 (reçu {self.tdp_w}).")
+            raise ValueError(f"tdp_w must be > 0 (got {self.tdp_w}).")
         if self.n_gpus <= 0:
-            raise ValueError(f"n_gpus doit être > 0 (reçu {self.n_gpus}).")
+            raise ValueError(f"n_gpus must be > 0 (got {self.n_gpus}).")
         if self.fx_eur_per_usd <= 0:
-            raise ValueError(f"fx_eur_per_usd doit être > 0 (reçu {self.fx_eur_per_usd}).")
+            raise ValueError(f"fx_eur_per_usd must be > 0 (got {self.fx_eur_per_usd}).")
 
 
 def build_regional_pricer(
     cfg: RegionConfig, *, kernel: SpreadKernel | None = None
 ) -> SparkSpreadPricer:
-    """Construit un ``SparkSpreadPricer`` (P01) portant le PUE/efficience de ``cfg``.
+    """Builds a ``SparkSpreadPricer`` (P01) carrying ``cfg``'s PUE/efficiency.
 
-    Factory pure : aucune I/O. Le noyau Rust est injectable (défaut : oracle Python).
+    Pure factory: no I/O. The Rust kernel is injectable (default: Python oracle).
     """
     power_model = ServerPowerModel(tdp_w=cfg.tdp_w, pue=cfg.pue, n_gpus=cfg.n_gpus)
     return SparkSpreadPricer(power_model, ConstantFx(cfg.fx_eur_per_usd), kernel)
 
 
-# Défauts documentés (config, pas magie) : H100 8-GPU, PUE FR < DE (mix nucléaire vs charbon/gaz),
-# FX EUR/USD ~ parité. Surchargeables par injection dans run_basis.py / les tests.
+# Documented defaults (config, not magic): 8-GPU H100, PUE FR < DE (nuclear vs coal/gas mix),
+# EUR/USD FX ~ parity. Overridable via injection in run_basis.py / tests.
 DEFAULT_REGIONS: tuple[RegionConfig, ...] = (
     RegionConfig(code="FR", pue=1.20, tdp_w=700.0, n_gpus=8, fx_eur_per_usd=0.92, label="France"),
     RegionConfig(code="DE", pue=1.45, tdp_w=700.0, n_gpus=8, fx_eur_per_usd=0.92, label="Germany"),

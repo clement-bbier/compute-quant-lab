@@ -1,8 +1,8 @@
-"""Baseline climatologique ERCOT (fiche L0 §7) — le « truc à battre ».
+"""ERCOT climatology baseline (L0 spec §7) — the "thing to beat".
 
-Taux de base des spikes par (heure-de-jour × mois). Un signal n'est retenu que s'il
-**dépasse** cette saisonnalité naïve (sinon il ne fait que redécouvrir que les
-après-midi d'été sont tendus). Fonctions pures, ajustées sur le fold d'entraînement.
+Base spike rate by (hour-of-day x month). A signal is only kept if it
+**beats** this naive seasonality (otherwise it merely rediscovers that
+summer afternoons are tight). Pure functions, fitted on the training fold.
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class ClimatologyBaseline:
-    """Taux de base de spike par (heure-de-jour, mois), + repli global.
+    """Base spike rate by (hour-of-day, month), + global fallback.
 
-    Ajusté sur les labels d'entraînement ; prédit une probabilité par timestamp.
+    Fitted on the training labels; predicts a probability per timestamp.
     """
 
     rates: dict[tuple[int, int], float]
@@ -25,9 +25,9 @@ class ClimatologyBaseline:
 
     @classmethod
     def fit(cls, labels: pd.Series) -> ClimatologyBaseline:
-        """Ajuste le taux de base par (heure, mois) sur ``labels`` (bool/0-1, index UTC)."""
+        """Fits the base rate by (hour, month) on ``labels`` (bool/0-1, UTC index)."""
         if labels.index.tz is None:
-            raise ValueError("index UTC tz-aware obligatoire")
+            raise ValueError("UTC tz-aware index required")
         frame = pd.DataFrame(
             {
                 "y": labels.to_numpy(dtype=float),
@@ -39,7 +39,7 @@ class ClimatologyBaseline:
         return cls(rates=dict(rates), global_rate=float(frame["y"].mean()))
 
     def predict(self, index: pd.DatetimeIndex) -> np.ndarray:
-        """Probabilité de spike par timestamp : taux (heure, mois), repli global si inconnu."""
+        """Spike probability per timestamp: (hour, month) rate, global fallback if unknown."""
         return np.array(
             [self.rates.get((t.hour, t.month), self.global_rate) for t in index],
             dtype=float,

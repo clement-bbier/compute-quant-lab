@@ -1,11 +1,11 @@
-"""Run headline P02 : cointégration → signal z-score → backtest P08 → run MLflow reproductible.
+"""Headline P02 run: cointegration -> z-score signal -> P08 backtest -> reproducible MLflow run.
 
-Pipeline branché sur du **réel** : énergie ENTSO-E (`load_energy_entsoe`) + indice compute
-reconstruit des snapshots marketplace réels (`compute_index_series`). Tant que le token ENTSO-E
-ou l'historique compute manquent, on bascule sur un jeu **explicitement simulé** (provenance
-``simulated=True``, rule ``forward-real-simulated``) pour valider le pipeline — jamais vendu
-comme alpha. Le run logge MLflow : params (seuils z, lookback, coûts, n_trials, p-value de
-cointégration, demi-vie, réel/simulé) + métriques de risque + figure PnL. Rejouable (graine fixée).
+Pipeline wired to **real** data: ENTSO-E energy (`load_energy_entsoe`) + compute index
+reconstructed from real marketplace snapshots (`compute_index_series`). While the ENTSO-E token
+or the compute history are missing, we fall back to an **explicitly simulated** dataset (provenance
+``simulated=True``, rule ``forward-real-simulated``) to validate the pipeline — never sold
+as alpha. The run logs to MLflow: params (z-thresholds, lookback, costs, n_trials, cointegration
+p-value, half-life, real/simulated) + risk metrics + PnL figure. Replayable (fixed seed).
 
     uv run python projects/02_spread_mean_reversion/src/run_backtest.py
 """
@@ -28,21 +28,21 @@ from core.utils.logging import get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
-import cointegration  # noqa: E402  (src ajouté au sys.path ci-dessus)
+import cointegration  # noqa: E402  (src added to sys.path above)
 from data_sources import DataProvenance, SpreadDataset, build_spread, compute_index_series  # noqa: E402
 from strategy import MeanReversionStrategy  # noqa: E402
 
 log = get_logger("run_backtest")
 
-# Racine du dépôt : ce fichier est à projects/02_spread_mean_reversion/src/.
+# Repo root: this file lives at projects/02_spread_mean_reversion/src/.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_DIR = _HERE.parent / "results"
 EXPERIMENT = "p02_spread_mean_reversion"
 SEED = 42
 GPU, REGION = "H100", "FR"
-PERIODS_PER_YEAR = 8760.0  # grille horaire ENTSO-E
+PERIODS_PER_YEAR = 8760.0  # ENTSO-E hourly grid
 
-# Seuils fixés *a priori* (non optimisés) → n_trials = 1 (anti multiple-testing, backtest-pitfalls).
+# Thresholds fixed *a priori* (not optimized) -> n_trials = 1 (anti multiple-testing, backtest-pitfalls).
 Z_ENTRY, Z_EXIT, LOOKBACK = 2.0, 0.5, 48
 FEES_BPS, SLIPPAGE_BPS = 10.0, 5.0
 
@@ -58,20 +58,20 @@ def _ou(
 
 
 def _simulated_legs(n: int = 2000) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Deux jambes **cointégrées par construction**, spread économique P01 **stationnaire**.
+    """Two legs **cointegrated by construction**, **stationary** P01 economic spread.
 
-    L'énergie est une marche aléatoire I(1) (€/MWh). Le compute = coût énergétique + spread OU :
-    ``compute - coût_énergie`` est donc exactement un OU stationnaire (mean-reversion propre, positif,
-    ~2.3 $/GPU·h réaliste H100), et compute↔energy sont cointégrés. Strictement simulé.
+    Energy is an I(1) random walk (EUR/MWh). Compute = energy cost + OU spread:
+    ``compute - energy_cost`` is therefore exactly a stationary OU process (clean mean reversion, positive,
+    ~2.3 $/GPU·h realistic for H100), and compute<->energy are cointegrated. Strictly simulated.
     """
     rng = np.random.default_rng(SEED)
     idx = pd.date_range("2025-01-01", periods=n, freq="h", tz="UTC")
     energy = np.clip(120.0 + np.cumsum(rng.standard_normal(n) * 3.0), 20.0, None)
-    # Coût énergétique P01 (8x H100 @ 700 W TDP, PUE 1.82) reproduit pour que le spread = OU pur.
+    # P01 energy cost (8x H100 @ 700 W TDP, PUE 1.82) reproduced so the spread = pure OU.
     power_kw_per_gpu, pue = 700.0 / 1000.0, 1.82
     energy_cost = power_kw_per_gpu * pue * energy / 1000.0
-    # Spread = OU stationnaire pur. NB : la stratégie épouse alors exactement le processus → Sharpe
-    # synthétique élevé (illusion de backtest, cf. results/SYNTHESIS.md). Sert à valider le PIPELINE.
+    # Spread = pure stationary OU. NB: the strategy then tracks the process exactly -> inflated
+    # synthetic Sharpe (backtest illusion, cf. results/SYNTHESIS.md). Used to validate the PIPELINE.
     spread_ou = _ou(n, theta=0.05, sigma=0.10, rng=rng, mu=2.3)
     compute = energy_cost + spread_ou
     return (
@@ -81,18 +81,19 @@ def _simulated_legs(n: int = 2000) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
-    """Charge les deux jambes réelles si disponibles, sinon bascule sur le jeu simulé étiqueté."""
+    """Loads both real legs if available, otherwise falls back to the labeled simulated dataset."""
     token = os.environ.get("ENTSOE_API_TOKEN")
     snapshots_dir = _REPO_ROOT / "data" / "snapshots"
     snapshots = CsvSnapshotStore(snapshots_dir).load()
     if not token:
-        log.warning("Pas de token ENTSO-E (ENTSOE_API_TOKEN) — bascule sur le jeu simulé.")
+        log.warning("No ENTSO-E token (ENTSOE_API_TOKEN) — falling back to the simulated dataset.")
     elif not snapshots:
         log.warning(
-            "Aucun snapshot compute trouvé dans %s — bascule sur le jeu simulé.", snapshots_dir
+            "No compute snapshot found in %s — falling back to the simulated dataset.",
+            snapshots_dir,
         )
     if token and snapshots:
-        from data_sources import load_energy_entsoe  # import tardif : réseau token-gated
+        from data_sources import load_energy_entsoe  # late import: network call, token-gated
 
         energy = load_energy_entsoe(
             REGION, pd.Timestamp("2024-01-01Z"), pd.Timestamp("2025-01-01Z")
@@ -108,7 +109,7 @@ def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
 def _cointegration_diagnostics(
     energy: pd.Series, compute: pd.Series, dataset: SpreadDataset
 ) -> dict[str, float | bool]:
-    """Teste la cointégration énergie↔compute (Engle-Granger + Johansen) et la demi-vie du spread."""
+    """Tests energy<->compute cointegration (Engle-Granger + Johansen) and the spread half-life."""
     eg = cointegration.engle_granger(compute, energy)
     johansen = cointegration.johansen(pd.concat([compute, energy], axis=1))
     return {
@@ -142,7 +143,7 @@ def main() -> None:
         "periods_per_year": PERIODS_PER_YEAR,
         "seed": SEED,
         "n_obs": int(spread.shape[0]),
-        "n_trials": 1,  # seuils fixés a priori : pas de recherche → pas de multiple-testing
+        "n_trials": 1,  # thresholds fixed a priori: no search -> no multiple-testing
         "gpu": GPU,
         "region": REGION,
         "data_source": provenance.source,

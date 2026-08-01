@@ -1,74 +1,74 @@
-# P06 — Compute Futures Pricing (théorique / simulé)
+# P06 — Compute Futures Pricing (theoretical / simulated)
 
-Pricing **théorique** des futures compute (CME, settlement sur l'indice Silicon Data
-SDH100RT, **non listés**) : base spot/forward et sensibilités, prêts à valoriser le
-jour du listing. Voir la spec locale : [CLAUDE.md](CLAUDE.md).
+**Theoretical** pricing of compute futures (CME, settling on the Silicon Data index
+SDH100RT, **not listed**): spot/forward base and sensitivities, ready to value the
+day it lists. See the local spec: [CLAUDE.md](CLAUDE.md).
 
-> ⚠️ **THÉORIQUE/SIMULÉ.** Les futures compute ne sont pas listés. Toute forward
-> provient d'un modèle (cost-of-carry ou Schwartz P04), jamais d'un marché observé.
-> Chaque `FuturesQuote` porte un champ `simulated` obligatoire ; ne jamais présenter
-> ces chiffres comme un prix réel.
+> WARNING: **THEORETICAL/SIMULATED.** Compute futures are not listed. Every forward
+> comes from a model (cost-of-carry or Schwartz P04), never from an observed market.
+> Each `FuturesQuote` carries a mandatory `simulated` field; never present these
+> figures as a real price.
 
-## Modèle
+## Model
 
 ### Cost-of-carry
-Prix forward d'un sous-jacent portant un coût de financement `r` et un convenience
-yield `y` (annualisés), à maturité `τ` (années) :
+Forward price of an underlying carrying a financing cost `r` and a convenience
+yield `y` (annualized), at maturity `τ` (years):
 
 ```
 F = S · e^{(r − y)·τ}        base = F − S
 ```
 
-- **Report (contango)** si `r > y` (base positive), **déport (backwardation)** si `y > r`.
-- **Convergence** : `F(τ=0) = S`.
-- **Sensibilités** (dérivées premières analytiques) : `∂F/∂r = F·τ`,
+- **Contango** if `r > y` (positive base), **backwardation** if `y > r`.
+- **Convergence**: `F(τ=0) = S`.
+- **Sensitivities** (analytic first derivatives): `∂F/∂r = F·τ`,
   `∂F/∂y = −F·τ`, `∂F/∂τ = F·(r−y)`.
 
-### Convenience yield implicite (le pivot)
-Le yield `y` n'est **pas observable**. On l'infère en inversant la forward :
+### Implicit convenience yield (the pivot)
+The yield `y` is **not observable**. It is inferred by inverting the forward:
 
 ```
 y = r − ln(F/S) / τ
 ```
 
-`CarryFuturesPricer` infère **systématiquement** ce yield depuis la forward injectée.
-Conséquence : pour un `CostOfCarryModel(r, y)` exogène, l'inversion **redonne `y`**
-(round-trip) ; pour la forward **Schwartz simulée de P04**, elle **extrait** le yield
-implicite — un seul cadre pour deux dynamiques (carry géométrique vs mean-reversion).
+`CarryFuturesPricer` **systematically** infers this yield from the injected forward.
+Consequence: for an exogenous `CostOfCarryModel(r, y)`, the inversion **returns `y`**
+(round-trip); for P04's **simulated Schwartz** forward, it **extracts** the implicit
+yield — a single framework for two dynamics (geometric carry vs mean reversion).
 
 ## Architecture
 
-| Élément | Emplacement | Rôle |
+| Element | Location | Role |
 |---|---|---|
-| `CarryModel`, `FuturesPricer` | `core/pricing/derivatives/protocols.py` | Contrats (DI / SOLID) |
-| `carry_forward`, `implied_convenience_yield`, `carry_sensitivities`, `CostOfCarryModel` | `core/pricing/derivatives/carry.py` | Cœur (fonctions pures) |
-| `FuturesQuote`, `CarryFuturesPricer` | `core/pricing/derivatives/futures.py` | Cotation + orchestrateur |
-| `P04ForwardAdapter` | `src/p04_forward_adapter.py` | Pont vers la forward Schwartz P04 |
-| `run_pricing.py` | `src/run_pricing.py` | Démo bout-en-bout + MLflow |
+| `CarryModel`, `FuturesPricer` | `core/pricing/derivatives/protocols.py` | Contracts (DI / SOLID) |
+| `carry_forward`, `implied_convenience_yield`, `carry_sensitivities`, `CostOfCarryModel` | `core/pricing/derivatives/carry.py` | Core (pure functions) |
+| `FuturesQuote`, `CarryFuturesPricer` | `core/pricing/derivatives/futures.py` | Quoting + orchestrator |
+| `P04ForwardAdapter` | `src/p04_forward_adapter.py` | Bridge to P04's Schwartz forward |
+| `run_pricing.py` | `src/run_pricing.py` | End-to-end demo + MLflow |
 
-L'adapter P04 vit dans la **couche projet** (pas dans `core/`) pour ne pas coupler le
-cœur à `projects/04` : `core` ignore les projets, `mypy core` reste propre.
+The P04 adapter lives in the **project layer** (not in `core/`) so as not to couple
+the core to `projects/04`: `core` stays agnostic of projects, `mypy core` stays clean.
 
-## Lancer
+## Run
 
 ```bash
 uv sync --extra dev
-# Démo : spot réel (repli loggué si pas de snapshot), term structure, run MLflow
+# Demo: real spot (logged fallback if no snapshot), term structure, MLflow run
 uv run python projects/06_compute_futures_pricing/src/run_pricing.py
-# Sortie : results/futures_pricing_summary.json (+ run sous experiments/mlruns)
+# Output: results/futures_pricing_summary.json (+ run under experiments/mlruns)
 
-# Tests (hors testpaths tant que la convergence n'a pas patché pyproject.toml)
+# Tests (outside testpaths until convergence patches pyproject.toml)
 uv run pytest projects/06_compute_futures_pricing/tests
 ```
 
-## Reproductibilité
-Run MLflow (`p06_compute_futures_pricing`) loggant params (spot + source réel/hypothèse,
-`r`, `y`, params Schwartz, grille d'échéances, `simulated=True`), métriques (base et
-yield implicite par échéance), SHA git et version DVC (via `core.utils.tracking.run`).
-Oracle analytique déterministe (pas de Monte-Carlo) → résultat rejouable.
+## Reproducibility
+MLflow run (`p06_compute_futures_pricing`) logging params (spot + real/assumed source,
+`r`, `y`, Schwartz params, maturity grid, `simulated=True`), metrics (base and implied
+yield per maturity), git SHA and DVC version (via `core.utils.tracking.run`).
+Deterministic analytic oracle (no Monte Carlo) → reproducible result.
 
-## Limites & angles morts
-- Futures **non listés** → 100 % théorique.
-- **Convenience yield** non observable : hypothèse (carry exogène) ou inféré (forward P04).
-- Dépendance au modèle Schwartz de P04 : **la forward n'est pas le marché**.
-- Spot réel non encore accumulé (snapshots) → la démo retombe sur une hypothèse loggée.
+## Limitations & blind spots
+- Futures **not listed** → 100% theoretical.
+- **Convenience yield** not observable: assumed (exogenous carry) or inferred (P04 forward).
+- Dependency on P04's Schwartz model: **the forward is not the market**.
+- Real spot not yet accumulated (snapshots) → the demo falls back to a logged assumption.
