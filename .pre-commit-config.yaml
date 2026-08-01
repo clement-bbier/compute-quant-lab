@@ -1,13 +1,25 @@
 repos:
+  # revs pinned to match the versions uv.lock actually resolves (`ruff --version`,
+  # `mypy --version` under `uv run`) — a stale mirror rev drifts from `make lint`
+  # and can flag/miss things the real CI check doesn't.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.10
+    rev: v0.15.18
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v2.1.0
     hooks:
       - id: mypy
         files: ^core/
-        additional_dependencies: ["numpy>=1.26", "pandas>=2.2", "types-requests"]
+        # Pinned to the versions uv.lock actually resolves (not open floors):
+        # mypy's type-checking output is sensitive to the exact numpy/pandas-stubs
+        # release, so an unpinned range here can disagree with `make lint`.
+        additional_dependencies:
+          [
+            "numpy==2.4.6",
+            "pandas==2.3.3",
+            "pandas-stubs==3.0.5.260730",
+            "types-requests==2.33.0.20260712",
+          ]
