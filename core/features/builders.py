@@ -1,14 +1,14 @@
-"""Construction de features exogènes **point-in-time** (anti look-ahead strict).
+"""Building **point-in-time** exogenous features (strict anti look-ahead).
 
-Cœur de la discipline P07. Toute feature à l'instant de décision ``t`` n'utilise
-que des observations dont le ``knowledge_ts <= t`` (cf. `protocols`). Le mécanisme
-généralise le décalage de publication de `core.pricing.sources.DataFramePriceSource`
-(qui décale l'index vers le *connu à t*) en gérant **aussi les révisions** : par
-``value_ts``, on ne retient que le dernier millésime publié à temps.
+Heart of the P07 discipline. Any feature at decision instant ``t`` uses only
+observations whose ``knowledge_ts <= t`` (see `protocols`). The mechanism generalizes
+the publication shift of `core.pricing.sources.DataFramePriceSource` (which shifts the
+index towards what is *known at t*) by **also handling revisions**: per ``value_ts``,
+only the latest vintage published in time is kept.
 
-Parallèle assumé avec `core.backtest.guards.LookAheadError` : là-bas un garde-fou
-*runtime* pour les signaux de backtest ; ici la même intransigeance au moment de
-fabriquer les features. Les deux modules restent découplés (pas d'import croisé).
+Deliberate parallel with `core.backtest.guards.LookAheadError`: over there a *runtime*
+guardrail for backtest signals; here the same intransigence at feature-building time.
+The two modules stay decoupled (no cross-import).
 """
 
 from __future__ import annotations
@@ -22,48 +22,48 @@ from core.features.protocols import KNOWLEDGE_TS, VALUE, VALUE_TS, ExogenousSour
 from core.utils.timeindex import to_utc_index
 
 # ---------------------------------------------------------------------------
-# Lags de publication par défaut — fixés par le directeur de recherche.
+# Default publication lags — set by the research director.
 #
-# Chaque variable exogène n'est connue qu'avec retard. Un lag trop court = look-ahead ;
-# trop long = on jette du signal exploitable. Défaut *conservateur* (on préfère
-# sur-estimer le retard). À recalibrer sur le vrai calendrier au câblage du connecteur
-# réel (cf. CONVERGENCE) ; si la source expose des millésimes, alimenter directement
-# les frames vintage (les révisions sont gérées par `as_of_snapshot`).
+# Each exogenous variable is only known with a delay. A lag that is too short =
+# look-ahead; too long = exploitable signal is thrown away. *Conservative* default (we
+# prefer over-estimating the delay). To be recalibrated against the real calendar when
+# wiring the real connector (see CONVERGENCE); if the source exposes vintages, feed the
+# vintage frames directly (revisions are handled by `as_of_snapshot`).
 # ---------------------------------------------------------------------------
 DEFAULT_PUBLICATION_LAGS: dict[str, pd.Timedelta] = {
-    # Indice gaz de settlement publié J+1 (le day-ahead, lui, serait connu la veille).
+    # Settlement gas index published D+1 (the day-ahead one would be known the day before).
     "gas_price": pd.Timedelta("1D"),
-    # Température réalisée dispo J+1, + 1 j de marge contre les révisions météo.
+    # Realized temperature available D+1, + 1 day of margin against weather revisions.
     "hdd": pd.Timedelta("2D"),
-    "cdd": pd.Timedelta("2D"),  # idem HDD (même source température réalisée).
+    "cdd": pd.Timedelta("2D"),  # same as HDD (same realized temperature source).
 }
 
 
 class LookAheadError(RuntimeError):
-    """Levée quand une feature à ``t`` consommerait une donnée connue après ``t``."""
+    """Raised when a feature at ``t`` would consume data known only after ``t``."""
 
 
 def from_lagged_series(
     values: pd.Series,
     publication_lag: pd.Timedelta,
 ) -> pd.DataFrame:
-    """Fabrique un frame vintage depuis une série simple + un lag de publication.
+    """Build a vintage frame from a plain series + a publication lag.
 
-    Cas PoC sans vrais millésimes : on pose ``knowledge_ts = value_ts + lag``. Les
-    révisions, elles, se modélisent en concaténant plusieurs lignes de même
-    ``value_ts`` (knowledge_ts distincts) directement dans le frame vintage.
+    PoC case without real vintages: ``knowledge_ts = value_ts + lag`` is assumed.
+    Revisions are modelled by concatenating several rows sharing the same ``value_ts``
+    (distinct knowledge_ts) directly into the vintage frame.
 
     Parameters
     ----------
     values
-        Série indexée par ``value_ts`` (DatetimeIndex tz-aware) → valeur observée.
+        Series indexed by ``value_ts`` (tz-aware DatetimeIndex) -> observed value.
     publication_lag
-        Retard entre la période décrite et sa publication (``Timedelta``).
+        Delay between the period described and its publication (``Timedelta``).
 
     Returns
     -------
     pd.DataFrame
-        Colonnes ``(value_ts, knowledge_ts, value)``, horodatages UTC.
+        Columns ``(value_ts, knowledge_ts, value)``, UTC timestamps.
     """
     value_ts = to_utc_index(values.index)
     return pd.DataFrame(
@@ -76,14 +76,14 @@ def from_lagged_series(
 
 
 def as_of_snapshot(vintages: pd.DataFrame, asof: pd.Timestamp) -> pd.Series:
-    """Snapshot point-in-time : valeurs connues à ``asof`` (lag + révisions gérés).
+    """Point-in-time snapshot: values known at ``asof`` (lag + revisions handled).
 
-    1. ne garde que les lignes ``knowledge_ts <= asof`` (filtre de publication) ;
-    2. par ``value_ts``, retient le ``knowledge_ts`` le plus récent (dernier
-       millésime connu — gère les révisions) ;
-    3. renvoie une série indexée par ``value_ts`` croissant.
+    1. keeps only the rows ``knowledge_ts <= asof`` (publication filter);
+    2. per ``value_ts``, keeps the most recent ``knowledge_ts`` (latest known vintage —
+       handles revisions);
+    3. returns a series indexed by increasing ``value_ts``.
 
-    Une série vide (rien encore publié) est renvoyée avec un index UTC vide.
+    An empty series (nothing published yet) is returned with an empty UTC index.
     """
     known = vintages[vintages[KNOWLEDGE_TS] <= asof]
     if known.empty:
@@ -100,39 +100,39 @@ def as_of_snapshot(vintages: pd.DataFrame, asof: pd.Timestamp) -> pd.Series:
 
 
 def assert_point_in_time(asof: pd.Timestamp, used_knowledge_ts: pd.Series) -> None:
-    """Garde-fou : lève `LookAheadError` si un ``knowledge_ts`` utilisé dépasse ``asof``.
+    """Guardrail: raise `LookAheadError` if a used ``knowledge_ts`` exceeds ``asof``.
 
-    Pendant features du garde-fou backtest : rend le look-ahead **impossible à
-    ignorer** plutôt que de le corriger silencieusement.
+    Feature-side counterpart of the backtest guardrail: makes look-ahead **impossible to
+    ignore** rather than silently correcting it.
     """
     offenders = used_knowledge_ts[used_knowledge_ts > asof]
     if not offenders.empty:
         raise LookAheadError(
-            f"{len(offenders)} donnée(s) non connue(s) à {asof} : "
-            f"knowledge_ts max = {offenders.max()}"
+            f"used_knowledge_ts ({len(offenders)} observation(s)) must be known at {asof}: "
+            f"max knowledge_ts = {offenders.max()}"
         )
 
 
 def lag_feature(snapshot: pd.Series, k: int) -> float:
-    """Valeur retardée de ``k`` pas dans le snapshot connu (lag 0 = plus récente)."""
+    """Value lagged by ``k`` steps in the known snapshot (lag 0 = most recent)."""
     if k < 0:
-        raise ValueError(f"lag négatif interdit : k={k}")
+        raise ValueError(f"k ({k}) must be a non-negative lag.")
     if k >= snapshot.shape[0]:
         return math.nan
     return float(snapshot.iloc[-1 - k])
 
 
 def rolling_mean_feature(snapshot: pd.Series, window: int) -> float:
-    """Moyenne des ``window`` dernières valeurs connues (NaN si historique trop court)."""
+    """Mean of the last ``window`` known values (NaN if the history is too short)."""
     if window <= 0:
-        raise ValueError(f"fenêtre invalide : window={window}")
+        raise ValueError(f"window ({window}) must be strictly positive.")
     if snapshot.shape[0] < window:
         return math.nan
     return float(snapshot.iloc[-window:].mean())
 
 
 def diff_feature(snapshot: pd.Series, k: int) -> float:
-    """Différence entre la valeur la plus récente et celle retardée de ``k``."""
+    """Difference between the most recent value and the one lagged by ``k``."""
     latest = lag_feature(snapshot, 0)
     lagged = lag_feature(snapshot, k)
     if math.isnan(latest) or math.isnan(lagged):
@@ -142,7 +142,7 @@ def diff_feature(snapshot: pd.Series, k: int) -> float:
 
 @dataclass(frozen=True)
 class FeatureSpec:
-    """Quelles features dériver d'une variable (toutes ≤ t par construction)."""
+    """Which features to derive from a variable (all <= t by construction)."""
 
     lags: tuple[int, ...] = ()
     rolling_means: tuple[int, ...] = ()
@@ -150,14 +150,14 @@ class FeatureSpec:
 
 
 class PointInTimeFeatureBuilder:
-    """Builder point-in-time injectable (implémente `FeatureBuilder`).
+    """Injectable point-in-time builder (implements `FeatureBuilder`).
 
     Parameters
     ----------
     source
-        Source exogène (protocole `ExogenousSource`) servant les frames vintage.
+        Exogenous source (`ExogenousSource` protocol) serving the vintage frames.
     specs
-        Pour chaque variable, la `FeatureSpec` des transforms à dériver.
+        For each variable, the `FeatureSpec` of the transforms to derive.
     """
 
     def __init__(self, source: ExogenousSource, specs: dict[str, FeatureSpec]) -> None:
@@ -165,7 +165,7 @@ class PointInTimeFeatureBuilder:
         self._specs = specs
 
     def _feature_plan(self) -> list[tuple[str, str, str, int]]:
-        """Liste ordonnée et déterministe ``(nom_feature, variable, kind, param)``."""
+        """Ordered, deterministic list of ``(feature_name, variable, kind, param)``."""
         plan: list[tuple[str, str, str, int]] = []
         for name, spec in self._specs.items():
             plan += [(f"{name}_lag{k}", name, "lag", k) for k in spec.lags]
@@ -205,7 +205,7 @@ __all__ = [
     "diff_feature",
     "FeatureSpec",
     "PointInTimeFeatureBuilder",
-    # ré-exports pratiques
+    # convenience re-exports
     "KNOWLEDGE_TS",
     "VALUE",
     "VALUE_TS",

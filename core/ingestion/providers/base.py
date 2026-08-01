@@ -1,10 +1,9 @@
-"""Socle du paquet ``providers`` : protocole de venue + normalisation partagée.
+"""Foundation of the ``providers`` package: venue protocol + shared normalisation.
 
-Définit l'abstraction d'injection :class:`GpuPriceProvider` (un provider = une
-marketplace) et l'helper de normalisation des modèles GPU, **partagé** par toutes les
-venues. Le placer ici — plutôt que dans un fichier de venue — évite tout couplage
-venue→venue : chaque module de venue ne dépend que de ce socle (OCP : *ajouter une venue
-= ajouter un fichier*, sans toucher aux autres).
+Defines the :class:`GpuPriceProvider` injection abstraction (one provider = one marketplace)
+and the GPU model normalisation helper, **shared** by every venue. Placing it here -- rather
+than in a venue file -- avoids any venue-to-venue coupling: each venue module depends only on
+this foundation (OCP: *adding a venue means adding a file*, without touching the others).
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ from typing import Protocol, runtime_checkable
 
 from core.ingestion.protocols import Snapshot
 
-#: Familles de GPU datacenter reconnues (ordre = priorité de désambiguïsation).
+#: Recognised datacenter GPU families (order = disambiguation priority).
 _GPU_FAMILIES: tuple[str, ...] = (
     "B200",
     "H200",
@@ -32,10 +31,10 @@ _GPU_FAMILIES: tuple[str, ...] = (
 
 
 def normalize_gpu_model(raw_name: str) -> str:
-    """Extrait la famille canonique d'un nom de GPU hétérogène.
+    """Extract the canonical family from a heterogeneous GPU name.
 
-    ``"H100 SXM"`` → ``"H100"`` ; ``"NVIDIA A100-SXM4-80GB"`` → ``"A100"``. Si aucune
-    famille connue n'est trouvée, renvoie le nom nettoyé (majuscules, alphanumérique).
+    ``"H100 SXM"`` -> ``"H100"``; ``"NVIDIA A100-SXM4-80GB"`` -> ``"A100"``. If no known
+    family is found, returns the cleaned name (uppercase, alphanumeric).
     """
     compact = re.sub(r"[^A-Z0-9]", "", raw_name.upper())
     for family in _GPU_FAMILIES:
@@ -46,18 +45,18 @@ def normalize_gpu_model(raw_name: str) -> str:
 
 @runtime_checkable
 class GpuPriceProvider(Protocol):
-    """Source de prix d'une marketplace GPU (injectable, key-gated).
+    """Price source of a GPU marketplace (injectable, key-gated).
 
-    Un provider = une venue. Le registre (:mod:`core.ingestion.providers`) n'appelle
-    ``fetch`` que si **toutes** les ``required_env`` sont présentes dans l'environnement ;
-    sinon il loggue un avertissement et saute le provider (comportement historique).
+    One provider = one venue. The registry (:mod:`core.ingestion.providers`) calls ``fetch``
+    only if **all** of the ``required_env`` are present in the environment; otherwise it logs
+    a warning and skips the provider (historical behaviour).
     """
 
-    #: Identifiant court de la venue ; égal à ``Snapshot.source`` (ex. ``"vastai"``).
+    #: Short venue identifier; equal to ``Snapshot.source`` (e.g. ``"vastai"``).
     name: str
-    #: Clés d'environnement nécessaires (token ``.env``) — gate du registre.
+    #: Required environment keys (``.env`` token) -- the registry gate.
     required_env: tuple[str, ...]
 
     def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Relève le prix live de la venue à l'instant ``now`` (UTC tz-aware)."""
+        """Read the venue's live price at instant ``now`` (UTC tz-aware)."""
         ...

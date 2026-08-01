@@ -2,7 +2,7 @@
 name = "spark_kernel"
 version = "0.1.0"
 edition = "2021"
-description = "Noyau vectoriel du digital spark spread (pyo3) — parité avec l'oracle Python."
+description = "Vectorised digital spark spread kernel (pyo3) — parity with the Python oracle."
 
 [lib]
 name = "_kernel"

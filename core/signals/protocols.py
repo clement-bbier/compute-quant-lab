@@ -1,14 +1,14 @@
-"""Contrats de la couche signaux (fondation réutilisable — SOLID / Dependency Inversion).
+"""Signal layer contracts (reusable foundation — SOLID / Dependency Inversion).
 
-``core.signals`` promeut les *producteurs de signaux réutilisables* (mean-reversion P02,
-basis futures P06, ML P09) derrière une interface commune. Le desk P10 — et tout futur
-optimiseur — dépend de ce ``Protocol``, jamais d'une implémentation concrète (DIP / OCP) :
-brancher un nouveau signal ne change pas le consommateur.
+``core.signals`` promotes the *reusable signal producers* (mean-reversion P02, futures basis
+P06, ML P09) behind a common interface. The P10 desk — and any future optimiser — depends on
+this ``Protocol``, never on a concrete implementation (DIP / OCP): plugging in a new signal
+does not change the consumer.
 
-Compatibilité P08 : ``signal(view) -> float`` est exactement la signature du ``Strategy``
-Protocol de ``core.backtest`` — un producteur est donc **directement backtestable** par le
-moteur. La sortie est une **vue directionnelle normalisée** dans ``[-1, 1]`` (pas une position
-finale : le desk décide de la taille via sa pondération sous risque).
+P08 compatibility: ``signal(view) -> float`` is exactly the signature of the ``Strategy``
+Protocol in ``core.backtest`` — so a producer is **directly backtestable** by the engine. The
+output is a **normalised directional view** in ``[-1, 1]`` (not a final position: the desk
+sizes it through its own risk weighting).
 """
 
 from __future__ import annotations
@@ -21,10 +21,10 @@ from core.backtest.protocols import PointInTimeView
 
 @dataclass(frozen=True)
 class SignalProvenance:
-    """Origine d'un signal : réel vs simulé. ``simulated`` est **obligatoire** (sans défaut).
+    """Origin of a signal: real vs simulated. ``simulated`` is **mandatory** (no default).
 
-    Frontière réel/simulé non négociable (rule ``forward-real-simulated``) : impossible
-    d'oublier d'étiqueter un signal — un test échoue si le drapeau manque.
+    The real/simulated boundary is non-negotiable (rule ``forward-real-simulated``): it is
+    impossible to forget to label a signal — a test fails if the flag is missing.
     """
 
     name: str
@@ -33,10 +33,10 @@ class SignalProvenance:
 
 @runtime_checkable
 class SignalProducer(Protocol):
-    """Source d'un signal directionnel point-in-time, étiquetée par sa provenance.
+    """Source of a point-in-time directional signal, labelled by its provenance.
 
-    À chaque instant ``t``, rend une vue directionnelle ``s ∈ [-1, 1]`` à partir de données
-    ``≤ t`` (consomme la ``PointInTimeView`` / ``GuardedView`` de P08). Compatible ``Strategy``.
+    At each time ``t``, returns a directional view ``s in [-1, 1]`` computed from data
+    ``<= t`` (consumes the P08 ``PointInTimeView`` / ``GuardedView``). ``Strategy``-compatible.
     """
 
     name: str
@@ -46,7 +46,7 @@ class SignalProducer(Protocol):
 
 
 def clip_unit(value: float) -> float:
-    """Écrête une vue directionnelle à l'intervalle ``[-1, 1]``."""
+    """Clip a directional view to the ``[-1, 1]`` interval."""
     return max(-1.0, min(1.0, value))
 
 

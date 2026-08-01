@@ -1,9 +1,9 @@
-"""Modèle énergétique d'un serveur GPU.
+"""Energy model of a GPU server.
 
-Sépare proprement la puissance *IT* (TDP des GPU) de l'efficacité du datacenter
-(PUE), là où la brique scalaire historique (`spark_spread.py`) ne manipulait
-qu'une puissance « PUE incluse ». Cette séparation rend explicite le levier PUE
-exigé par l'étude de sensibilité du prompt P01.
+Cleanly separates the *IT* power (GPU TDP) from datacenter efficiency (PUE), where
+the historical scalar building block (`spark_spread.py`) handled only a
+"PUE-included" power figure. This separation makes the PUE lever explicit, as
+required by the sensitivity study of prompt P01.
 """
 
 from __future__ import annotations
@@ -14,60 +14,59 @@ WATTS_PER_KILOWATT: float = 1000.0
 
 
 class ServerPowerModel:
-    """Modèle de puissance d'un serveur multi-GPU (implémente `PowerModel`).
+    """Power model of a multi-GPU server (implements `PowerModel`).
 
-    Calibré par défaut sur la thèse : 8x H100 à 700 W de TDP et PUE 1.82
-    reproduisent les ~10.2 kW serveur (et ~0.19 €/h/GPU à 150 €/MWh) de la
-    brique de référence.
+    Calibrated by default on the lab thesis: 8x H100 at 700 W TDP and PUE 1.82
+    reproduce the ~10.2 kW per server (and ~0.19 EUR/h/GPU at 150 EUR/MWh) of the
+    reference building block.
 
     Parameters
     ----------
     tdp_w
-        Puissance IT (TDP) d'un GPU, en watts.
+        IT power (TDP) of one GPU, in watts.
     pue
-        Power Usage Effectiveness du datacenter (sans dimension, ≥ 1). Accepte un
-        scalaire ``float`` ou un ``PuePrior`` (region-keyed) : dans ce dernier cas
-        le pricing central utilise le *point estimate* et expose les bornes via
+        Power Usage Effectiveness of the datacenter (dimensionless, >= 1). Accepts a
+        ``float`` scalar or a ``PuePrior`` (region-keyed): in the latter case the
+        central pricing path uses the *point estimate* and exposes the bounds through
         ``pue_bounds()``.
     n_gpus
-        Nombre de GPU du serveur (métadonnée, agrégation au niveau serveur).
+        Number of GPUs in the server (metadata, for server-level aggregation).
     """
 
     def __init__(self, tdp_w: float, pue: float | PuePrior, n_gpus: int) -> None:
         if tdp_w <= 0:
-            raise ValueError("tdp_w doit être strictement positif")
+            raise ValueError("tdp_w must be strictly positive.")
         if n_gpus <= 0:
-            raise ValueError("n_gpus doit être strictement positif")
+            raise ValueError("n_gpus must be strictly positive.")
         if isinstance(pue, PuePrior):
             self._pue_value = pue.point_estimate()
             self._pue_prior: PuePrior | None = pue
         else:
             if pue < 1.0:
-                raise ValueError("pue doit être ≥ 1.0 (le datacenter consomme ≥ l'IT)")
+                raise ValueError("pue must be >= 1.0 (the datacenter draws at least the IT load).")
             self._pue_value = pue
             self._pue_prior = None
         self._tdp_w = tdp_w
         self._n_gpus = n_gpus
 
     def power_kw_per_gpu(self) -> float:
-        """Puissance IT par GPU en kW (hors refroidissement, le PUE l'ajoute)."""
+        """IT power per GPU in kW (excluding cooling, which the PUE adds)."""
         return self._tdp_w / WATTS_PER_KILOWATT
 
     def pue(self) -> float:
-        """Power Usage Effectiveness du datacenter (point estimate si prior)."""
+        """Power Usage Effectiveness of the datacenter (point estimate if a prior)."""
         return self._pue_value
 
     def pue_bounds(self) -> tuple[float, float] | None:
-        """Bornes de sensibilité [low, high] si un `PuePrior` est fourni, sinon None."""
+        """Sensitivity bounds [low, high] if a `PuePrior` was given, else None."""
         return self._pue_prior.sensitivity_bounds() if self._pue_prior else None
 
     @property
     def n_gpus(self) -> int:
-        """Nombre de GPU du serveur."""
+        """Number of GPUs in the server."""
         return self._n_gpus
 
     def __repr__(self) -> str:
         return (
-            f"ServerPowerModel(tdp_w={self._tdp_w}, pue={self._pue_value}, "
-            f"n_gpus={self._n_gpus})"
+            f"ServerPowerModel(tdp_w={self._tdp_w}, pue={self._pue_value}, n_gpus={self._n_gpus})"
         )

@@ -1,4 +1,4 @@
-"""(a) Round-trip Parquet : types, partition source/mois, préservation de la distribution."""
+"""(a) Parquet round-trip: types, source/month partition, preservation of the distribution."""
 
 from __future__ import annotations
 
@@ -35,8 +35,8 @@ def test_roundtrip_preserves_rows_and_types(store: ParquetPriceStore, make_frame
 
 
 def test_roundtrip_preserves_distribution(store: ParquetPriceStore, make_frame: Frame) -> None:
-    # N offres pour le même (instant, source, modèle, bail) à prix distincts : le store
-    # ne doit PAS les écraser à une ligne (le défaut de CsvSnapshotStore qu'on corrige).
+    # N offers for the same (instant, source, model, lease) at distinct prices: the store
+    # must NOT collapse them into one row (the CsvSnapshotStore flaw being fixed here).
     frame = make_frame(
         [
             (0, "vastai", "H100", 2.50, 8),
@@ -65,7 +65,7 @@ def test_partition_layout_by_source_and_month(store: ParquetPriceStore, make_fra
 
 def test_write_rejects_naive_timestamps(store: ParquetPriceStore, make_frame: Frame) -> None:
     frame = make_frame([(0, "vastai", "H100", 2.50, 8)])
-    frame[SNAPSHOTTED_AT] = frame[SNAPSHOTTED_AT].dt.tz_localize(None)  # casse l'intégrité UTC
+    frame[SNAPSHOTTED_AT] = frame[SNAPSHOTTED_AT].dt.tz_localize(None)  # breaks UTC integrity
 
     with pytest.raises(ValueError):
         store.write(frame)

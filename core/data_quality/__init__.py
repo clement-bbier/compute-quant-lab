@@ -1,1 +1,1 @@
-"""Compute Quant Lab — bibliothèque partagée."""
+"""Compute Quant Lab — shared library."""

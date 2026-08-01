@@ -1,56 +1,56 @@
-"""Adaptateur : signal ML pré-calculé → ``Strategy`` du moteur de backtest P08.
+"""Adapter: precomputed ML signal -> ``Strategy`` of the P08 backtest engine.
 
-Le moteur P08 ne passe à la stratégie qu'une `PointInTimeView` sur la **série de prix** ;
-il ne connaît rien aux features. On découple donc en deux temps : (1) un vecteur de
-probabilités hors-échantillon est calculé en amont (purged-CV, cf. `validation.oos_predict`),
-aligné 1:1 sur la série backtestée ; (2) cette stratégie mince lit la proba à ``view.t`` et
-la mappe en position. Conséquence : le modèle ne « voit » jamais les prix au runtime — toute
-fuite éventuelle a été neutralisée en amont, et le garde-fou ``GuardedView`` reste gratuit.
+The P08 engine only hands the strategy a `PointInTimeView` on the **price series**; it knows
+nothing about features. The decoupling therefore happens in two steps: (1) an out-of-sample
+probability vector is computed upstream (purged CV, see `validation.oos_predict`), aligned
+1:1 with the backtested series; (2) this thin strategy reads the probability at ``view.t``
+and maps it to a position. Consequence: the model never "sees" the prices at runtime — any
+potential leak was neutralized upstream, and the ``GuardedView`` guardrail stays free.
 
-La règle proba→position porte l'unique arbitrage de risque de l'adaptateur (bande neutre).
+The probability-to-position rule carries the adapter's single risk trade-off (neutral band).
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-# On vise le sous-module `protocols` (numpy seul), pas `core.backtest` dont l'__init__
-# importe le moteur et son noyau Rust : la couche modèle reste ainsi importable et
-# testable sans build Rust (le backtest réel, lui, compose l'engine au niveau projet).
+# The `protocols` submodule is targeted (numpy only), not `core.backtest` whose __init__
+# imports the engine and its Rust core: the model layer thus stays importable and testable
+# without a Rust build (the real backtest composes the engine at the project level).
 from core.backtest.protocols import PointInTimeView
 from core.models.protocols import FloatArray
 
-#: Probabilité d'indifférence : 0.5 = le modèle n'a pas d'avis directionnel.
+#: Indifference probability: 0.5 = the model has no directional view.
 _INDIFFERENCE = 0.5
 
 
 class PrecomputedSignalStrategy:
-    """Mappe une proba OOS pré-calculée en position (implémente le `Strategy` Protocol P08).
+    """Map a precomputed OOS probability to a position (implements the P08 `Strategy`).
 
     Parameters
     ----------
     proba
-        Vecteur ``P(montée)`` aligné sur la série backtestée. ``NaN`` (pas de prédiction
-        disponible : warm-up / queue non observable) ⇒ position plate.
+        ``P(up)`` vector aligned on the backtested series. ``NaN`` (no prediction available:
+        warm-up / non-observable tail) implies a flat position.
     neutral_band
-        Demi-largeur de la bande morte autour de 0.5. ``0`` = on prend toujours un côté ;
-        plus large = on reste à plat tant que le modèle est incertain (↓ turnover/coûts,
-        ↓ exposition). Doit être dans ``[0, 0.5)``.
+        Half-width of the dead band around 0.5. ``0`` = a side is always taken; wider = stay
+        flat as long as the model is uncertain (lower turnover/costs, lower exposure). Must
+        be in ``[0, 0.5)``.
 
     Raises
     ------
     ValueError
-        Si ``neutral_band`` n'est pas dans ``[0, 0.5)``.
+        If ``neutral_band`` is not in ``[0, 0.5)``.
     """
 
     def __init__(self, proba: FloatArray, *, neutral_band: float = 0.0) -> None:
         if not 0.0 <= neutral_band < 0.5:
-            raise ValueError(f"neutral_band ({neutral_band}) doit être dans [0, 0.5).")
+            raise ValueError(f"neutral_band ({neutral_band}) must be in [0, 0.5).")
         self._proba = np.asarray(proba, dtype=np.float64)
         self._neutral_band = neutral_band
 
     def _to_position(self, p: float) -> float:
-        """Règle proba→position : long au-dessus de la bande, short en-dessous, plat dedans."""
+        """Probability-to-position rule: long above the band, short below, flat inside."""
         if p > _INDIFFERENCE + self._neutral_band:
             return 1.0
         if p < _INDIFFERENCE - self._neutral_band:
@@ -58,7 +58,7 @@ class PrecomputedSignalStrategy:
         return 0.0
 
     def signal(self, view: PointInTimeView) -> float:
-        """Position cible à ``view.t`` : mappe la proba OOS de cet instant (NaN ⇒ plat)."""
+        """Target position at ``view.t``: maps that instant's OOS probability (NaN = flat)."""
         p = float(self._proba[view.t])
         if np.isnan(p):
             return 0.0

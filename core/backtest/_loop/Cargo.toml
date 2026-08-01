@@ -2,7 +2,7 @@
 name = "backtest_loop"
 version = "0.1.0"
 edition = "2021"
-description = "Noyau Rust de la phase 2 du moteur de backtest P08 (accumulation PnL point-in-time)."
+description = "Rust kernel for phase 2 of the P08 backtest engine (point-in-time PnL accumulation)."
 
 [lib]
 name = "backtest_loop"

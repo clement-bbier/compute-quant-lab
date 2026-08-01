@@ -1,7 +1,7 @@
-"""Fixtures partagées des tests de features point-in-time.
+"""Shared fixtures of the point-in-time feature tests.
 
-Les helpers sont exposés comme *factories* (fixtures renvoyant un callable) pour
-éviter tout import inter-tests fragile (le dossier `tests/` n'est pas un package).
+The helpers are exposed as *factories* (fixtures returning a callable) to avoid any
+fragile inter-test import (the `tests/` folder is not a package).
 """
 
 from __future__ import annotations
@@ -13,13 +13,13 @@ import pytest
 
 from core.features.protocols import KNOWLEDGE_TS, VALUE, VALUE_TS
 
-#: Origine commune des séries de test (UTC tz-aware).
+#: Common origin of the test series (UTC tz-aware).
 _ORIGIN = pd.Timestamp("2025-01-01", tz="UTC")
 
 
 @pytest.fixture
 def day_ts() -> Callable[[int], pd.Timestamp]:
-    """Renvoie ``J0 + k jours`` en UTC (J0 = 2025-01-01)."""
+    """Return ``D0 + k days`` in UTC (D0 = 2025-01-01)."""
 
     def _day(k: int) -> pd.Timestamp:
         return _ORIGIN + pd.Timedelta(days=k)
@@ -29,7 +29,7 @@ def day_ts() -> Callable[[int], pd.Timestamp]:
 
 @pytest.fixture
 def make_vintages() -> Callable[[list[tuple[pd.Timestamp, pd.Timestamp, float]]], pd.DataFrame]:
-    """Construit un frame vintage depuis des tuples ``(value_ts, knowledge_ts, value)``."""
+    """Build a vintage frame from ``(value_ts, knowledge_ts, value)`` tuples."""
 
     def _make(records: list[tuple[pd.Timestamp, pd.Timestamp, float]]) -> pd.DataFrame:
         return pd.DataFrame([{VALUE_TS: v, KNOWLEDGE_TS: k, VALUE: x} for (v, k, x) in records])
@@ -38,7 +38,7 @@ def make_vintages() -> Callable[[list[tuple[pd.Timestamp, pd.Timestamp, float]]]
 
 
 class _FakeExogenousSource:
-    """Source en mémoire (implémente le protocole `ExogenousSource`)."""
+    """In-memory source (implements the `ExogenousSource` protocol)."""
 
     def __init__(self, frames: dict[str, pd.DataFrame]) -> None:
         self._frames = frames
@@ -52,5 +52,5 @@ class _FakeExogenousSource:
 
 @pytest.fixture
 def fake_source() -> Callable[[dict[str, pd.DataFrame]], _FakeExogenousSource]:
-    """Renvoie une factory de source exogène à partir de frames vintage."""
+    """Return an exogenous source factory built from vintage frames."""
     return _FakeExogenousSource

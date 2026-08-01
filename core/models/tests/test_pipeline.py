@@ -1,8 +1,8 @@
-"""Pipeline de features & labels directionnels (point-in-time strict).
+"""Feature pipeline & directional labels (strict point-in-time).
 
-Prouve que (a) le label encode bien le signe du *forward return* au bon horizon, et
-(b) la matrice de features à ``t`` ne dépend QUE de données ``<= t`` (invariance par
-troncature du futur). C'est la première des trois défenses anti-look-ahead.
+Proves that (a) the label does encode the sign of the *forward return* at the right horizon,
+and (b) the feature matrix at ``t`` depends ONLY on data ``<= t`` (invariance under
+truncation of the future). This is the first of the three anti-look-ahead defenses.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def test_matrix_is_aligned_on_decision_index(spread_series) -> None:
 
 
 def test_spread_features_are_point_in_time(spread_series) -> None:
-    """Invariance par troncature : altérer le futur ne change pas la ligne à ``t``."""
+    """Invariance under truncation: altering the future does not change the row at ``t``."""
     pipeline = FeaturePipeline(
         spread_spec=SpreadFeatureSpec(lags=(1, 2), rolling_means=(5,), momentums=(3,))
     )
@@ -49,7 +49,7 @@ def test_spread_features_are_point_in_time(spread_series) -> None:
 
     t = 100
     tampered = spread_series.copy()
-    tampered.iloc[t + 1 :] += 999.0  # on saccage tout le futur strict de t
+    tampered.iloc[t + 1 :] += 999.0  # wreck the entire strict future of t
     tampered_matrix = pipeline.build_matrix(tampered)
 
     pd.testing.assert_series_equal(full.iloc[t], tampered_matrix.iloc[t])

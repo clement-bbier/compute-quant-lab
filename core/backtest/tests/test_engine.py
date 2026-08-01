@@ -1,7 +1,7 @@
-"""Moteur deux phases, bout-en-bout sur fixtures synthétiques.
+"""Two-phase engine, end-to-end on synthetic fixtures.
 
-Prouve notamment que le garde-fou look-ahead fait **échouer le run entier** quand
-une stratégie triche (propriété non négociable, vérifiée à travers le moteur).
+In particular, proves that the look-ahead guard makes **the whole run fail** when a
+strategy cheats (a non-negotiable property, checked through the engine).
 """
 
 from __future__ import annotations
@@ -16,14 +16,14 @@ from core.backtest.protocols import BacktestResult, PointInTimeView
 
 
 class BuyAndHold:
-    """Toujours long 1 unité (n'utilise que l'instant courant ≤ t)."""
+    """Always long 1 unit (uses only the current instant ≤ t)."""
 
     def signal(self, view: PointInTimeView) -> float:
         return 1.0
 
 
 class Cheating:
-    """Adversaire : lit le prix de demain (t+1)."""
+    """Adversary: reads tomorrow's price (t+1)."""
 
     def signal(self, view: PointInTimeView) -> float:
         return view.at(view.t + 1)
@@ -37,11 +37,11 @@ def _engine(fees_bps: float = 0.0, slippage_bps: float = 0.0) -> BacktestEngine:
 
 
 def test_buy_and_hold_accounting_is_analytic():
-    prices = np.array([100.0, 110.0, 121.0], dtype=np.float64)  # +10 % chaque pas
+    prices = np.array([100.0, 110.0, 121.0], dtype=np.float64)  # +10 % each step
     result = _engine().run(prices, BuyAndHold())
 
     assert isinstance(result, BacktestResult)
-    # returns = [0, 0.1, 0.1] -> PnL total 0.2 ; equity croissante -> DD 0 ; 1 trade.
+    # returns = [0, 0.1, 0.1] -> total PnL 0.2; rising equity -> DD 0; 1 trade.
     assert result.metrics["pnl_total"] == pytest.approx(0.2)
     assert result.metrics["max_drawdown"] == 0.0
     assert result.metrics["turnover"] == 1.0

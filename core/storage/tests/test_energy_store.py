@@ -1,4 +1,4 @@
-"""Tests du cold store énergie (idempotence + intégrité point-in-time)."""
+"""Tests of the energy cold store (idempotence + point-in-time integrity)."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def test_write_then_read_roundtrip(tmp_path: Path) -> None:
 def test_write_is_idempotent(tmp_path: Path) -> None:
     store = EnergyColdStore(tmp_path)
     store.write(_frame())
-    assert store.write(_frame()) == 0  # ré-écrire le même contenu = no-op
+    assert store.write(_frame()) == 0  # rewriting the same content = no-op
     assert len(store.read()) == 2
 
 
@@ -50,13 +50,13 @@ def test_read_filters_series(tmp_path: Path) -> None:
 
 def test_rejects_naive_timestamp(tmp_path: Path) -> None:
     bad = _frame()
-    bad["interval_start"] = pd.Timestamp("2024-01-15T06:00:00")  # naïf → interdit
-    with pytest.raises(ValueError, match="naïf"):
+    bad["interval_start"] = pd.Timestamp("2024-01-15T06:00:00")  # naive -> forbidden
+    with pytest.raises(ValueError, match="naive"):
         EnergyColdStore(tmp_path).write(bad)
 
 
 def test_new_publish_time_appends(tmp_path: Path) -> None:
-    # Une révision (publish_time plus récent) du même intervalle est conservée (journal).
+    # A revision (more recent publish_time) of the same interval is kept (journal).
     store = EnergyColdStore(tmp_path)
     store.write(_frame())
     revised = _frame().iloc[[0]].copy()

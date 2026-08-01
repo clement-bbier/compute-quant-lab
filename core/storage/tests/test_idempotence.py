@@ -1,7 +1,7 @@
-"""(b) Idempotence : ré-appender un même relevé ne crée jamais de doublon.
+"""(b) Idempotence: re-appending the same reading never creates a duplicate.
 
-Garantit qu'un collecteur planifié rejouable (même instant relevé deux fois) n'introduit
-pas de duplicata, tout en conservant les offres réellement distinctes (distribution).
+Guarantees that a replayable scheduled collector (same instant recorded twice) does not
+introduce duplicates, while keeping the genuinely distinct offers (distribution).
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def test_rewriting_same_batch_is_noop(store: ParquetPriceStore, make_frame: Fram
     second = store.write(frame)
 
     assert first == 2
-    assert second == 0  # rien de neuf
+    assert second == 0  # nothing new
     assert len(store.read()) == 2
 
 
@@ -34,7 +34,7 @@ def test_partial_overlap_writes_only_new_rows(store: ParquetPriceStore, make_fra
     store.write(batch_a)
     new_rows = store.write(batch_ab)
 
-    assert new_rows == 1  # seule la 2e ligne est neuve
+    assert new_rows == 1  # only the 2nd row is new
     out = store.read()
     assert len(out) == 2
     assert sorted(out[PRICE].tolist()) == [2.50, 2.55]
@@ -43,10 +43,10 @@ def test_partial_overlap_writes_only_new_rows(store: ParquetPriceStore, make_fra
 def test_distinct_offers_same_key_are_not_deduplicated(
     store: ParquetPriceStore, make_frame: Frame
 ) -> None:
-    # Même (instant, source, modèle, bail) mais prix/dispo distincts => lignes distinctes.
+    # Same (instant, source, model, lease) but distinct price/availability => distinct rows.
     frame = make_frame([(0, "vastai", "H100", 2.50, 8), (0, "vastai", "H100", 2.65, 4)])
 
     store.write(frame)
-    store.write(frame)  # rejoué : toujours pas de doublon, mais 2 offres conservées
+    store.write(frame)  # replayed: still no duplicate, but 2 offers kept
 
     assert len(store.read()) == 2

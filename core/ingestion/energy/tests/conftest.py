@@ -1,7 +1,7 @@
-"""Configuration pytest pour les tests core/ingestion/energy/.
+"""pytest configuration for the core/ingestion/energy/ tests.
 
-Registre du marker ``live`` : les tests réels ERCOT (réseau) sont exclus
-par défaut et lancés explicitement via ``pytest -m live``.
+Registers the ``live`` marker: the real ERCOT tests (network) are excluded by default and run
+explicitly via ``pytest -m live``.
 """
 
 import pytest
@@ -10,16 +10,16 @@ import pytest
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
-        "live: smoke test réel (réseau ERCOT requis) — exclu par défaut",
+        "live: real smoke test (ERCOT network required) -- excluded by default",
     )
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Exclut automatiquement les tests @live sauf si ``-m live`` est passé explicitement."""
+    """Automatically exclude the @live tests unless ``-m live`` is passed explicitly."""
     if config.option.markexpr == "live":
-        # L'utilisateur a demandé explicitement les tests live → on ne filtre pas
+        # The user explicitly asked for the live tests -> do not filter
         return
-    skip_live = pytest.mark.skip(reason="test live : passe -m live pour l'exécuter")
+    skip_live = pytest.mark.skip(reason="live test: pass -m live to run it")
     for item in items:
         if item.get_closest_marker("live"):
             item.add_marker(skip_live)

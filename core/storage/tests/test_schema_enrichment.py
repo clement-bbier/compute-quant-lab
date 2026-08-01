@@ -1,11 +1,11 @@
-"""Tests TDD : schéma enrichi et rétrocompatibilité de normalize_frame.
+"""TDD tests: enriched schema and backward compatibility of normalize_frame.
 
-Couvre :
-- (b) ``normalize_frame`` backfille un frame/Parquet legacy sans les nouvelles
-  colonnes descriptives (preuve de rétrocompatibilité).
-- Propagation des champs optionnels dans le round-trip ``Snapshot ↔ frame``.
-- Les colonnes optionnelles sont bien présentes dans la sortie de normalize_frame,
-  même si elles n'étaient pas dans l'entrée.
+Covers:
+- (b) ``normalize_frame`` backfills a legacy frame/Parquet without the new descriptive
+  columns (proof of backward compatibility).
+- Propagation of the optional fields through the ``Snapshot`` / frame round-trip.
+- The optional columns are indeed present in the output of normalize_frame, even when
+  they were not in the input.
 """
 
 from __future__ import annotations
@@ -40,11 +40,11 @@ _TS = pd.Timestamp("2026-01-01", tz="UTC")
 _TS_PY = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
 
 
-# ── (b) Rétrocompatibilité normalize_frame ────────────────────────────────────
+# -- (b) normalize_frame backward compatibility --------------------------------
 
 
 def _legacy_frame() -> pd.DataFrame:
-    """Frame avec UNIQUEMENT les colonnes obligatoires (format pré-enrichissement)."""
+    """Frame with ONLY the mandatory columns (pre-enrichment format)."""
     return pd.DataFrame(
         [
             {
@@ -61,17 +61,17 @@ def _legacy_frame() -> pd.DataFrame:
 
 
 def test_normalize_frame_backfills_missing_optional_columns() -> None:
-    """Un frame legacy (sans colonnes optionnelles) ne lève pas d'erreur."""
+    """A legacy frame (without the optional columns) does not raise an error."""
     legacy = _legacy_frame()
-    # Aucune colonne optionnelle dans l'entrée.
+    # No optional column in the input.
     assert not any(c in legacy.columns for c in OPTIONAL_COLUMNS)
 
     result = normalize_frame(legacy)
 
-    # Toutes les colonnes optionnelles sont maintenant présentes.
+    # Every optional column is now present.
     for col in OPTIONAL_COLUMNS:
-        assert col in result.columns, f"Colonne '{col}' manquante après normalize_frame"
-    # Elles valent None.
+        assert col in result.columns, f"Column '{col}' missing after normalize_frame"
+    # They are None.
     assert result[REGION].iloc[0] is None
     assert result[GPU_MEMORY_GB].iloc[0] is None
     assert result[VCPU].iloc[0] is None
@@ -81,7 +81,7 @@ def test_normalize_frame_backfills_missing_optional_columns() -> None:
 
 
 def test_normalize_frame_keeps_optional_when_present() -> None:
-    """Les colonnes optionnelles présentes dans le frame sont conservées."""
+    """The optional columns present in the frame are kept."""
     frame = _legacy_frame()
     frame[REGION] = "EU"
     frame[GPU_MEMORY_GB] = 80.0
@@ -93,13 +93,13 @@ def test_normalize_frame_keeps_optional_when_present() -> None:
 
 
 def test_normalize_frame_output_has_all_columns_in_order() -> None:
-    """La sortie contient exactement ALL_COLUMNS (obligatoires + optionnelles)."""
+    """The output contains exactly ALL_COLUMNS (mandatory + optional)."""
     result = normalize_frame(_legacy_frame())
     assert list(result.columns) == ALL_COLUMNS
 
 
 def test_normalize_frame_still_rejects_naive_timestamps() -> None:
-    """La rétrocompataibilité n'assouplit pas la règle d'intégrité UTC."""
+    """Backward compatibility does not relax the UTC integrity rule."""
     legacy = _legacy_frame()
     legacy[SNAPSHOTTED_AT] = legacy[SNAPSHOTTED_AT].dt.tz_localize(None)
     with pytest.raises(ValueError):
@@ -113,7 +113,7 @@ def test_normalize_frame_still_rejects_missing_mandatory_column() -> None:
         normalize_frame(legacy)
 
 
-# ── Round-trip Snapshot ↔ frame (champs enrichis) ─────────────────────────────
+# -- Snapshot / frame round-trip (enriched fields) -----------------------------
 
 
 def test_snapshots_to_frame_propagates_optional_fields() -> None:
@@ -166,7 +166,7 @@ def test_frame_to_snapshots_roundtrips_optional_fields() -> None:
 
 
 def test_frame_to_snapshots_backfills_none_for_legacy_frame() -> None:
-    """Un frame legacy (sans colonnes optionnelles) donne des Snapshot avec None."""
+    """A legacy frame (without the optional columns) yields Snapshot objects with None."""
     legacy = _legacy_frame()
     snapshots = frame_to_snapshots(legacy)
     assert len(snapshots) == 1
@@ -180,7 +180,7 @@ def test_frame_to_snapshots_backfills_none_for_legacy_frame() -> None:
 
 
 def test_snapshots_to_frame_all_none_preserved() -> None:
-    """Un Snapshot sans champs optionnels → colonnes None dans le frame."""
+    """A Snapshot without optional fields -> None columns in the frame."""
     s = Snapshot(
         snapshotted_at=_TS_PY,
         source="runpod",
@@ -189,4 +189,4 @@ def test_snapshots_to_frame_all_none_preserved() -> None:
     )
     frame = snapshots_to_frame([s])
     for col in OPTIONAL_COLUMNS:
-        assert frame[col].iloc[0] is None, f"Attendu None pour {col}"
+        assert frame[col].iloc[0] is None, f"Expected None for {col}"

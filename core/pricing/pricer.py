@@ -1,13 +1,13 @@
-"""Pricer vectoriel du digital spark spread (orchestration DI/SOLID).
+"""Vectorised digital spark spread pricer (DI/SOLID orchestration).
 
-`SparkSpreadPricer` dépend d'abstractions (`PriceSource`, `PowerModel`,
-`FxConverter`, `SpreadKernel`), jamais d'implémentations concrètes (DIP). Il
-reste une **fonction pure** : aucune I/O cachée, tout effet de bord (réseau,
-disque) vit dans `projects/01_.../src/`.
+`SparkSpreadPricer` depends on abstractions (`PriceSource`, `PowerModel`,
+`FxConverter`, `SpreadKernel`), never on concrete implementations (DIP). It stays a
+**pure function**: no hidden I/O, every side effect (network, disk) lives in
+`projects/01_.../src/`.
 
-Sélection du noyau par injection : Rust si fourni, sinon l'oracle Python. Le
-subcrate Rust (`core.pricing._kernel`) est optionnel ; son absence ne dégrade
-que la performance, jamais le résultat.
+Kernel selection happens by injection: Rust if provided, otherwise the Python oracle.
+The Rust subcrate (`core.pricing._kernel`) is optional; its absence only degrades
+performance, never the result.
 """
 
 from __future__ import annotations
@@ -31,10 +31,10 @@ from core.pricing.protocols import (
 
 @dataclass(frozen=True)
 class SpreadResult:
-    """Résultat du pricing : décomposition revenu/coût + métadonnées.
+    """Pricing result: revenue/cost decomposition plus metadata.
 
-    La décomposition explicite (`revenue`, `cost`, `spread`) répond à l'exigence
-    du prompt P01 §3a ; les métadonnées tracent les hypothèses du calcul.
+    The explicit decomposition (`revenue`, `cost`, `spread`) answers the requirement
+    of prompt P01 section 3a; the metadata records the assumptions of the computation.
     """
 
     spread: pd.Series
@@ -49,14 +49,14 @@ class SpreadResult:
 
 
 class RustKernel:
-    """Adaptateur du subcrate Rust optionnel vers le protocole `SpreadKernel`.
+    """Adapter from the optional Rust subcrate to the `SpreadKernel` protocol.
 
-    Instanciable seulement si `core.pricing._kernel` est compilé (``maturin
-    develop``) ; lève `ImportError` sinon.
+    Only instantiable if `core.pricing._kernel` has been compiled (``maturin
+    develop``); raises `ImportError` otherwise.
     """
 
     def __init__(self) -> None:
-        import importlib  # noqa: PLC0415 (import optionnel runtime)
+        import importlib  # noqa: PLC0415 (optional runtime import)
 
         kernel = importlib.import_module("core.pricing._kernel")
         self._compute = kernel.compute
@@ -77,16 +77,16 @@ class RustKernel:
 
 
 class SparkSpreadPricer:
-    """Price le digital spark spread sur une grille temporelle, point-in-time.
+    """Price the digital spark spread over a time grid, point-in-time.
 
     Parameters
     ----------
     power_model
-        Modèle de puissance/PUE (abstraction `PowerModel`).
+        Power/PUE model (the `PowerModel` abstraction).
     fx
-        Convertisseur $/€ (abstraction `FxConverter`).
+        USD/EUR converter (the `FxConverter` abstraction).
     kernel
-        Noyau de calcul (abstraction `SpreadKernel`). Défaut : oracle Python.
+        Computation kernel (the `SpreadKernel` abstraction). Default: Python oracle.
     """
 
     def __init__(
@@ -100,22 +100,22 @@ class SparkSpreadPricer:
         self._kernel: SpreadKernel = kernel if kernel is not None else PythonOracle()
 
     def price(self, source: PriceSource, gpu: str, region: str) -> SpreadResult:
-        """Calcule le spread €/GPU·h sur la grille de la jambe énergie.
+        """Compute the spread in EUR/GPU·h on the grid of the energy leg.
 
-        L'énergie (historique profond) porte la grille d'évaluation ; le compute
-        est aligné dessus par jointure as-of **arrière** (dernier prix connu à
-        chaque instant) — aucun prix futur n'entre dans le spread à ``t``.
+        Energy (with its deep history) carries the evaluation grid; compute is aligned
+        onto it by a **backward** as-of join (last price known at each instant) -- no
+        future price enters the spread at ``t``.
         """
         return self._price_at_pue(source, gpu, region, self._power_model.pue())
 
     def _price_at_pue(self, source: PriceSource, gpu: str, region: str, pue: float) -> SpreadResult:
-        """Chemin de pricing central, paramétré par le PUE (réutilisé par les bandes)."""
+        """Central pricing path, parameterised by the PUE (reused by the bands)."""
         energy = source.energy_price(region)
         compute_usd = source.compute_price(gpu)
         compute_eur = self._fx.to_eur(compute_usd).sort_index()
 
         grid = energy.sort_index().index
-        # ffill = report de la dernière valeur d'index ≤ t : as-of arrière strict.
+        # ffill = carry forward the last index value <= t: strict backward as-of.
         compute_on_grid = compute_eur.reindex(grid, method="ffill")
 
         power_kw = self._power_model.power_kw_per_gpu()
@@ -140,24 +140,26 @@ class SparkSpreadPricer:
         )
 
     def normalized_spread(self, res: SpreadResult) -> pd.Series:
-        """Spread ramené à l'unité de compte : €/GPU·h **par TFLOP** (FP16 dense).
+        """Spread brought back to the unit of account: EUR/GPU·h **per TFLOP** (dense FP16).
 
-        Rend le spread comparable entre GPU d'efficacités différentes.
+        Makes the spread comparable across GPUs of differing efficiency.
         """
         return (res.spread / tflops_fp16(res.gpu)).rename("normalized_spread")
 
     def pue_sensitivity(
         self, source: PriceSource, gpu: str, region: str
     ) -> tuple[SpreadResult, SpreadResult]:
-        """Re-price aux bornes du prior PUE → bande ``(low_pue, high_pue)``.
+        """Re-price at the bounds of the PUE prior, yielding a ``(low_pue, high_pue)`` band.
 
-        Exige un `ServerPowerModel` construit avec un `PuePrior`. Le chemin central
-        `price()` n'est pas touché (parité préservée).
+        Requires a `ServerPowerModel` built with a `PuePrior`. The central `price()`
+        path is left untouched (parity preserved).
         """
         pm = self._power_model
         bounds = pm.pue_bounds() if isinstance(pm, ServerPowerModel) else None
         if bounds is None:
-            raise ValueError("pue_sensitivity exige un ServerPowerModel construit avec un PuePrior")
+            raise ValueError(
+                "power_model must be a ServerPowerModel built with a PuePrior for pue_sensitivity."
+            )
         low, high = bounds
         return (
             self._price_at_pue(source, gpu, region, low),

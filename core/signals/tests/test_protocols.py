@@ -1,8 +1,8 @@
-"""Contrat de la couche signaux : ``SignalProducer`` (Protocol) + provenance obligatoire.
+"""Signal layer contract: ``SignalProducer`` (Protocol) + mandatory provenance.
 
-Les trois producteurs réels (mean-reversion, basis futures, ML) doivent être reconnus
-comme ``SignalProducer`` (typage structurel) et porter une ``SignalProvenance`` dont le
-drapeau ``simulated`` est **obligatoire** (rule ``forward-real-simulated``).
+The three real producers (mean-reversion, futures basis, ML) must be recognised as
+``SignalProducer`` (structural typing) and carry a ``SignalProvenance`` whose ``simulated`` flag
+is **mandatory** (rule ``forward-real-simulated``).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from core.signals import (
 
 
 def _producers(n: int) -> list[SignalProducer]:
-    """Les trois producteurs réels, avec une proba ML alignée sur ``n`` observations."""
+    """The three real producers, with ML probabilities aligned on ``n`` observations."""
     proba = np.full(n, 0.5, dtype=np.float64)
     return [
         MeanReversionSignal(z_entry=2.0, z_exit=0.5, lookback=20, simulated=True),
@@ -31,27 +31,28 @@ def _producers(n: int) -> list[SignalProducer]:
 
 
 def test_all_producers_satisfy_protocol() -> None:
-    """Chaque producteur réel est structurellement un ``SignalProducer`` (name, provenance, signal)."""
+    """Every real producer is structurally a ``SignalProducer`` (name, provenance, signal)."""
     for producer in _producers(8):
         assert isinstance(producer, SignalProducer)
         assert isinstance(producer.name, str) and producer.name
 
 
 def test_provenance_flag_is_mandatory() -> None:
-    """``SignalProvenance`` n'a pas de défaut pour ``simulated`` : l'oublier lève (frontière réel/simulé)."""
+    """``SignalProvenance`` has no default for ``simulated``: omitting it raises (real/simulated
+    boundary)."""
     with pytest.raises(TypeError):
         SignalProvenance(name="x")  # type: ignore[call-arg]
 
 
 def test_every_producer_carries_a_simulated_flag() -> None:
-    """Tout producteur expose ``provenance.simulated`` (booléen) — jamais d'étiquetage manquant."""
+    """Every producer exposes ``provenance.simulated`` (a boolean) — labelling is never missing."""
     for producer in _producers(8):
         assert isinstance(producer.provenance, SignalProvenance)
         assert isinstance(producer.provenance.simulated, bool)
 
 
 def test_signal_output_is_bounded_unit_interval(prices: np.ndarray) -> None:
-    """Toute sortie de producteur est une vue directionnelle dans [-1, 1] (contrat desk)."""
+    """Every producer output is a directional view in [-1, 1] (desk contract)."""
     for producer in _producers(prices.shape[0]):
         for t in range(prices.shape[0]):
             s = producer.signal(GuardedView(prices, t))

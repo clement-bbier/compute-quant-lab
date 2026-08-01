@@ -1,10 +1,9 @@
-"""Fixtures déterministes des tests du paquet ``providers`` (zéro réseau).
+"""Deterministic fixtures for the ``providers`` package tests (zero network).
 
-Patron des conftest du labo (``core/storage/tests``, ``core/features/tests``) : des
-fixtures renvoyant des données ou des *factories*, sans import inter-tests (le dossier
-``tests/`` n'est pas un package). Tout appel réseau est mocké ; aucune API live n'est
-contactée. Les payloads reprennent la forme réelle des API Vast.ai (bundles) et RunPod
-(``gpuTypes``).
+Follows the lab's conftest pattern (``core/storage/tests``, ``core/features/tests``):
+fixtures returning either data or *factories*, with no inter-test imports (the ``tests/``
+directory is not a package). Every network call is mocked; no live API is contacted. The
+payloads reproduce the real shape of the Vast.ai (bundles) and RunPod (``gpuTypes``) APIs.
 """
 
 from __future__ import annotations
@@ -14,16 +13,15 @@ from typing import Any, Callable
 
 import pytest
 
-#: Horodatage de relevé figé (UTC tz-aware), partagé par les cas-or de parité.
+#: Frozen observation timestamp (UTC tz-aware), shared by the parity golden cases.
 NOW = dt.datetime(2026, 6, 21, tzinfo=dt.timezone.utc)
 
 
 class FakeResponse:
-    """Réponse HTTP factice : expose ``raise_for_status`` et ``json`` (zéro réseau).
+    """Fake HTTP response: exposes ``raise_for_status`` and ``json`` (zero network).
 
-    ``payload`` est typé ``Any`` : certaines venues renvoient un objet JSON
-    (Vast.ai ``{"offers": …}``) et d'autres un **tableau nu** (DataCrunch
-    ``/instance-types``).
+    ``payload`` is typed ``Any``: some venues return a JSON object (Vast.ai
+    ``{"offers": ...}``) and others a **bare array** (DataCrunch ``/instance-types``).
     """
 
     def __init__(self, payload: Any) -> None:
@@ -38,13 +36,13 @@ class FakeResponse:
 
 @pytest.fixture
 def now() -> dt.datetime:
-    """Instant de snapshot figé (UTC tz-aware)."""
+    """Frozen snapshot instant (UTC tz-aware)."""
     return NOW
 
 
 @pytest.fixture
 def vastai_offers() -> list[dict[str, Any]]:
-    """Offres Vast.ai d'exemple (forme réelle de l'API bundles)."""
+    """Sample Vast.ai offers (real shape of the bundles API)."""
     return [
         {"gpu_name": "H100 SXM", "dph_total": 16.0, "num_gpus": 8, "rentable": True},
         {"gpu_name": "A100 PCIE", "dph_total": 4.0, "num_gpus": 4, "rentable": True},
@@ -54,7 +52,7 @@ def vastai_offers() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def runpod_gpu_types() -> list[dict[str, Any]]:
-    """Types GPU RunPod d'exemple (forme réelle ``gpuTypes`` : secure + community)."""
+    """Sample RunPod GPU types (real ``gpuTypes`` shape: secure + community)."""
     return [
         {"displayName": "A100 PCIe", "securePrice": 1.39, "communityPrice": 1.19},
         {"displayName": "A40", "securePrice": 0, "communityPrice": 0.35},
@@ -66,7 +64,7 @@ def runpod_gpu_types() -> list[dict[str, Any]]:
 def patch_vastai_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[dict[str, Any]]], None]:
-    """Factory : remplace l'appel réseau Vast.ai (``requests.get``) par une réponse factice."""
+    """Factory: replaces the Vast.ai network call (``requests.get``) with a fake response."""
 
     def _patch(offers: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import vastai
@@ -82,7 +80,7 @@ def patch_vastai_network(
 def patch_runpod_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[dict[str, Any]]], None]:
-    """Factory : remplace l'appel réseau RunPod (``requests.post``) par une réponse factice."""
+    """Factory: replaces the RunPod network call (``requests.post``) with a fake response."""
 
     def _patch(gpu_types: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import runpod
@@ -96,12 +94,12 @@ def patch_runpod_network(
     return _patch
 
 
-# ── Vague W2 : 5 venues supplémentaires (payloads reprenant la forme réelle des API) ──
+# -- W2 wave: 5 additional venues (payloads reproducing the real shape of the APIs) --
 
 
 @pytest.fixture
 def primeintellect_items() -> list[dict[str, Any]]:
-    """Items d'availability Prime Intellect (agrégateur ; ``prices.onDemand`` = prix offre)."""
+    """Prime Intellect availability items (aggregator; ``prices.onDemand`` = offer price)."""
     return [
         {
             "cloudId": "ci-1",
@@ -126,21 +124,21 @@ def primeintellect_items() -> list[dict[str, Any]]:
             "prices": {"onDemand": 4.0, "isVariable": True, "currency": "USD"},
             "isSpot": True,
         },
-        {  # pas de provider → source nue "primeintellect"
+        {  # no provider -> bare source "primeintellect"
             "cloudId": "ci-3",
             "gpuType": "RTX4090",
             "gpuCount": 1,
             "prices": {"onDemand": 0.5, "currency": "USD"},
             "isSpot": False,
         },
-        {  # 0 GPU → écarté
+        {  # 0 GPU -> discarded
             "cloudId": "ci-4",
             "gpuType": "H100",
             "gpuCount": 0,
             "prices": {"onDemand": 3.0},
             "isSpot": False,
         },
-        {  # prix absent/invalide → écarté
+        {  # missing/invalid price -> discarded
             "cloudId": "ci-5",
             "gpuType": "L40S",
             "gpuCount": 2,
@@ -152,12 +150,12 @@ def primeintellect_items() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def datacrunch_instance_types() -> list[dict[str, Any]]:
-    """Catalogue DataCrunch ``/instance-types`` (prix machine on-demand + spot, specs imbriquées)."""
+    """DataCrunch ``/instance-types`` catalogue (on-demand + spot machine price, nested specs)."""
     return [
         {
             "id": "it-1",
             "instance_type": "8H100.80S.176V",
-            "price_per_hour": "24.0",  # DataCrunch cote en chaînes
+            "price_per_hour": "24.0",  # DataCrunch quotes as strings
             "spot_price": "12.0",
             "description": "8x H100 SXM5 80GB",
             "cpu": {"description": "176 CPU", "number_of_cores": 176},
@@ -166,14 +164,14 @@ def datacrunch_instance_types() -> list[dict[str, Any]]:
             "gpu_memory": {"description": "640GB", "size_in_gigabytes": 640},
             "storage": {"description": "2048GB NVMe", "size_in_gigabytes": 2048},
         },
-        {  # spot 0 → seule l'on-demand est émise
+        {  # spot 0 -> only the on-demand one is emitted
             "id": "it-2",
             "instance_type": "1A100.22V",
             "price_per_hour": "1.20",
             "spot_price": "0",
             "gpu": {"description": "1x A100 SXM4 40GB", "number_of_gpus": 1},
         },
-        {  # instance CPU (0 GPU) → écartée
+        {  # CPU instance (0 GPU) -> discarded
             "id": "it-3",
             "instance_type": "CPU.4V",
             "price_per_hour": "0.10",
@@ -185,7 +183,7 @@ def datacrunch_instance_types() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def cudo_machine_types() -> list[dict[str, Any]]:
-    """Types de machine CUDO (``gpuPriceHr.value`` est **déjà** un prix $/GPU·h, en chaîne)."""
+    """CUDO machine types (``gpuPriceHr.value`` is **already** a $/GPU·h price, as a string)."""
     return [
         {
             "machineType": "h100",
@@ -206,7 +204,7 @@ def cudo_machine_types() -> list[dict[str, Any]]:
             "gpuPriceHr": {"value": "0.45", "currency": "usd"},
             "totalGpuFree": 3,
         },
-        {  # pas de modèle GPU / prix nul → écarté
+        {  # no GPU model / zero price -> discarded
             "machineType": "cpu-epyc",
             "gpuModel": "",
             "gpuPriceHr": {"value": "0", "currency": "usd"},
@@ -217,11 +215,12 @@ def cudo_machine_types() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def hyperstack_flavors() -> list[dict[str, Any]]:
-    """Groupes de flavors Hyperstack ``/v1/core/flavors`` (schéma réel : SANS prix).
+    """Hyperstack ``/v1/core/flavors`` flavor groups (real schema: WITHOUT prices).
 
-    Le prix vit dans le pricebook séparé. Jointure : ``flavor.gpu`` (**type GPU**, ex.
-    ``"H100-80G-PCIe"``) ↔ ``pricebook.name``. Le suffixe ``-spot`` du type = bail spot.
-    A100-80G-SXM4 est présent ici mais absent du pricebook → écarté (non-concordance).
+    The price lives in the separate pricebook. Join: ``flavor.gpu`` (**GPU type**, e.g.
+    ``"H100-80G-PCIe"``) against ``pricebook.name``. The ``-spot`` suffix of the type = spot
+    lease. A100-80G-SXM4 is present here but absent from the pricebook -> discarded
+    (non-match).
     """
     return [
         {
@@ -284,7 +283,7 @@ def hyperstack_flavors() -> list[dict[str, Any]]:
                     "disk": 100,
                     "stock_available": False,
                 },
-                {  # flavor CPU (0 GPU) → écarté
+                {  # CPU flavor (0 GPU) -> discarded
                     "id": 301,
                     "name": "cpu-small",
                     "gpu": None,
@@ -293,7 +292,7 @@ def hyperstack_flavors() -> list[dict[str, Any]]:
                 },
             ],
         },
-        {  # A100 en flavors mais ABSENT du pricebook → écarté (test non-concordance)
+        {  # A100 in flavors but ABSENT from the pricebook -> discarded (non-match test)
             "gpu": "A100-80G-SXM4",
             "region_name": "US-1",
             "flavors": [
@@ -315,24 +314,24 @@ def hyperstack_flavors() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def hyperstack_pricebook() -> list[dict[str, Any]]:
-    """Pricebook Hyperstack ``/v1/pricebook`` (schéma réel : par composant, ``value`` = CHAÎNE).
+    """Hyperstack ``/v1/pricebook`` (real schema: per component, ``value`` = STRING).
 
-    ``name`` = type de GPU (+ vCPU/RAM/modèles d'inférence, jamais joints) ; ``value`` = prix
-    **déjà par GPU et par heure** sous forme de chaîne (ex. ``"1.9"``, ``"0E-9"`` pour nul).
+    ``name`` = GPU type (+ vCPU/RAM/inference models, never joined); ``value`` = price
+    **already per GPU and per hour** as a string (e.g. ``"1.9"``, ``"0E-9"`` for zero).
     """
     return [
-        {"id": 1, "name": "vCPU", "value": "0E-9"},  # composant nul → ignoré
-        {"id": 2, "name": "RAM", "value": "0.0015"},  # composant non-GPU → jamais joint
+        {"id": 1, "name": "vCPU", "value": "0E-9"},  # zero component -> ignored
+        {"id": 2, "name": "RAM", "value": "0.0015"},  # non-GPU component -> never joined
         {"id": 3, "name": "H100-80G-PCIe", "value": "1.9", "original_value": "1.9"},
         {"id": 4, "name": "H100-80G-PCIe-spot", "value": "1.52"},
         {"id": 5, "name": "L40", "value": "0.99"},
-        {"id": 6, "name": "deepseek-ai/DeepSeek-R1 (output)", "value": "2.55"},  # inférence
+        {"id": 6, "name": "deepseek-ai/DeepSeek-R1 (output)", "value": "2.55"},  # inference
     ]
 
 
 @pytest.fixture
 def tensordock_hostnodes() -> list[dict[str, Any]]:
-    """Hostnodes TensorDock v2 (``specs.gpu.price`` = prix $/GPU·h ; ``amount`` = stock dispo)."""
+    """TensorDock v2 hostnodes (``specs.gpu.price`` = $/GPU·h price; ``amount`` = stock)."""
     return [
         {
             "id": "hn-1",
@@ -351,7 +350,7 @@ def tensordock_hostnodes() -> list[dict[str, Any]]:
             "location": {"country": "Germany", "region": "eu-central", "city": "Frankfurt"},
             "specs": {"gpu": {"amount": 2, "type": "rtx4090-24gb", "vram": 24, "price": 0.45}},
         },
-        {  # plus aucun GPU dispo → écarté
+        {  # no GPU available any more -> discarded
             "id": "hn-3",
             "status": "offline",
             "specs": {"gpu": {"amount": 0, "type": "", "price": 0.0}},
@@ -363,7 +362,7 @@ def tensordock_hostnodes() -> list[dict[str, Any]]:
 def patch_primeintellect_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[dict[str, Any]]], None]:
-    """Factory : remplace l'appel réseau Prime Intellect (``requests.get``)."""
+    """Factory: replaces the Prime Intellect network call (``requests.get``)."""
 
     def _patch(items: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import primeintellect
@@ -381,7 +380,7 @@ def patch_primeintellect_network(
 def patch_datacrunch_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[dict[str, Any]]], None]:
-    """Factory : remplace le token OAuth2 (``requests.post``) et le catalogue (``requests.get``)."""
+    """Factory: replaces the OAuth2 token (``requests.post``) and the catalogue (``requests.get``)."""
 
     def _patch(instance_types: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import datacrunch
@@ -402,7 +401,7 @@ def patch_datacrunch_network(
 def patch_cudo_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[dict[str, Any]]], None]:
-    """Factory : remplace l'appel réseau CUDO (``requests.get``)."""
+    """Factory: replaces the CUDO network call (``requests.get``)."""
 
     def _patch(machine_types: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import cudo
@@ -418,11 +417,11 @@ def patch_cudo_network(
 def patch_hyperstack_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[dict[str, Any]], list[dict[str, Any]]], None]:
-    """Factory : remplace les deux appels réseau Hyperstack (flavors + pricebook).
+    """Factory: replaces both Hyperstack network calls (flavors + pricebook).
 
-    ``fetch_hyperstack`` appelle successivement ``/v1/core/flavors`` puis ``/v1/pricebook``.
-    On route par URL : l'URL contenant ``/pricebook`` reçoit le pricebook, les autres
-    reçoivent la réponse flavors.
+    ``fetch_hyperstack`` calls ``/v1/core/flavors`` then ``/v1/pricebook`` in turn. We route by
+    URL: the URL containing ``/pricebook`` gets the pricebook, the others get the flavors
+    response.
     """
 
     def _patch(flavor_groups: list[dict[str, Any]], pricebook: list[dict[str, Any]]) -> None:
@@ -442,12 +441,12 @@ def patch_hyperstack_network(
 def patch_tensordock_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[dict[str, Any]]], None]:
-    """Factory : remplace l'appel réseau TensorDock (``requests.get``)."""
+    """Factory: replaces the TensorDock network call (``requests.get``)."""
 
     def _patch(hostnodes: list[dict[str, Any]]) -> None:
         from core.ingestion.providers import tensordock
 
-        # Enveloppe v2 réelle : tout est sous "data".
+        # Real v2 envelope: everything sits under "data".
         monkeypatch.setattr(
             tensordock.requests,
             "get",

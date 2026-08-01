@@ -1,8 +1,8 @@
-"""Jambe compute du labo : ingestion des prix GPU et construction de l'indice spot.
+"""Compute leg of the lab: GPU price ingestion and spot index construction.
 
-Expose les types, protocoles, stratégies d'agrégation et le constructeur d'indice. Le
-détail des sources réelles (marketplace) vit dans ``gpu_market.py``, le stockage dans
-``snapshot_store.py``, l'agrégation configurable dans ``estimators.py`` / ``compute_index.py``.
+Exposes the types, protocols, aggregation strategies and the index builder. The real
+sources (marketplaces) live in ``gpu_market.py``, storage in ``snapshot_store.py``, and
+the configurable aggregation in ``estimators.py`` / ``compute_index.py``.
 """
 
 from core.ingestion import energy, providers
@@ -40,7 +40,7 @@ from core.ingestion.protocols import (
 from core.ingestion.snapshot_store import CsvSnapshotStore
 
 __all__ = [
-    # Sous-paquets de connecteurs (façade symétrique : compute + énergie).
+    # Connector subpackages (symmetric facade: compute + energy).
     "energy",
     "providers",
     "DEFAULT_INDEX_CONFIG",

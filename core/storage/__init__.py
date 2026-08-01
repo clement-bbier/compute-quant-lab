@@ -1,12 +1,12 @@
-"""``core.storage`` — couche de stockage du labo (cold store + abstractions).
+"""``core.storage`` — the lab's storage layer (cold store + abstractions).
 
-Pose la **couche d'abstraction** (Protocols) avant tout backend concret, et implémente
-le **cold store reproductible** Phase 0–1 de ``docs/storage-roadmap.md`` :
+Lays down the **abstraction layer** (Protocols) before any concrete backend, and
+implements the **reproducible cold store** of Phase 0-1 of ``docs/storage-roadmap.md``:
 
-- :class:`~core.storage.protocols.PriceStore` (+ stubs ``TickStream`` / ``HotCache``) ;
-- :class:`~core.storage.parquet_store.ParquetPriceStore` — lac Parquet partitionné ;
-- :func:`~core.storage.duckdb_query.query` — SQL embarqué (DuckDB) sur le lac ;
-- :func:`~core.storage.migrate.migrate_csv_snapshots` — bascule CSV → Parquet.
+- :class:`~core.storage.protocols.PriceStore` (+ ``TickStream`` / ``HotCache`` stubs);
+- :class:`~core.storage.parquet_store.ParquetPriceStore` — partitioned Parquet lake;
+- :func:`~core.storage.duckdb_query.query` — embedded SQL (DuckDB) over the lake;
+- :func:`~core.storage.migrate.migrate_csv_snapshots` — CSV to Parquet switchover.
 """
 
 from __future__ import annotations

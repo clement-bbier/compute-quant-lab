@@ -1,18 +1,18 @@
-"""Smoke test live ERCOT — réel, marqué ``@pytest.mark.live`` (B3).
+"""ERCOT live smoke test -- real, marked ``@pytest.mark.live`` (B3).
 
-Exclu de la CI par défaut (réseau ERCOT requis). Lance explicitement via :
+Excluded from CI by default (ERCOT network required). Run it explicitly with:
     uv run pytest -m live core/ingestion/energy -v
 
-Pré-requis réseau : l'API ercot.com est bloquée par WAF Imperva (Incapsula)
-depuis certains réseaux hors US (code HTTP 403). Ces tests doivent être exécutés
-depuis un réseau US ou un proxy approprié.
+Network prerequisite: the ercot.com API is blocked by the Imperva (Incapsula) WAF from some
+non-US networks (HTTP code 403). These tests must be run from a US network or through a
+suitable proxy.
 
-Ce que valide le smoke :
-- Le connecteur ErcotMarket est bien enregistré dans le registre.
-- get_spp() retourne des données avec volumétrie > 0.
-- La série RTM est UTC tz-aware et monotone croissante.
-- get_load_forecast() retourne des données avec publish_time < interval_start.
-- Les deux appels couvrent au moins 1 jour de données.
+What the smoke test validates:
+- The ErcotMarket connector is properly registered in the registry.
+- get_spp() returns data with a volume > 0.
+- The RTM series is UTC tz-aware and monotonically increasing.
+- get_load_forecast() returns data with publish_time < interval_start.
+- Both calls cover at least 1 day of data.
 """
 
 from __future__ import annotations
@@ -25,58 +25,58 @@ from core.ingestion.energy.base import available_markets, get_market
 
 @pytest.mark.live
 def test_ercot_is_registered() -> None:
-    """ERCOT est toujours dans le registre (marché public, required_env vide)."""
+    """ERCOT is always in the registry (public market, empty required_env)."""
     assert "ercot" in available_markets()
 
 
 @pytest.mark.live
 def test_rtm_price_live() -> None:
-    """Tire 2 jours de prix RTM réels et vérifie les garanties de forme."""
+    """Pull 2 days of real RTM prices and check the shape guarantees."""
     market = get_market("ercot")
 
-    # 2 jours récents — on prend J-3 à J-1 pour éviter les données incomplètes
+    # 2 recent days -- we take D-3 to D-1 to avoid incomplete data
     end = pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=1)
     start = end - pd.Timedelta(days=2)
 
     series = market.rtm_price(start, end)
 
-    # Volumétrie : 2 jours × 96 intervalles de 15 min = 192 points attendus
-    assert len(series) > 0, "La série RTM est vide"
-    assert len(series) >= 48, f"Volumétrie insuffisante : {len(series)} points"
+    # Volume: 2 days x 96 intervals of 15 min = 192 expected points
+    assert len(series) > 0, "The RTM series is empty"
+    assert len(series) >= 48, f"Insufficient volume: {len(series)} points"
 
-    # Fuseau UTC
+    # UTC timezone
     assert series.index.tz is not None
-    assert str(series.index.tz) == "UTC", f"Fuseau inattendu : {series.index.tz}"
+    assert str(series.index.tz) == "UTC", f"Unexpected timezone: {series.index.tz}"
 
-    # Monotonie temporelle
-    assert series.index.is_monotonic_increasing, "L'index n'est pas trié chronologiquement"
+    # Time monotonicity
+    assert series.index.is_monotonic_increasing, "The index is not sorted chronologically"
 
-    # Pas de NaN
-    assert not series.isna().any(), f"{series.isna().sum()} NaN détectés"
+    # No NaN
+    assert not series.isna().any(), f"{series.isna().sum()} NaN detected"
 
-    # Plage de valeurs cohérente (ERCOT RTM : typiquement −$50 à $9000/MWh)
-    assert series.min() > -1000.0, f"Prix minimum anormal : {series.min()}"
-    assert series.max() < 15_000.0, f"Prix maximum anormal : {series.max()}"
+    # Coherent value range (ERCOT RTM: typically -$50 to $9000/MWh)
+    assert series.min() > -1000.0, f"Abnormal minimum price: {series.min()}"
+    assert series.max() < 15_000.0, f"Abnormal maximum price: {series.max()}"
 
-    # Nom de la série
+    # Series name
     assert series.name == "rtm_price_usd_mwh"
 
 
 @pytest.mark.live
 def test_reserve_forecast_live() -> None:
-    """Tire des prévisions de charge réelles et vérifie l'invariant point-in-time L0 §2."""
+    """Pull real load forecasts and check the L0 section 2 point-in-time invariant."""
     market = get_market("ercot")
 
-    # On demande les rapports publiés dans les dernières 48h
+    # We request the reports published in the last 48h
     end = pd.Timestamp.now(tz="UTC")
     start = end - pd.Timedelta(hours=48)
 
     df = market.reserve_forecast(start, end)
 
-    # Volumétrie non nulle
-    assert len(df) > 0, "Le DataFrame de prévision est vide"
+    # Non-zero volume
+    assert len(df) > 0, "The forecast DataFrame is empty"
 
-    # Colonnes obligatoires
+    # Mandatory columns
     required = {
         "publish_time",
         "interval_start",
@@ -86,20 +86,20 @@ def test_reserve_forecast_live() -> None:
         "reserve_margin_mw",
     }
     missing = required - set(df.columns)
-    assert not missing, f"Colonnes manquantes : {missing}"
+    assert not missing, f"Missing columns: {missing}"
 
-    # Fuseau UTC
+    # UTC timezone
     assert str(df["publish_time"].dt.tz) == "UTC"
     assert str(df["interval_start"].dt.tz) == "UTC"
 
-    # Invariant causal L0 §2 : publish_time < interval_start
+    # L0 section 2 causal invariant: publish_time < interval_start
     violations = (df["publish_time"] >= df["interval_start"]).sum()
     assert violations == 0, (
-        f"{violations} lignes violent l'invariant causal "
-        "(publish_time >= interval_start) — look-ahead potentiel"
+        f"{violations} rows violate the causal invariant "
+        "(publish_time >= interval_start) -- potential look-ahead"
     )
 
-    # Cohérence marge
+    # Margin coherence
     expected_margin = df["forecast_capacity_mw"] - df["forecast_load_mw"]
     pd.testing.assert_series_equal(
         df["reserve_margin_mw"],
@@ -108,6 +108,6 @@ def test_reserve_forecast_live() -> None:
         rtol=1e-4,
     )
 
-    # Charge prévue dans une plage raisonnable pour ERCOT (20 GW − 90 GW)
+    # Forecast load within a reasonable range for ERCOT (20 GW - 90 GW)
     assert df["forecast_load_mw"].min() > 10_000.0
     assert df["forecast_load_mw"].max() < 100_000.0

@@ -1,6 +1,6 @@
-# Subcrate maturin AUTONOME — volontairement séparé du pyproject.toml racine
-# (zone protégée). Le câblage du build dans le package racine + la CI Rust est un
-# patch de convergence (cf. projects/08_backtest_risk_engine/CONVERGENCE.md).
+# STANDALONE maturin subcrate — deliberately separate from the root pyproject.toml
+# (protected zone). Wiring the build into the root package + the Rust CI is a
+# convergence patch (see projects/08_backtest_risk_engine/CONVERGENCE.md).
 [build-system]
 requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"
@@ -8,7 +8,7 @@ build-backend = "maturin"
 [project]
 name = "backtest-loop"
 version = "0.1.0"
-description = "Noyau Rust de la phase 2 du moteur de backtest P08."
+description = "Rust kernel for phase 2 of the P08 backtest engine."
 requires-python = ">=3.11"
 
 [tool.maturin]

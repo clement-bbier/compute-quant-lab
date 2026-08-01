@@ -1,8 +1,8 @@
-"""Provider Vast.ai : relevé des offres de location GPU (API bundles).
+"""Vast.ai provider: GPU rental offers (bundles API).
 
-La logique pure (``parse_vastai_offers``) est isolée de l'appel réseau (``fetch_vastai``,
-token-gated) pour être testable. Unité de sortie : USD par GPU·heure (le prix machine
-``dph_total`` est divisé par le nombre de GPU). Type de bail : on-demand.
+The pure logic (``parse_vastai_offers``) is isolated from the network call (``fetch_vastai``,
+token-gated) to keep it testable. Output unit: USD per GPU-hour (the machine price
+``dph_total`` is divided by the GPU count). Lease type: on-demand.
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ _VASTAI_OFFERS_URL = "https://console.vast.ai/api/v0/bundles/"
 def parse_vastai_offers(
     offers: Sequence[dict[str, Any]], snapshotted_at: dt.datetime
 ) -> list[Snapshot]:
-    """Transforme des offres Vast.ai en snapshots $/GPU·h (logique pure, testable).
+    """Transform Vast.ai offers into $/GPU·h snapshots (pure, testable logic).
 
-    On ne retient que les offres louables (``rentable``) avec au moins un GPU ; le prix
-    par GPU est ``dph_total / num_gpus``. Les champs descriptifs disponibles dans le
-    payload (région, mémoire GPU, vCPU, RAM, disque) sont propagés quand présents.
+    We only keep the rentable offers (``rentable``) with at least one GPU; the per-GPU price
+    is ``dph_total / num_gpus``. The descriptive fields available in the payload (region, GPU
+    memory, vCPU, RAM, disk) are propagated when present.
     """
     out: list[Snapshot] = []
     for offer in offers:
@@ -37,21 +37,21 @@ def parse_vastai_offers(
             continue
         dph_total = float(offer.get("dph_total", 0.0))
 
-        # Région : Vast.ai expose ``geolocation`` (ex. "US, GA") ou ``location``.
+        # Region: Vast.ai exposes ``geolocation`` (e.g. "US, GA") or ``location``.
         region_raw = offer.get("geolocation") or offer.get("location")
         region: str | None = str(region_raw) if region_raw else None
 
-        # Mémoire GPU : ``gpu_ram`` en Mo → Go.
+        # GPU memory: ``gpu_ram`` in MB -> GB.
         gpu_mem_mb = offer.get("gpu_ram")
         gpu_memory_gb: float | None = float(gpu_mem_mb) / 1024.0 if gpu_mem_mb else None
 
-        # vCPU et RAM (Go).
+        # vCPU and RAM (GB).
         cpu_cores = offer.get("cpu_cores_effective") or offer.get("cpu_cores")
         vcpu: int | None = int(cpu_cores) if cpu_cores else None
         ram_raw = offer.get("cpu_ram")
         ram_gb: float | None = float(ram_raw) / 1024.0 if ram_raw else None
 
-        # Disque (Go).
+        # Disk (GB).
         disk_raw = offer.get("disk_space")
         disk_gb: float | None = float(disk_raw) if disk_raw else None
 
@@ -76,7 +76,7 @@ def parse_vastai_offers(
 def fetch_vastai(
     api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
 ) -> list[Snapshot]:
-    """Appel réel à l'API Vast.ai → snapshots horodatés (I/O, non testé en unitaire)."""
+    """Real call to the Vast.ai API -> timestamped snapshots (I/O, not unit-tested)."""
     response = requests.get(
         _VASTAI_OFFERS_URL,
         headers={"Authorization": f"Bearer {api_key}"},
@@ -88,11 +88,11 @@ def fetch_vastai(
 
 
 class VastaiProvider:
-    """Provider Vast.ai (token ``VASTAI_API_KEY``)."""
+    """Vast.ai provider (``VASTAI_API_KEY`` token)."""
 
     name = "vastai"
     required_env: tuple[str, ...] = ("VASTAI_API_KEY",)
 
     def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Relève les offres Vast.ai (clé garantie présente par le registre key-gated)."""
+        """Read the Vast.ai offers (key guaranteed present by the key-gated registry)."""
         return fetch_vastai(os.environ["VASTAI_API_KEY"], now)

@@ -1,22 +1,22 @@
-"""Contrats (abstractions) des features exogènes point-in-time.
+"""Contracts (abstractions) of the point-in-time exogenous features.
 
-Le `PointInTimeFeatureBuilder` dépend de ces `Protocol`, jamais d'implémentations
-concrètes (Dependency Inversion Principle) : toute source de données exogènes
-(gaz, météo, capacity…) interchangeable se conforme au contrat `ExogenousSource`,
-ce qui rend les builders testables avec des fixtures et substituables.
+The `PointInTimeFeatureBuilder` depends on these `Protocol` classes, never on concrete
+implementations (Dependency Inversion Principle): every interchangeable exogenous data
+source (gas, weather, capacity, ...) conforms to the `ExogenousSource` contract, which
+makes the builders testable with fixtures and substitutable.
 
-Modèle de données — le frame *vintage*
---------------------------------------
-Une observation macro porte **deux** horodatages, jamais un seul :
+Data model - the *vintage* frame
+-------------------------------
+A macro observation carries **two** timestamps, never just one:
 
-* ``value_ts``      — la période que le chiffre décrit (« HDD du jour D ») ;
-* ``knowledge_ts``  — l'instant où le chiffre devient *connu* (publié) ;
-                      ``knowledge_ts = value_ts + lag de publication``.
+* ``value_ts``      — the period the figure describes ("HDD of day D");
+* ``knowledge_ts``  — the instant the figure becomes *known* (published);
+                      ``knowledge_ts = value_ts + publication lag``.
 
-Une révision est simplement une nouvelle ligne avec le même ``value_ts`` mais un
-``knowledge_ts`` plus tardif. À l'instant de décision ``t`` on ne voit que les
-lignes dont ``knowledge_ts <= t`` — et, par ``value_ts``, la plus récente d'entre
-elles. C'est la seule défense correcte contre le look-ahead sur données macro.
+A revision is simply a new row with the same ``value_ts`` but a later
+``knowledge_ts``. At decision instant ``t`` only the rows whose ``knowledge_ts <= t``
+are visible — and, per ``value_ts``, the most recent among them. This is the only
+correct defense against look-ahead on macro data.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import pandas as pd
 
 from core.utils.types import FloatArray as FloatArray  # re-export: public alias
 
-#: Colonnes canoniques d'un frame *vintage* (tidy, long-form).
+#: Canonical columns of a *vintage* frame (tidy, long-form).
 VALUE_TS = "value_ts"
 KNOWLEDGE_TS = "knowledge_ts"
 VALUE = "value"
@@ -36,31 +36,31 @@ VINTAGE_COLUMNS = (VALUE_TS, KNOWLEDGE_TS, VALUE)
 
 @runtime_checkable
 class ExogenousSource(Protocol):
-    """Source de variables exogènes, exposées en *vintages* point-in-time.
+    """Source of exogenous variables, exposed as point-in-time *vintages*.
 
-    Chaque variable est servie comme un frame long-form aux colonnes
-    ``(value_ts, knowledge_ts, value)`` (index ignoré), horodatages UTC
-    tz-aware. La source ne masque jamais le ``knowledge_ts`` : c'est l'appelant
-    (le builder) qui décide ce qui est connu à ``t``.
+    Each variable is served as a long-form frame with the columns
+    ``(value_ts, knowledge_ts, value)`` (index ignored), tz-aware UTC timestamps.
+    The source never hides the ``knowledge_ts``: it is the caller (the builder) that
+    decides what is known at ``t``.
     """
 
     def names(self) -> list[str]:
-        """Noms des variables exogènes disponibles."""
+        """Names of the available exogenous variables."""
         ...
 
     def vintages(self, name: str) -> pd.DataFrame:
-        """Frame vintage de ``name`` : colonnes ``(value_ts, knowledge_ts, value)``."""
+        """Vintage frame of ``name``: columns ``(value_ts, knowledge_ts, value)``."""
         ...
 
 
 @runtime_checkable
 class FeatureBuilder(Protocol):
-    """Construit des features **point-in-time** : à ``asof``, rien de ``> asof``."""
+    """Builds **point-in-time** features: at ``asof``, nothing ``> asof``."""
 
     def build_asof(self, asof: pd.Timestamp) -> pd.Series:
-        """Vecteur de features connu à l'instant de décision ``asof``."""
+        """Feature vector known at the decision instant ``asof``."""
         ...
 
     def build_panel(self, decision_index: pd.DatetimeIndex) -> pd.DataFrame:
-        """Panel (une ligne par instant de décision), toutes features ``<= t``."""
+        """Panel (one row per decision instant), all features ``<= t``."""
         ...

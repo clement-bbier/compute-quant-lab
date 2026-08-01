@@ -1,13 +1,12 @@
-"""Cœur cost-of-carry du pricing de futures compute (théorique / SIMULÉ).
+"""Cost-of-carry core of compute futures pricing (theoretical / SIMULATED).
 
-Modèle de portage : ``F = S·e^{(r−y)τ}`` où ``r`` est le taux de financement
-annualisé, ``y`` le convenience yield annualisé (non observable → hypothèse ou
-*inféré* depuis une forward) et ``τ`` la maturité en années. Propriété de
-convergence : ``F(τ=0) = S``. Report (contango) si ``r > y``, déport
-(backwardation) si ``y > r``.
+Carry model: ``F = S·e^{(r−y)τ}`` where ``r`` is the annualised funding rate, ``y``
+the annualised convenience yield (not observable, hence assumed or *inferred* from a
+forward) and ``τ`` the maturity in years. Convergence property: ``F(τ=0) = S``.
+Contango if ``r > y``, backwardation if ``y > r``.
 
-Fonctions pures (rule python-quality) : aucun I/O, aucune dépendance à ``projects/``.
-Unités : ``spot``/``forward`` en $/GPU·h ; ``rate``/``convenience_yield`` annualisés.
+Pure functions (python-quality rule): no I/O, no dependency on ``projects/``.
+Units: ``spot``/``forward`` in $/GPU·h; ``rate``/``convenience_yield`` annualised.
 """
 
 from __future__ import annotations
@@ -15,9 +14,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-#: Taux de financement annualisé par défaut (hypothèse PoC, documentée — non un prix marché).
+#: Default annualised funding rate (documented PoC assumption -- not a market price).
 DEFAULT_RISK_FREE_RATE: float = 0.04
-#: Convenience yield annualisé par défaut (non observable : hypothèse neutre de départ).
+#: Default annualised convenience yield (not observable: neutral starting assumption).
 DEFAULT_CONVENIENCE_YIELD: float = 0.0
 
 
@@ -27,23 +26,23 @@ def carry_forward(
     convenience_yield: float,
     tau_years: float,
 ) -> float:
-    """Prix forward cost-of-carry ``F = S·e^{(r−y)τ}``.
+    """Cost-of-carry forward price ``F = S·e^{(r−y)τ}``.
 
     Parameters
     ----------
     spot
-        Prix spot du compute en $/GPU·h.
+        Spot price of compute in $/GPU·h.
     rate
-        Taux de financement annualisé ``r``.
+        Annualised funding rate ``r``.
     convenience_yield
-        Convenience yield annualisé ``y`` (bénéfice de détention du sous-jacent).
+        Annualised convenience yield ``y`` (benefit of holding the underlying).
     tau_years
-        Maturité ``τ`` en années (``τ = 0`` ⇒ ``F = S``).
+        Maturity ``τ`` in years (``τ = 0`` implies ``F = S``).
 
     Returns
     -------
     float
-        Prix forward théorique en $/GPU·h.
+        Theoretical forward price in $/GPU·h.
     """
     return spot * math.exp((rate - convenience_yield) * tau_years)
 
@@ -54,26 +53,27 @@ def implied_convenience_yield(
     rate: float,
     tau_years: float,
 ) -> float:
-    """Convenience yield implicite ``y = r − ln(F/S)/τ`` — inverse de :func:`carry_forward`.
+    """Implied convenience yield ``y = r − ln(F/S)/τ`` -- inverse of :func:`carry_forward`.
 
-    Permet d'extraire l'hypothèse ``y`` contenue dans une forward donnée (p. ex. la
-    courbe Schwartz simulée de P04), le yield n'étant pas observable directement.
+    Extracts the ``y`` assumption embedded in a given forward (for instance the
+    simulated Schwartz curve of P04), the yield not being directly observable.
 
     Raises
     ------
     ValueError
-        Si ``tau_years <= 0`` (inversion indéfinie) ou si ``spot``/``forward`` <= 0.
+        If ``tau_years <= 0`` (the inversion is undefined) or if ``spot``/``forward``
+        are <= 0.
     """
     if tau_years <= 0:
-        raise ValueError("tau_years doit être > 0 pour inverser le carry.")
+        raise ValueError("tau_years must be > 0 to invert the carry.")
     if spot <= 0 or forward <= 0:
-        raise ValueError("spot et forward doivent être > 0 (logarithme défini).")
+        raise ValueError("spot and forward must be > 0 (the logarithm must be defined).")
     return rate - math.log(forward / spot) / tau_years
 
 
 @dataclass(frozen=True)
 class CarrySensitivities:
-    """Sensibilités analytiques (dérivées premières) du forward cost-of-carry."""
+    """Analytical sensitivities (first derivatives) of the cost-of-carry forward."""
 
     d_forward_d_rate: float  # ∂F/∂r = F·τ
     d_forward_d_yield: float  # ∂F/∂y = −F·τ
@@ -86,7 +86,7 @@ def carry_sensitivities(
     convenience_yield: float,
     tau_years: float,
 ) -> CarrySensitivities:
-    """Dérivées premières de ``F`` : ``∂F/∂r = F·τ``, ``∂F/∂y = −F·τ``, ``∂F/∂τ = F·(r−y)``."""
+    """First derivatives of ``F``: ``∂F/∂r = F·τ``, ``∂F/∂y = −F·τ``, ``∂F/∂τ = F·(r−y)``."""
     forward = carry_forward(spot, rate, convenience_yield, tau_years)
     return CarrySensitivities(
         d_forward_d_rate=forward * tau_years,
@@ -97,10 +97,10 @@ def carry_sensitivities(
 
 @dataclass(frozen=True)
 class CostOfCarryModel:
-    """Modèle de portage analytique — implémente le protocole ``CarryModel``.
+    """Analytical carry model -- implements the ``CarryModel`` protocol.
 
-    Le forward produit est **toujours** ``simulated=True`` : les futures compute
-    (settlement SDH100RT) ne sont pas listés, tout prix est théorique.
+    The forward it produces is **always** ``simulated=True``: compute futures
+    (SDH100RT settlement) are not listed, so every price is theoretical.
     """
 
     rate: float = DEFAULT_RISK_FREE_RATE
@@ -115,5 +115,5 @@ class CostOfCarryModel:
         return True
 
     def forward(self, spot: float, tau_years: float) -> float:
-        """Prix forward cost-of-carry pour ce ``(rate, convenience_yield)``."""
+        """Cost-of-carry forward price for this ``(rate, convenience_yield)`` pair."""
         return carry_forward(spot, self.rate, self.convenience_yield, tau_years)

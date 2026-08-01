@@ -1,7 +1,7 @@
-"""Tests du registre key-gated EnergyMarket (B1).
+"""Tests of the key-gated EnergyMarket registry (B1).
 
-Vérifie le protocole d'injection : enregistrement, lookup, key-gating,
-et l'erreur explicite pour un marché inconnu.
+Checks the injection protocol: registration, lookup, key-gating, and the explicit error for an
+unknown market.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from core.ingestion.energy.base import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers de fixtures
+# Fixture helpers
 # ---------------------------------------------------------------------------
 
 
@@ -46,7 +46,7 @@ def _make_dummy_forecast() -> pd.DataFrame:
 
 
 def test_register_and_get() -> None:
-    """Un marché enregistré est récupérable via get_market et détecté dans available_markets."""
+    """A registered market is retrievable via get_market and detected in available_markets."""
 
     @register_market("dummy_test")
     class _Dummy:
@@ -65,13 +65,13 @@ def test_register_and_get() -> None:
 
 
 def test_unknown_market_raises() -> None:
-    """get_market lève KeyError pour un marché non enregistré."""
+    """get_market raises KeyError for an unregistered market."""
     with pytest.raises(KeyError, match="atlantis"):
         get_market("atlantis")
 
 
 def test_market_without_env_not_listed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Un marché key-gated n'est pas dans available_markets() si sa clé est absente."""
+    """A key-gated market is not in available_markets() when its key is missing."""
 
     @register_market("gated_test")
     class _Gated:
@@ -84,13 +84,13 @@ def test_market_without_env_not_listed(monkeypatch: pytest.MonkeyPatch) -> None:
         def reserve_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
             return _make_dummy_forecast()
 
-    # Sans la variable d'environnement, le marché n'est PAS listé
+    # Without the environment variable, the market is NOT listed
     monkeypatch.delenv("GATED_TEST_API_KEY", raising=False)
     assert "gated_test" not in available_markets()
 
 
 def test_market_with_env_is_listed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Un marché key-gated EST listé quand toutes ses clés sont présentes."""
+    """A key-gated market IS listed when all of its keys are present."""
 
     @register_market("gated_test2")
     class _Gated2:
@@ -108,7 +108,7 @@ def test_market_with_env_is_listed(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_protocol_interface_compliant() -> None:
-    """La classe EnergyMarket est un Protocol runtime-checkable."""
+    """The EnergyMarket class is a runtime-checkable Protocol."""
 
     class _Minimal:
         name = "minimal"

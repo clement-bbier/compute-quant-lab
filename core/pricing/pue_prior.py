@@ -1,8 +1,8 @@
-"""Prior PUE region-keyed (truncated-normal), conforme à la fiche L0 §8.
+"""Region-keyed PUE prior (truncated normal), following note L0 section 8.
 
-Prior **strict** : jamais mis à jour par les prix observés (interdit de fit-to-price,
-cf. revue risk-validator). Fournit un *point estimate* (μ, chemin de pricing central)
-et des *bornes de sensibilité* (le support), propagées en bandes par le pricer.
+**Strict** prior: never updated from observed prices (fit-to-price is forbidden, see
+the risk-validator review). Provides a *point estimate* (mu, the central pricing path)
+and *sensitivity bounds* (the support), propagated as bands by the pricer.
 """
 
 from __future__ import annotations
@@ -16,16 +16,16 @@ from scipy.stats import truncnorm
 
 @dataclass(frozen=True)
 class PuePrior:
-    """Distribution truncated-normal sur le PUE (≥ 1 par construction via ``low``).
+    """Truncated-normal distribution over the PUE (>= 1 by construction via ``low``).
 
     Parameters
     ----------
     mu
-        Moyenne du prior (PUE central, point estimate du pricing).
+        Mean of the prior (central PUE, point estimate used for pricing).
     sigma
-        Écart-type avant troncature.
+        Standard deviation before truncation.
     low, high
-        Support [low, high]. ``low`` ≥ 1.0 (le datacenter consomme ≥ l'IT).
+        Support [low, high]. ``low`` >= 1.0 (the datacenter draws at least the IT load).
     """
 
     mu: float
@@ -35,11 +35,11 @@ class PuePrior:
 
     def __post_init__(self) -> None:
         if self.sigma <= 0:
-            raise ValueError("sigma doit être strictement positif")
+            raise ValueError("sigma must be strictly positive.")
         if self.low < 1.0:
-            raise ValueError("PUE >= 1.0 : `low` ne peut être < 1.0")
+            raise ValueError("low must be >= 1.0 (PUE cannot be below 1.0).")
         if not (self.low <= self.mu <= self.high):
-            raise ValueError("mu doit être dans le support [low, high]")
+            raise ValueError("mu must lie within the support [low, high].")
 
     def _dist(self) -> truncnorm:
         a = (self.low - self.mu) / self.sigma
@@ -47,18 +47,18 @@ class PuePrior:
         return truncnorm(a, b, loc=self.mu, scale=self.sigma)
 
     def point_estimate(self) -> float:
-        """μ — le PUE central utilisé pour le spread de référence."""
+        """mu -- the central PUE used for the reference spread."""
         return self.mu
 
     def sensitivity_bounds(self) -> tuple[float, float]:
-        """Support [low, high] — bornes des bandes de sensibilité du pricing."""
+        """Support [low, high] -- bounds of the pricing sensitivity bands."""
         return (self.low, self.high)
 
     def sample(self, n: int, *, seed: int) -> NDArray[np.float64]:
-        """Tirage reproductible de ``n`` PUE (déterminisme exigé par le labo)."""
+        """Reproducible draw of ``n`` PUE values (determinism required by the lab)."""
         rng = np.random.default_rng(seed)
         return self._dist().rvs(size=n, random_state=rng).astype(np.float64)
 
 
-# Conforme L0 §8 (Texas centré plus haut pour le refroidissement).
+# Follows L0 section 8 (Texas centred higher because of cooling).
 ERCOT_TEXAS_PRIOR = PuePrior(mu=1.45, sigma=0.15, low=1.2, high=1.8)

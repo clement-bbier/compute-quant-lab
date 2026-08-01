@@ -1,9 +1,9 @@
-"""Tests du connecteur Hyperstack : jointure ``flavor.gpu`` ↔ pricebook (prix par GPU).
+"""Tests of the Hyperstack connector: ``flavor.gpu`` to pricebook join (per-GPU price).
 
-Modèle réel (vérifié en live 2026-06-23) : le pricebook est **par composant**, ``value`` est
-une **chaîne** donnant le prix **déjà par GPU** ; la jointure se fait sur ``flavor.gpu`` (type
-GPU, ex. ``"H100-80G-PCIe"``), pas sur ``flavor.name``. Le suffixe ``-spot`` du type fixe le
-bail. Patron TDD : ``parse_hyperstack`` appelée directement (zéro réseau).
+Real model (verified live 2026-06-23): the pricebook is **per component**, ``value`` is a
+**string** giving the price **already per GPU**; the join is done on ``flavor.gpu`` (GPU type,
+e.g. ``"H100-80G-PCIe"``), not on ``flavor.name``. The ``-spot`` suffix of the type sets the
+lease. TDD pattern: ``parse_hyperstack`` is called directly (zero network).
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from core.ingestion.providers.hyperstack import (
 _TS = dt.datetime(2026, 6, 23, tzinfo=dt.timezone.utc)
 
 
-# ── _coerce_price / _build_price_index ──────────────────────────────────────────
+# -- _coerce_price / _build_price_index ----------------------------------------
 
 
 def test_coerce_price_parses_string_values() -> None:
@@ -34,7 +34,7 @@ def test_coerce_price_parses_string_values() -> None:
 
 
 def test_coerce_price_rejects_zero_and_invalid() -> None:
-    assert _coerce_price("0E-9") is None  # composant nul (chaîne décimale)
+    assert _coerce_price("0E-9") is None  # zero component (decimal string)
     assert _coerce_price("-1.0") is None
     assert _coerce_price(None) is None
     assert _coerce_price("abc") is None
@@ -47,20 +47,20 @@ def test_build_price_index_coerces_strings_and_drops_zero(
     assert idx["H100-80G-PCIe"] == 1.9
     assert idx["H100-80G-PCIe-spot"] == 1.52
     assert idx["L40"] == 0.99
-    assert "vCPU" not in idx  # value "0E-9" → écarté
+    assert "vCPU" not in idx  # value "0E-9" -> discarded
 
 
 def test_build_price_index_skips_missing_name_or_value() -> None:
     pricebook: list[dict[str, Any]] = [
         {"name": "X", "value": "5"},
-        {"value": "3"},  # pas de name
+        {"value": "3"},  # no name
         {"name": None, "value": "2"},
-        {"name": "Y"},  # pas de value
+        {"name": "Y"},  # no value
     ]
     assert _build_price_index(pricebook) == {"X": 5.0}
 
 
-# ── _vram_gb ────────────────────────────────────────────────────────────────────
+# -- _vram_gb ------------------------------------------------------------------
 
 
 def test_vram_gb_extracts_memory_from_type() -> None:
@@ -70,7 +70,7 @@ def test_vram_gb_extracts_memory_from_type() -> None:
     assert _vram_gb("L40") is None
 
 
-# ── parse_hyperstack ────────────────────────────────────────────────────────────
+# -- parse_hyperstack ----------------------------------------------------------
 
 
 def test_parse_hyperstack_joins_on_gpu_type_per_gpu_price(
@@ -78,10 +78,10 @@ def test_parse_hyperstack_joins_on_gpu_type_per_gpu_price(
     hyperstack_pricebook: list[dict[str, Any]],
 ) -> None:
     snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
-    # 2 H100 on_demand + 1 H100 spot + 1 L40 ; cpu-small et A100 (hors pricebook) écartés
+    # 2 H100 on_demand + 1 H100 spot + 1 L40; cpu-small and A100 (not in pricebook) discarded
     assert len(snaps) == 4
     assert all(s.source == "hyperstack" for s in snaps)
-    # le prix pricebook est DÉJÀ par GPU : aucun n3-H100* ne vaut 1.9/8
+    # the pricebook price is ALREADY per GPU: no n3-H100* is worth 1.9/8
     h100_od = [s for s in snaps if s.gpu_model == "H100" and s.lease_type == "on_demand"]
     assert len(h100_od) == 2
     assert all(s.price_usd_per_hour == 1.9 for s in h100_od)
@@ -94,7 +94,7 @@ def test_parse_hyperstack_spot_suffix_sets_lease_and_clean_model(
     snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
     spot = [s for s in snaps if s.lease_type == "spot"]
     assert len(spot) == 1
-    assert spot[0].gpu_model == "H100"  # "-spot" retiré avant normalisation (pas "L40S")
+    assert spot[0].gpu_model == "H100"  # "-spot" stripped before normalisation (not "L40S")
     assert spot[0].price_usd_per_hour == 1.52
 
 
@@ -118,7 +118,7 @@ def test_parse_hyperstack_stock_available_false_gives_zero(
     snaps = parse_hyperstack(hyperstack_flavors, hyperstack_pricebook, _TS)
     l40 = next(s for s in snaps if s.gpu_model == "L40")
     assert l40.availability == 0
-    assert l40.gpu_memory_gb is None  # "L40" ne porte pas de mémoire dans le type
+    assert l40.gpu_memory_gb is None  # "L40" carries no memory in the type
 
 
 def test_parse_hyperstack_skips_gpu_absent_from_pricebook(
@@ -150,7 +150,7 @@ def test_parse_hyperstack_empty_pricebook_returns_empty(
 def test_parse_hyperstack_falls_back_to_group_gpu(
     hyperstack_pricebook: list[dict[str, Any]],
 ) -> None:
-    # flavor sans 'gpu' → repli sur le 'gpu' du groupe pour la jointure
+    # flavor without 'gpu' -> fall back to the group's 'gpu' for the join
     groups = [
         {"gpu": "L40", "flavors": [{"name": "n3-L40x1", "gpu_count": 1, "stock_available": True}]}
     ]
@@ -172,7 +172,7 @@ def test_parse_hyperstack_handles_empty_groups() -> None:
     assert parse_hyperstack([], [], _TS) == []
 
 
-# ── fetch_hyperstack (réseau mocké) ──────────────────────────────────────────────
+# -- fetch_hyperstack (mocked network) -----------------------------------------
 
 
 def test_fetch_hyperstack_calls_both_endpoints_and_joins(
@@ -213,7 +213,7 @@ def test_fetch_hyperstack_handles_non_dict_pricebook_response(
     monkeypatch: pytest.MonkeyPatch,
     hyperstack_flavors: list[dict[str, Any]],
 ) -> None:
-    """Si le pricebook renvoie null, on renvoie [] sans exception (les 2 appels ont lieu)."""
+    """If the pricebook returns null, we return [] without an exception (both calls happen)."""
     from core.ingestion.providers.tests.conftest import FakeResponse
 
     call_count = 0

@@ -1,7 +1,7 @@
-"""Métriques de risque d'un backtest.
+"""Risk metrics for a backtest.
 
-Fonctions pures sur des tableaux float64. Le facteur d'annualisation est toujours
-un **argument nommé** (jamais un nombre magique enfoui — cf. rule python-quality).
+Pure functions over float64 arrays. The annualisation factor is always a
+**keyword argument** (never a magic number buried in the code — see rule python-quality).
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from core.backtest.protocols import FloatArray, Ledger
 
 
 def cumulative_pnl(pnl: FloatArray) -> FloatArray:
-    """PnL cumulé : somme courante du PnL période par période."""
+    """Cumulative PnL: running sum of the period-by-period PnL."""
     return np.cumsum(pnl)
 
 
@@ -21,12 +21,12 @@ def sharpe_ratio(
     periods_per_year: float,
     risk_free_rate: float = 0.0,
 ) -> float:
-    """Ratio de Sharpe annualisé.
+    """Annualised Sharpe ratio.
 
-    Sharpe = moyenne(excès) / écart-type(excès) · √(periods_per_year), où l'excès
-    retranche le taux sans risque par période (`risk_free_rate / periods_per_year`).
-    Écart-type d'échantillon (ddof=1). Si la volatilité est nulle, renvoie 0.0
-    (Sharpe non défini → convention explicite, pas de division par zéro).
+    Sharpe = mean(excess) / stdev(excess) · √(periods_per_year), where the excess
+    subtracts the per-period risk-free rate (`risk_free_rate / periods_per_year`).
+    Sample standard deviation (ddof=1). If volatility is zero, returns 0.0
+    (Sharpe undefined -> explicit convention, no division by zero).
     """
     excess = returns - risk_free_rate / periods_per_year
     std = excess.std(ddof=1)
@@ -36,9 +36,9 @@ def sharpe_ratio(
 
 
 def max_drawdown(equity_curve: FloatArray) -> float:
-    """Pire repli pic-à-creux, en fraction *signée* (≤ 0).
+    """Worst peak-to-trough decline, as a *signed* fraction (≤ 0).
 
-    Ex. equity [1, 2, 1.5, 3] : pic 2 → creux 1.5 ⇒ -0.25. Série croissante ⇒ 0.0.
+    E.g. equity [1, 2, 1.5, 3]: peak 2 -> trough 1.5 ⇒ -0.25. Increasing series ⇒ 0.0.
     """
     peak = np.maximum.accumulate(equity_curve)
     drawdown = equity_curve / peak - 1.0
@@ -46,25 +46,25 @@ def max_drawdown(equity_curve: FloatArray) -> float:
 
 
 def turnover(positions: FloatArray) -> float:
-    """Turnover brut : total des variations absolues de position, en partant à plat.
+    """Gross turnover: total absolute position changes, starting from flat.
 
-    Ex. positions [0, 1, 1, 0] : entrée (+1) puis sortie (-1) ⇒ 2.0.
+    E.g. positions [0, 1, 1, 0]: entry (+1) then exit (-1) ⇒ 2.0.
     """
     changes = np.diff(positions, prepend=0.0)
     return float(np.abs(changes).sum())
 
 
 def hit_ratio(returns: FloatArray) -> float:
-    """Fraction de périodes à rendement strictement positif (0.0 si série vide)."""
+    """Fraction of periods with a strictly positive return (0.0 if the series is empty)."""
     if returns.size == 0:
         return 0.0
     return float((returns > 0.0).mean())
 
 
 class DefaultMetrics:
-    """Agrège les métriques obligatoires d'un `Ledger` (implémente MetricsCalculator).
+    """Aggregates the mandatory metrics of a `Ledger` (implements MetricsCalculator).
 
-    Le facteur d'annualisation et le taux sans risque sont fixés à la construction.
+    The annualisation factor and the risk-free rate are fixed at construction time.
     """
 
     def __init__(self, periods_per_year: float, risk_free_rate: float = 0.0) -> None:
@@ -72,12 +72,10 @@ class DefaultMetrics:
         self.risk_free_rate = risk_free_rate
 
     def compute(self, ledger: Ledger) -> dict[str, float]:
-        """Renvoie PnL total, Sharpe, max drawdown, turnover et hit ratio."""
+        """Return total PnL, Sharpe, max drawdown, turnover and hit ratio."""
         return {
             "pnl_total": float(ledger.pnl.sum()),
-            "sharpe": sharpe_ratio(
-                ledger.returns, self.periods_per_year, self.risk_free_rate
-            ),
+            "sharpe": sharpe_ratio(ledger.returns, self.periods_per_year, self.risk_free_rate),
             "max_drawdown": max_drawdown(ledger.equity_curve),
             "turnover": turnover(ledger.positions),
             "hit_ratio": hit_ratio(ledger.returns),

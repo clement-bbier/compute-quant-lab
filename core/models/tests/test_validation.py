@@ -1,8 +1,8 @@
-"""Validation temporelle : purged k-fold + embargo, OOS sans fuite, Sharpe dégonflé.
+"""Temporal validation: purged k-fold + embargo, leak-free OOS, deflated Sharpe.
 
-Cœur de la défense anti-overfitting (López de Prado). Les tests prouvent l'absence de
-chevauchement train/test *au niveau de l'horizon du label* (pas seulement des indices),
-et que le deflated Sharpe pénalise bien le multiple-testing.
+Heart of the anti-overfitting defense (Lopez de Prado). The tests prove the absence of
+train/test overlap *at the level of the label horizon* (not only of the indices), and that
+the Deflated Sharpe does penalize multiple-testing.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def test_train_and_test_are_disjoint() -> None:
 
 
 def test_test_blocks_are_contiguous_and_ordered() -> None:
-    """Aucun shuffle : chaque bloc de test est un segment contigu et croissant."""
+    """No shuffle: each test block is a contiguous, increasing segment."""
     test_blocks = [test for _, test in _folds()]
     for test in test_blocks:
         assert np.array_equal(test, np.arange(test[0], test[-1] + 1))
@@ -42,11 +42,11 @@ def test_test_blocks_are_contiguous_and_ordered() -> None:
 
 
 def test_purge_removes_label_horizon_overlap() -> None:
-    """Invariant structurel : aucun label d'échantillon train ne mord sur le test.
+    """Structural invariant: no training sample's label overlaps the test block.
 
-    Le label à ``i`` dépend de la fenêtre ``[i, i+horizon]``. Pour tout train ``i`` :
-    soit ``i + horizon < test_start`` (purge gauche), soit ``i > test_end`` (le label
-    est entièrement postérieur au test). Un splitter qui fuit violerait cette assertion.
+    The label at ``i`` depends on the window ``[i, i+horizon]``. For every training ``i``:
+    either ``i + horizon < test_start`` (left purge), or ``i > test_end`` (the label lies
+    entirely after the test block). A leaking splitter would violate this assertion.
     """
     for train, test in _folds():
         t0, t1 = int(test[0]), int(test[-1])
@@ -70,12 +70,12 @@ def test_split_is_deterministic() -> None:
 
 
 def test_every_sample_is_tested_once() -> None:
-    """Couverture OOS : chaque indice apparaît dans exactement un bloc de test."""
+    """OOS coverage: each index appears in exactly one test block."""
     tested = np.concatenate([test for _, test in _folds()])
     assert np.array_equal(np.sort(tested), np.arange(N_SAMPLES))
 
 
-# --- OOS prediction : le juge de paix anti-fuite -----------------------------------
+# --- OOS prediction: the decisive anti-leak arbiter --------------------------------
 
 
 def _make_model() -> XGBoostDirectionModel:
@@ -91,7 +91,7 @@ def test_oos_recovers_known_signal(predictable_dataset) -> None:
 
 
 def test_oos_finds_no_skill_on_noise(noise_dataset) -> None:
-    """Sanity : sur du bruit pur, la validation OOS ne doit révéler aucun alpha."""
+    """Sanity: on pure noise, OOS validation must reveal no alpha."""
     x, y = noise_dataset
     splitter = PurgedKFold(n_splits=5, horizon=1, embargo=0)
     proba = oos_predict(_make_model, x, y, splitter)
@@ -99,7 +99,7 @@ def test_oos_finds_no_skill_on_noise(noise_dataset) -> None:
     assert 0.43 < accuracy < 0.57
 
 
-# --- Deflated Sharpe : anti multiple-testing ---------------------------------------
+# --- Deflated Sharpe: anti multiple-testing ----------------------------------------
 
 
 def test_expected_max_sharpe_grows_with_trials() -> None:

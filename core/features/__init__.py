@@ -1,8 +1,8 @@
-"""Feature engineering point-in-time du labo (couche Stratégie, P07).
+"""The lab's point-in-time feature engineering (Strategy layer, P07).
 
-Briques réutilisables pour construire des features **exogènes** (gaz, météo…)
-sans look-ahead : chaque feature à ``t`` n'utilise que des données dont le
-*knowledge-timestamp* est ``<= t``. Réutilisé en aval par P09 (ML).
+Reusable building blocks to construct **exogenous** features (gas, weather, ...)
+without look-ahead: each feature at ``t`` uses only data whose *knowledge-timestamp*
+is ``<= t``. Reused downstream by P09 (ML).
 """
 
 from core.features.builders import (
@@ -28,12 +28,12 @@ from core.features.protocols import (
 )
 
 __all__ = [
-    # Mécanique point-in-time.
+    # Point-in-time machinery.
     "as_of_snapshot",
     "from_lagged_series",
     "assert_point_in_time",
     "LookAheadError",
-    # Transforms purs.
+    # Pure transforms.
     "lag_feature",
     "rolling_mean_feature",
     "diff_feature",
@@ -41,11 +41,11 @@ __all__ = [
     "FeatureSpec",
     "PointInTimeFeatureBuilder",
     "DEFAULT_PUBLICATION_LAGS",
-    # Contrats.
+    # Contracts.
     "ExogenousSource",
     "FeatureBuilder",
     "FloatArray",
-    # Schéma vintage.
+    # Vintage schema.
     "VALUE_TS",
     "KNOWLEDGE_TS",
     "VALUE",
