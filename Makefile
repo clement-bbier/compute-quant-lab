@@ -12,6 +12,7 @@ SHELL := /bin/sh
 TEST_DIRS := tests \
              core/backtest/tests \
              core/features/tests \
+             core/ingestion/tests \
              core/ingestion/energy/tests \
              core/ingestion/providers/tests \
              core/models/tests \
@@ -51,7 +52,7 @@ test: ## Run every test suite in isolation
 		ran=$$((ran + 1)); \
 	done; \
 	echo "== $$ran suites =="; \
-	[ "$$ran" -ge 18 ] || { echo "Too few suites ($$ran < 18)" >&2; exit 1; }
+	[ "$$ran" -ge 20 ] || { echo "Too few suites ($$ran < 20)" >&2; exit 1; }
 
 lint: ## Run ruff and mypy
 	uv run ruff check .
