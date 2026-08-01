@@ -10,8 +10,9 @@ qualité desk : pondération sous **budget de risque**, **modèle d'exécution/c
 
 ## Découplage (clé du parallélisme)
 P10 ne dépend PAS des entrailles de P02/P06/P09 : il consomme des **signaux génériques** via
-l'abstraction `Strategy`/`PointInTimeView` de **P08** (`core.backtest`), avec des producteurs
-**mockés** (in-memory). Les vrais se branchent à la **convergence** sans changer le code (OCP).
+l'abstraction `Strategy`/`PointInTimeView` de **P08** (`core.backtest`). Les producteurs
+**mockés** (in-memory) restent pour les tests de régression ; les **vrais** producteurs P02/P06/P09
+(promus dans `core.signals`, P12) sont branchés sans changer le code du desk (OCP).
 
 ## Modules possédés
 - `projects/10_portfolio_execution/` uniquement.
@@ -33,8 +34,9 @@ l'abstraction `Strategy`/`PointInTimeView` de **P08** (`core.backtest`), avec de
 - `src/run_desk.py` — pipeline desk → backtest P08 (brut) → coûts → PnL net → run MLflow.
 
 ## Frontière réel/simulé (non négociable)
-Tous les signaux du PoC sont **mockés** ⇒ `simulated=True` ; la série de prix desk est
-**synthétique étiquetée**. Aucun PnL n'est vendu comme alpha (cf. [results/RISK_REVIEW.md]).
+Les 3 signaux sont les **vrais** producteurs P02/P06/P09 (`simulated` hérité de chacun) ; la
+série de prix desk, elle, reste **synthétique étiquetée** (`simulated=True`). Aucun PnL n'est
+vendu comme alpha (cf. [results/RISK_REVIEW.md]).
 
 ## État d'avancement (PoC-now)
 - [x] Pondération inverse-vol + budget de risque + seam ERC (OCP), plancher de vol, gross cap
@@ -42,12 +44,15 @@ Tous les signaux du PoC sont **mockés** ⇒ `simulated=True` ; la série de pri
 - [x] `DeskStrategy` composite anti look-ahead (garde-fou P08), déterminisme, attribution exacte
 - [x] Run MLflow reproductible (params + métriques **nettes ET brutes** + SHA + DVC + figure PnL net)
 - [x] 37 tests verts ; `ruff`/`mypy core` verts
-- [ ] **Vrais signaux** P02/P06/P09 (convergence) ; agent `risk-validator` (absent, zone protégée)
+- [x] **Vrais signaux** P02/P06/P09 promus dans `core.signals` (P12), câblés via `REAL_PRODUCERS`
+- [ ] Agent `risk-validator` (absent, zone protégée)
 - [ ] Palier institutionnel : optimiseur risk-parity contraint, capacité, limites desk, exécution live
 
 ## Résultats clés
-Pipeline validé bout-en-bout sur **signaux mockés** + série **simulée**. PnL **net −0.54** vs
-**brut −0.15** : les coûts (frais+slippage+impact κ=0.02) quasi **quadruplent la perte** —
-illustration directe de « les coûts d'exécution sont le tueur de PnL » (§10). Aucun alpha
-revendiqué : voir [results/SYNTHESIS.md](results/SYNTHESIS.md) et le verdict adversarial dans
-[results/RISK_REVIEW.md](results/RISK_REVIEW.md).
+Pipeline validé bout-en-bout sur les **3 vrais signaux** P02/P06/P09 + série desk **simulée**.
+PnL **net −4.4654** vs **brut +0.5057** : avec un turnover de 455, les coûts (frais+slippage+
+impact κ=0.02) ne rognent pas la perte, ils la **dynamitent** — illustration directe de « les
+coûts d'exécution sont le tueur de PnL » (§10). Le brut positif sur série synthétique
+mean-reverting est un artefact (les signaux épousent le processus générateur), pas de l'alpha.
+Aucun alpha revendiqué : voir [results/SYNTHESIS.md](results/SYNTHESIS.md) et le verdict
+adversarial dans [results/RISK_REVIEW.md](results/RISK_REVIEW.md).

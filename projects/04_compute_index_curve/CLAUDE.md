@@ -35,4 +35,6 @@ données fondateur dont dépendent P03 (term structure) et P06 (dérivés).
 
 ## Résultats clés
 Courbe forward SIMULÉE générée bout-en-bout (moteur Rust, OLS AR(1)), convergente au spot
-à τ=0, run MLflow rejouable (params + SHA git). Détails : [README.md](README.md).
+à τ=0 (2.808 $/GPU·h, indice réel sur `data/snapshots`), run MLflow rejouable (params + SHA
+git). Artefact committé : [results/run_summary.json](results/run_summary.json). Détails :
+[README.md](README.md).

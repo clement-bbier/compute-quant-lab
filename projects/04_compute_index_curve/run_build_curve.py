@@ -16,6 +16,7 @@ suffira de le remplacer par la série réelle de l'indice une fois la collecte a
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
@@ -35,6 +36,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("run_build_curve")
 
 SNAPSHOT_DIR = _ROOT / "data" / "snapshots"
+RESULTS_DIR = Path(__file__).resolve().parent / "results"
 GPU_MODEL = "H100"
 MATURITIES = [0.0, 7.0, 30.0, 90.0, 180.0, 360.0]
 
@@ -46,7 +48,9 @@ def _current_spot() -> float:
         try:
             now = max(s.snapshotted_at for s in snapshots)
             point = build_spot_index(snapshots, now, GPU_MODEL)
-            logger.info("Spot réel de l'indice : %.4f $/GPU·h (%s)", point.price_usd_per_hour, point.method)
+            logger.info(
+                "Spot réel de l'indice : %.4f $/GPU·h (%s)", point.price_usd_per_hour, point.method
+            )
             return point.price_usd_per_hour
         except InsufficientDataError:
             logger.warning("Snapshots présents mais insuffisants : spot de démonstration.")
@@ -73,10 +77,38 @@ def main() -> None:
     history = _demo_log_history(spot)
     curve = build_forward_curve(history, spot=spot, maturities_days=MATURITIES)
 
-    logger.info("Courbe forward SIMULÉE (%s, seed=%s, n_paths=%s) :", curve.model_name, curve.seed, curve.n_paths)
+    logger.info(
+        "Courbe forward SIMULÉE (%s, seed=%s, n_paths=%s) :",
+        curve.model_name,
+        curve.seed,
+        curve.n_paths,
+    )
     for point in curve.points:
         logger.info("  τ=%6.1f j -> %.4f $/GPU·h", point.maturity_days, point.forward_price)
-    logger.info("Run loggué sous %s (experiment 'compute_forward_curve').", os.environ["MLFLOW_TRACKING_URI"])
+    logger.info(
+        "Run loggué sous %s (experiment 'compute_forward_curve').",
+        os.environ["MLFLOW_TRACKING_URI"],
+    )
+
+    summary = {
+        "spot": curve.spot,
+        "simulated": curve.simulated,
+        "model_name": curve.model_name,
+        "seed": curve.seed,
+        "n_paths": curve.n_paths,
+        "kappa": curve.params.kappa,
+        "theta": curve.params.theta,
+        "sigma": curve.params.sigma,
+        "points": [
+            {"maturity_days": p.maturity_days, "forward_price": p.forward_price}
+            for p in curve.points
+        ],
+    }
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    (RESULTS_DIR / "run_summary.json").write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    logger.info("Résumé écrit : %s", RESULTS_DIR / "run_summary.json")
 
 
 if __name__ == "__main__":

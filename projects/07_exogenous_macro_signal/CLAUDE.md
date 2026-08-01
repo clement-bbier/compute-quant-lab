@@ -29,6 +29,28 @@ Run MLflow via `core.utils.tracking.run` (params : variables, lags de publicatio
 fenêtres, seed ; tags SHA + DVC). Brut exogène → `data/raw/exogenous/`, cache local
 (gitignoré par design, jamais committé).
 
+## Branche ERCOT (L0 grid-stress, données RÉELLES)
+Sous-pipeline distinct du signal gaz/HDD/CDD ci-dessus : mesure si la **marge de réserve**
+et le **gradient net-load** ERCOT (prédicteurs gelés du pré-enregistrement L0,
+`docs/superpowers/specs/2026-06-23-L0-ercot-grid-stress-preregistration.md`) prédisent un
+spike RTM, hors échantillon.
+- `src/ercot_dataset.py` (97 L) — reconstruit les prédicteurs point-in-time depuis le cold
+  store (`as_of ≈ 18h CPT J-1`), garde-fou anti look-ahead sur `publish_time <= as_of`.
+- `src/ercot_labels.py` (67 L) — labels spike (percentile intra-jour, seuil absolu).
+- `src/ercot_baseline.py` (46 L) — baseline climatologique de référence.
+- `src/ercot_calibration.py` (98 L) — purged K-fold + embargo (`core.models`), comparaison
+  à la baseline, IC bootstrap + correction Benjamini-Hochberg multi-specs.
+- `src/ercot_eval.py` (79 L) — métriques PR-AUC + tests statistiques.
+- `src/run_ercot_calibration.py` (70 L) — orchestration → run MLflow.
+- 448 LOC au total, 14 tests dédiés dans `tests/test_ercot_*.py`.
+
+Lit **exclusivement** le cold store ERCOT réel (`data/cold/ercot`, rule
+`training-cold-store`) — jamais de repli synthétique, contrairement au reste de P07.
+Ce worktree ne contient pas le cold store peuplé (`data/cold/` est vide hors `.gitkeep`) :
+les 14 tests passent sur fixtures, mais `run_ercot_calibration.py` a besoin d'un backfill
+réel au préalable (`infra/collectors/ercot_backfill.py --start ... --end ...`, nécessite
+`GRIDSTATUS_API_KEY`).
+
 ## État d'avancement (PoC-now ✅)
 - [x] Mécanique point-in-time (lag + révisions) dans `core/features/` + 16 tests.
 - [x] Anti look-ahead STRICT testé en rouge (lag de publication, garde-fou).

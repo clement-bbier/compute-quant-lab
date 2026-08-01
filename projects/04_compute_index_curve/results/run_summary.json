@@ -1,0 +1,36 @@
+{
+  "spot": 2.808,
+  "simulated": true,
+  "model_name": "schwartz_mc_rust",
+  "seed": 0,
+  "n_paths": 100000,
+  "kappa": 0.07033179752085737,
+  "theta": 2.2876335793340203,
+  "sigma": 0.05343525327117081,
+  "points": [
+    {
+      "maturity_days": 0.0,
+      "forward_price": 2.8079999999974143
+    },
+    {
+      "maturity_days": 7.0,
+      "forward_price": 2.6084544931815596
+    },
+    {
+      "maturity_days": 30.0,
+      "forward_price": 2.36835515122629
+    },
+    {
+      "maturity_days": 90.0,
+      "forward_price": 2.3129289512446274
+    },
+    {
+      "maturity_days": 180.0,
+      "forward_price": 2.311692108143048
+    },
+    {
+      "maturity_days": 360.0,
+      "forward_price": 2.310757029839633
+    }
+  ]
+}

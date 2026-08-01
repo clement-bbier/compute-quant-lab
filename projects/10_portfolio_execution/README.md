@@ -10,13 +10,13 @@ collection de vues en un portefeuille tradable et en mesure le PnL réaliste.
 
 ## Découplage & parallélisme
 P10 consomme l'abstraction `Strategy` / `PointInTimeView` de **P08** (`core.backtest`). Les
-producteurs de signaux sont **mockés** au PoC ; P02/P06/P09 se branchent en convergence derrière
-le même Protocol `SignalProducer`, sans toucher au code du desk (OCP). P10 tourne donc **en
-parallèle** des projets de signaux.
+producteurs mockés restent pour les tests de régression ; les **vrais** signaux P02/P06/P09
+(promus dans `core.signals`, P12) sont branchés derrière le même Protocol `SignalProducer`,
+sans toucher au code du desk (OCP). P10 a donc pu tourner **en parallèle** des projets de signaux.
 
 ## Architecture
 ```
-signaux mockés ──► DeskStrategy (Strategy composite P08)
+signaux P02/P06/P09 (réels) ──► DeskStrategy (Strategy composite P08)
    (s_i ∈[-1,1])      │   à chaque t :
                       │   1. s_i,t via GuardedView ≤ t        (signals.py)
                       │   2. vol réalisée point-in-time        (desk.py)
@@ -60,7 +60,9 @@ uv run python projects/10_portfolio_execution/src/run_desk.py
 > explicite** tant que la convergence n'a pas ajouté `projects/10_…/tests` (cf. CONVERGENCE.md).
 
 ## État
-PoC validé sur **mocks** (37 tests verts, `ruff`/`mypy core` verts, run MLflow loggué). Le PnL
-net est **négatif** : c'est attendu (les mocks n'ont aucun edge) et **honnête**. Détail et
-verdict adversarial : [results/SYNTHESIS.md](results/SYNTHESIS.md),
+Pipeline validé bout-en-bout sur les **3 vrais signaux** P02/P06/P09 (37 tests verts,
+`ruff`/`mypy core` verts, run MLflow loggué). Le PnL net est **négatif** (−4.4654) : le brut
+positif sur série synthétique mean-reverting est un artefact (les signaux épousent le processus
+générateur), pas de l'alpha, et les coûts d'exécution l'enfoncent encore. Détail et verdict
+adversarial : [results/SYNTHESIS.md](results/SYNTHESIS.md),
 [results/RISK_REVIEW.md](results/RISK_REVIEW.md). Suite : [CONVERGENCE.md](CONVERGENCE.md).

@@ -1,4 +1,5 @@
-# Artefacts de run générés (MLflow, snapshots) — non versionnés.
+# Artefacts de run générés (MLflow, last_run.json) — non versionnés. SYNTHESIS.md l'est.
 *
 !.gitkeep
 !.gitignore
+!SYNTHESIS.md

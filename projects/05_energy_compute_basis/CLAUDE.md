@@ -37,10 +37,10 @@ surtout porté par l'énergie × PUE (le revenu compute s'annule entre régions 
 Coûts/latence de transfert ignorés au PoC → ne pas sur-interpréter un arbitrage « gratuit ».
 
 ## État d'avancement
-- [ ] `RegionConfig` + `build_regional_pricer` (tests)
-- [ ] `BasisCalculator` point-in-time (basis multi-région, sensibilité PUE, anti look-ahead)
-- [ ] `detect_dislocations` (seuil + demi-vie AR(1))
-- [ ] Orchestration `run_basis.py` + run MLflow + `results/SYNTHESIS.md`
+- [x] `RegionConfig` + `build_regional_pricer` (tests)
+- [x] `BasisCalculator` point-in-time (basis multi-région, sensibilité PUE, anti look-ahead)
+- [x] `detect_dislocations` (seuil + demi-vie AR(1))
+- [x] Orchestration `run_basis.py` + run MLflow + `results/SYNTHESIS.md`
 
 ## Hors périmètre (palier institutionnel)
 Routing de charge optimisé, coûts/latence de transfert, contraintes de capacité, signal

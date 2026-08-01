@@ -29,7 +29,8 @@ Chaque run logge MLflow : params + métriques (PnL, Sharpe, max DD, turnover, hi
 
 ## Résultats clés
 Démo (`run_demo.py`, mean-reversion z-score sur série synthétique, 512 obs, frais 10 bps
-+ slippage 5 bps) — run MLflow reproductible :
++ slippage 5 bps) — run MLflow reproductible, artefact committé dans
+[results/SYNTHESIS.md](results/SYNTHESIS.md) :
 - PnL total ≈ 0.115 · **Sharpe ≈ 0.62** (réaliste, aucun drapeau overfitting) · max DD ≈ -4.7 %
 - turnover ≈ 93.7 · hit ratio ≈ 0.47
 - 29 tests verts (métriques analytiques, garde-fou rouge, déterminisme, coûts, parité Rust/Python).
