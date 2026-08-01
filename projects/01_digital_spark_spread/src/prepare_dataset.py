@@ -8,15 +8,13 @@ Jambe **compute** : *stub* Silicon Data réaliste (H100, $/GPU·h) tant que l'ac
 n'est pas confirmé — le swap vers le flux réel est trivial (une fonction).
 
 Sortie : ``data/interim/aligned_spark.parquet`` (grille horaire UTC, co-timestampée,
-lag=0), versionnée via ``dvc add``. Aucune écriture dans ``data/raw/`` (immuable).
+lag=0), versionnée en git ordinaire. Aucune écriture dans ``data/raw/`` (immuable).
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -107,23 +105,6 @@ def main() -> None:
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(OUTPUT)
     log.info("Écrit %s (%d lignes, énergie=%s).", OUTPUT, len(frame), source_tag)
-
-    _dvc_add(OUTPUT)
-
-
-def _dvc_add(path: Path) -> None:
-    """Versionne l'artefact via DVC si disponible (sinon avertit, sans bloquer)."""
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "dvc", "add", str(path)],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        log.info("dvc add OK : %s.dvc", path.name)
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-        log.warning("dvc add non effectué (%s) — à versionner à la convergence.", exc)
 
 
 if __name__ == "__main__":

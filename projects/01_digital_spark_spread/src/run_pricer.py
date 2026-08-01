@@ -67,16 +67,19 @@ def _metrics(result: SpreadResult) -> dict[str, float]:
     }
 
 
-def _dvc_version(path: Path) -> str:
-    dvc_file = path.with_suffix(path.suffix + ".dvc")
-    if not dvc_file.exists():
-        return "untracked"
+def _data_version(path: Path) -> str:
+    """Empreinte git du fichier de données (plain git, plus de DVC)."""
     try:
-        return subprocess.check_output(
-            ["dvc", "get-url", str(dvc_file)], cwd=REPO_ROOT, text=True
-        ).strip() or dvc_file.read_text(encoding="utf-8")[:200]
+        return (
+            subprocess.check_output(
+                ["git", "log", "-1", "--format=%H", "--", str(path.relative_to(REPO_ROOT))],
+                cwd=REPO_ROOT,
+                text=True,
+            ).strip()
+            or "untracked"
+        )
     except Exception:  # noqa: BLE001 - best effort
-        return dvc_file.read_text(encoding="utf-8")[:200]
+        return "untracked"
 
 
 def main() -> None:
@@ -104,7 +107,7 @@ def main() -> None:
         "energy_source": energy_source,
         "window_start": str(result.window[0]),
         "window_end": str(result.window[1]),
-        "dvc_data_version": _dvc_version(DATA),
+        "data_version": _data_version(DATA),
     }
 
     # MLflow en local sous experiments/mlruns (gitignored), via le util du labo.
@@ -118,9 +121,12 @@ def main() -> None:
     (RESULTS / "run_summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    log.info("Spread moyen=%.4f €/GPU·h | %% positif=%.1f%% | n=%d",
-             metrics["spread_mean_eur"], 100 * metrics["spread_positive_share"],
-             int(metrics["n_obs"]))
+    log.info(
+        "Spread moyen=%.4f €/GPU·h | %% positif=%.1f%% | n=%d",
+        metrics["spread_mean_eur"],
+        100 * metrics["spread_positive_share"],
+        int(metrics["n_obs"]),
+    )
     log.info("Résumé écrit : %s", RESULTS / "run_summary.json")
 
 
