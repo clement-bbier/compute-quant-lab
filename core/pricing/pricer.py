@@ -6,8 +6,9 @@
 `projects/01_.../src/`.
 
 Kernel selection happens by injection: Rust if provided, otherwise the Python oracle.
-The Rust subcrate (`core.pricing._kernel`) is optional; its absence only degrades
-performance, never the result.
+The Rust subcrate (source at `core/pricing/_kernel/`, installs as the top-level
+`_kernel` extension) is optional; its absence only degrades performance, never
+the result.
 """
 
 from __future__ import annotations
@@ -51,14 +52,20 @@ class SpreadResult:
 class RustKernel:
     """Adapter from the optional Rust subcrate to the `SpreadKernel` protocol.
 
-    Only instantiable if `core.pricing._kernel` has been compiled (``maturin
-    develop``); raises `ImportError` otherwise.
+    Only instantiable if the ``_kernel`` extension has been compiled (``maturin
+    develop -m core/pricing/_kernel/Cargo.toml``); raises `ImportError` otherwise.
     """
 
     def __init__(self) -> None:
         import importlib  # noqa: PLC0415 (optional runtime import)
 
-        kernel = importlib.import_module("core.pricing._kernel")
+        # Top-level import, NOT "core.pricing._kernel": the pyo3 crate's [lib] name
+        # is "_kernel" (flat), so maturin installs it at site-packages/_kernel/.
+        # Importing it as a submodule of core.pricing would instead resolve to the
+        # on-disk core/pricing/_kernel/ source directory (an implicit namespace
+        # package with no `compute` attribute), making this silently un-instantiable
+        # even when the crate is compiled.
+        kernel = importlib.import_module("_kernel")
         self._compute = kernel.compute
 
     def compute(

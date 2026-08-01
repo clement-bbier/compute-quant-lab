@@ -1,8 +1,9 @@
 """(d) Rust <-> Python parity of the spread kernel.
 
-The Rust kernel (`core.pricing._kernel`) is an optional maturin subcrate. As
-long as it isn't compiled (``maturin develop``), this test is *skipped*: the PoC
-stays 100% green in pure Python, Rust is additive.
+The Rust kernel (source at `core/pricing/_kernel/`, installs as the top-level
+`_kernel` extension) is an optional maturin subcrate. As long as it isn't
+compiled (``maturin develop``), this test is *skipped*: the PoC stays 100%
+green in pure Python, Rust is additive.
 """
 
 from __future__ import annotations
