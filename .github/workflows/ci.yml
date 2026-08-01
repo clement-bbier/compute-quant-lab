@@ -22,6 +22,7 @@ jobs:
           for d in tests \
                    core/backtest/tests \
                    core/features/tests \
+                   core/ingestion/tests \
                    core/ingestion/energy/tests \
                    core/ingestion/providers/tests \
                    core/models/tests \
@@ -40,4 +41,4 @@ jobs:
           echo "== $ran suites exécutées =="
           # Garde-fou : si les globs cessent de matcher, la CI doit échouer
           # bruyamment plutôt que passer au vert sans avoir rien testé.
-          [ "$ran" -ge 18 ] || { echo "Trop peu de suites ($ran < 18)" >&2; exit 1; }
+          [ "$ran" -ge 20 ] || { echo "Trop peu de suites ($ran < 20)" >&2; exit 1; }
