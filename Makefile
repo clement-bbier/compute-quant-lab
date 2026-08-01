@@ -27,7 +27,7 @@ CRATES := core/pricing/_kernel \
           projects/04_compute_index_curve/forward_engine
 
 .DEFAULT_GOAL := help
-.PHONY: help install kernels test lint fmt demo clean
+.PHONY: help install kernels test coverage lint fmt demo clean
 
 help: ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -53,6 +53,19 @@ test: ## Run every test suite in isolation
 	done; \
 	echo "== $$ran suites =="; \
 	[ "$$ran" -ge 20 ] || { echo "Too few suites ($$ran < 20)" >&2; exit 1; }
+
+coverage: ## Run every test suite with combined coverage (core, projects, infra)
+	@rm -f .coverage
+	@for d in $(TEST_DIRS); do \
+		[ -d "$$d" ] || continue; \
+		echo "== pytest --cov $$d =="; \
+		uv run pytest -q "$$d" \
+			--cov=core --cov=projects --cov=infra --cov-append \
+			--cov-report= || exit 1; \
+	done; \
+	uv run coverage report --format=markdown > .coverage-report.md; \
+	uv run coverage report; \
+	uv run coverage xml
 
 lint: ## Run ruff and mypy
 	uv run ruff check .
