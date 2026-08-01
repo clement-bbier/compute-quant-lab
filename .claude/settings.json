@@ -1,5 +1,5 @@
 {
-  "$comment": "Garde-fous DÉTERMINISTES du labo. Ce qui doit arriver à coup sûr va ici, pas dans CLAUDE.md (une instruction promptée peut être ignorée sous pression ; un hook, non). Les hooks sont en Python standard (pas de jq) : ce projet tourne sous Windows, où jq est absent par défaut. guard_write.py est fail-closed, format_python.py est fail-open.",
+  "$comment": "DETERMINISTIC guardrails for the lab. Anything that must happen without fail goes here, not in CLAUDE.md (a prompted instruction can be ignored under pressure; a hook cannot). Hooks are plain Python (no jq): this project runs on Windows, where jq is absent by default. guard_write.py is fail-closed, format_python.py is fail-open.",
   "hooks": {
     "PreToolUse": [
       {
