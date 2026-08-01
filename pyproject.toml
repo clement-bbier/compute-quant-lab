@@ -76,4 +76,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["core"]
+# `dashboard_kit` is the presentation layer (design tokens + Plotly/Streamlit chrome).
+# Packaged alongside `core` so the dashboards can import it; deliberately kept OUT of
+# `core`, which stays the pure quant library with no styling concern.
+packages = ["core", "dashboard_kit"]

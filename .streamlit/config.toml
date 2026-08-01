@@ -1,0 +1,22 @@
+# Streamlit theme for the lab's dashboards.
+#
+# Colours mirror dashboard_kit/tokens.py — Streamlit reads TOML at boot and cannot import
+# Python, so these few values are necessarily duplicated. dashboard_kit stays the source
+# of truth: change a colour there first, then reflect it here.
+
+[theme]
+base = "dark"
+backgroundColor = "#0F1115"        # COLORS["bg"]
+secondaryBackgroundColor = "#171A21"  # COLORS["surface"]
+textColor = "#E6E9EF"              # COLORS["text"]
+primaryColor = "#4DA3FF"           # COLORS["accent"]
+font = "sans serif"
+
+[client]
+# Hide the hamburger menu and error details in the rendered page: screenshots show the
+# product, not the toolbar. The CSS block in dashboard_kit covers the rest.
+toolbarMode = "minimal"
+showSidebarNavigation = false
+
+[browser]
+gatherUsageStats = false
