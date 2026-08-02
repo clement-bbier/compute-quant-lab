@@ -8,13 +8,13 @@ token-gated) to keep it testable. Output unit: USD per GPU-hour (the machine pri
 from __future__ import annotations
 
 import datetime as dt
-import os
 from typing import Any, Sequence
 
 import requests
 
 from core.ingestion.protocols import Snapshot
-from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.base import EnvKeyedProvider, normalize_gpu_model
+from core.utils.net import DEFAULT_TIMEOUT_S, call_with_retry
 
 _VASTAI_OFFERS_URL = "https://console.vast.ai/api/v0/bundles/"
 
@@ -74,25 +74,31 @@ def parse_vastai_offers(
 
 
 def fetch_vastai(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = DEFAULT_TIMEOUT_S
 ) -> list[Snapshot]:
-    """Real call to the Vast.ai API -> timestamped snapshots (I/O, not unit-tested)."""
-    response = requests.get(
-        _VASTAI_OFFERS_URL,
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=timeout,
-    )
-    response.raise_for_status()
+    """Real call to the Vast.ai API -> timestamped snapshots (I/O, not unit-tested).
+
+    Retries on 5xx/timeout/connection error only (never on a 4xx: retrying an
+    unauthorized/malformed request would just burn quota for the same failure).
+    """
+
+    def _call() -> requests.Response:
+        response = requests.get(
+            _VASTAI_OFFERS_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response
+
+    response = call_with_retry(_call, venue="vastai")
     payload = response.json()
     return parse_vastai_offers(payload.get("offers", []), snapshotted_at)
 
 
-class VastaiProvider:
+class VastaiProvider(EnvKeyedProvider):
     """Vast.ai provider (``VASTAI_API_KEY`` token)."""
 
     name = "vastai"
     required_env: tuple[str, ...] = ("VASTAI_API_KEY",)
-
-    def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Read the Vast.ai offers (key guaranteed present by the key-gated registry)."""
-        return fetch_vastai(os.environ["VASTAI_API_KEY"], now)
+    _fetch_fn = staticmethod(fetch_vastai)

@@ -9,13 +9,13 @@ type: on-demand (the bid/spot ``minimumBidPrice`` is deliberately excluded).
 from __future__ import annotations
 
 import datetime as dt
-import os
 from typing import Any, Sequence
 
 import requests
 
 from core.ingestion.protocols import Snapshot
-from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.base import EnvKeyedProvider, normalize_gpu_model
+from core.utils.net import DEFAULT_TIMEOUT_S, call_with_retry
 
 _RUNPOD_GRAPHQL_URL = "https://api.runpod.io/graphql"
 #: On-demand price per GPU type (secure + community cloud). The bid/spot
@@ -61,27 +61,32 @@ def parse_runpod_gpu_types(
 
 
 def fetch_runpod(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = DEFAULT_TIMEOUT_S
 ) -> list[Snapshot]:
-    """Real call to the RunPod GraphQL API -> timestamped snapshots (I/O, not unit-tested)."""
-    response = requests.post(
-        _RUNPOD_GRAPHQL_URL,
-        params={"api_key": api_key},
-        json={"query": _RUNPOD_QUERY},
-        timeout=timeout,
-    )
-    response.raise_for_status()
+    """Real call to the RunPod GraphQL API -> timestamped snapshots (I/O, not unit-tested).
+
+    Retries on 5xx/timeout/connection error only (never on a 4xx).
+    """
+
+    def _call() -> requests.Response:
+        response = requests.post(
+            _RUNPOD_GRAPHQL_URL,
+            params={"api_key": api_key},
+            json={"query": _RUNPOD_QUERY},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response
+
+    response = call_with_retry(_call, venue="runpod")
     payload = response.json()
     gpu_types = (payload.get("data") or {}).get("gpuTypes") or []
     return parse_runpod_gpu_types(gpu_types, snapshotted_at)
 
 
-class RunpodProvider:
+class RunpodProvider(EnvKeyedProvider):
     """RunPod provider (``RUNPOD_API_KEY`` token)."""
 
     name = "runpod"
     required_env: tuple[str, ...] = ("RUNPOD_API_KEY",)
-
-    def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Read the RunPod prices (key guaranteed present by the key-gated registry)."""
-        return fetch_runpod(os.environ["RUNPOD_API_KEY"], now)
+    _fetch_fn = staticmethod(fetch_runpod)

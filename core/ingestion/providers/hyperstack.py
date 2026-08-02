@@ -23,7 +23,6 @@ If the join yields no price (empty pricebook / non-matching names), returns ``[]
 from __future__ import annotations
 
 import datetime as dt
-import os
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, Sequence
@@ -31,8 +30,12 @@ from typing import Any, Sequence
 import requests
 
 from core.ingestion.protocols import Snapshot
-from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.base import EnvKeyedProvider, normalize_gpu_model
 from core.utils.coerce import opt_float, opt_int
+from core.utils.logging import get_logger, sanitize_for_log
+from core.utils.net import DEFAULT_TIMEOUT_S, call_with_retry
+
+logger = get_logger(__name__)
 
 _HYPERSTACK_BASE_URL = "https://infrahub-api.nexgencloud.com/v1"
 _HYPERSTACK_FLAVORS_URL = f"{_HYPERSTACK_BASE_URL}/core/flavors"
@@ -133,24 +136,36 @@ def parse_hyperstack(
 
 
 def fetch_hyperstack(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = DEFAULT_TIMEOUT_S
 ) -> list[Snapshot]:
     """Double call to the Hyperstack API (flavors + pricebook) -> timestamped snapshots.
 
-    The price lives in the separate pricebook; the flavors only carry the specs. On an
-    unexpected response (missing key, malformed JSON, non-2xx HTTP), returns ``[]`` (never an
-    exception: the collector must not go down because of one venue).
+    Each call retries on 5xx/timeout/connection error only (never on a 4xx). On any
+    remaining unexpected failure (non-retryable HTTP error, malformed JSON), returns
+    ``[]`` -- the collector must not go down because of one venue -- but logs a WARNING
+    first: a silent ``[]`` is indistinguishable from "no offers" for the caller.
     """
     headers = {"api_key": api_key}
     try:
-        resp_flavors = requests.get(_HYPERSTACK_FLAVORS_URL, headers=headers, timeout=timeout)
-        resp_flavors.raise_for_status()
-        flavor_payload = resp_flavors.json()
 
-        resp_pb = requests.get(_HYPERSTACK_PRICEBOOK_URL, headers=headers, timeout=timeout)
-        resp_pb.raise_for_status()
-        pricebook_payload = resp_pb.json()
-    except Exception:
+        def _fetch_flavors() -> requests.Response:
+            resp = requests.get(_HYPERSTACK_FLAVORS_URL, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+            return resp
+
+        flavor_payload = call_with_retry(_fetch_flavors, venue="hyperstack").json()
+
+        def _fetch_pricebook() -> requests.Response:
+            resp = requests.get(_HYPERSTACK_PRICEBOOK_URL, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+            return resp
+
+        pricebook_payload = call_with_retry(_fetch_pricebook, venue="hyperstack").json()
+    except Exception as exc:  # noqa: BLE001 -- one venue's failure must not sink the batch
+        logger.warning(
+            "hyperstack: fetch failed after retries, returning no offers: %s",
+            sanitize_for_log(str(exc)),
+        )
         return []
 
     flavor_groups = flavor_payload.get("data", []) if isinstance(flavor_payload, dict) else []
@@ -167,12 +182,9 @@ def fetch_hyperstack(
     return parse_hyperstack(flavor_groups, pricebook, snapshotted_at)
 
 
-class HyperstackProvider:
+class HyperstackProvider(EnvKeyedProvider):
     """Hyperstack provider (``HYPERSTACK_API_KEY`` token)."""
 
     name = "hyperstack"
     required_env: tuple[str, ...] = ("HYPERSTACK_API_KEY",)
-
-    def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Read the Hyperstack GPU prices (key guaranteed by the key-gated registry)."""
-        return fetch_hyperstack(os.environ["HYPERSTACK_API_KEY"], now)
+    _fetch_fn = staticmethod(fetch_hyperstack)

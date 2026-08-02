@@ -14,13 +14,13 @@ avoids hiding a venue that is already wired in directly (index-level deduplicati
 from __future__ import annotations
 
 import datetime as dt
-import os
 from typing import Any, Sequence
 
 import requests
 
 from core.ingestion.protocols import Snapshot
-from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.base import EnvKeyedProvider, normalize_gpu_model
+from core.utils.net import DEFAULT_TIMEOUT_S, call_with_retry
 
 _PRIMEINTELLECT_AVAILABILITY_URL = "https://api.primeintellect.ai/api/v1/availability"
 
@@ -75,15 +75,23 @@ def parse_primeintellect(
 
 
 def fetch_primeintellect(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = DEFAULT_TIMEOUT_S
 ) -> list[Snapshot]:
-    """Real call to the Prime Intellect API -> timestamped snapshots (I/O, not unit-tested)."""
-    response = requests.get(
-        _PRIMEINTELLECT_AVAILABILITY_URL,
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=timeout,
-    )
-    response.raise_for_status()
+    """Real call to the Prime Intellect API -> timestamped snapshots (I/O, not unit-tested).
+
+    Retries on 5xx/timeout/connection error only (never on a 4xx).
+    """
+
+    def _call() -> requests.Response:
+        response = requests.get(
+            _PRIMEINTELLECT_AVAILABILITY_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response
+
+    response = call_with_retry(_call, venue="primeintellect")
     payload = response.json()
     # The response is a dict {gpu_type: [offers, ...]} -> flatten into a list of offers.
     items = [
@@ -96,12 +104,9 @@ def fetch_primeintellect(
     return parse_primeintellect(items, snapshotted_at)
 
 
-class PrimeintellectProvider:
+class PrimeintellectProvider(EnvKeyedProvider):
     """Prime Intellect provider (``PRIMEINTELLECT_API_KEY`` token)."""
 
     name = "primeintellect"
     required_env: tuple[str, ...] = ("PRIMEINTELLECT_API_KEY",)
-
-    def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Read the Prime Intellect availability (key guaranteed by the key-gated registry)."""
-        return fetch_primeintellect(os.environ["PRIMEINTELLECT_API_KEY"], now)
+    _fetch_fn = staticmethod(fetch_primeintellect)

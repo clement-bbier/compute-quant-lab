@@ -51,14 +51,17 @@ On an unexpected response / missing field, the connector cleanly returns ``[]``.
 from __future__ import annotations
 
 import datetime as dt
-import os
 from typing import Any, Mapping, Sequence
 
 import requests
 
 from core.ingestion.protocols import Snapshot
-from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.base import EnvKeyedProvider, normalize_gpu_model
 from core.utils.coerce import opt_float
+from core.utils.logging import get_logger, sanitize_for_log
+from core.utils.net import DEFAULT_TIMEOUT_S, call_with_retry
+
+logger = get_logger(__name__)
 
 _TENSORDOCK_HOSTNODES_URL = "https://dashboard.tensordock.com/api/v2/hostnodes"
 
@@ -132,34 +135,41 @@ def parse_tensordock(
 
 
 def fetch_tensordock(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = DEFAULT_TIMEOUT_S
 ) -> list[Snapshot]:
     """Real call to the TensorDock v2 API -> timestamped snapshots (I/O, not unit-tested).
 
-    On a network error / unexpected schema, cleanly returns ``[]``.
+    Retries on 5xx/timeout/connection error only (never on a 4xx). On any remaining
+    network error / unexpected schema, cleanly returns ``[]`` but logs a WARNING first.
     """
     try:
-        response = requests.get(
-            _TENSORDOCK_HOSTNODES_URL,
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=timeout,
+
+        def _call() -> requests.Response:
+            response = requests.get(
+                _TENSORDOCK_HOSTNODES_URL,
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            return response
+
+        payload = call_with_retry(_call, venue="tensordock").json()
+    except Exception as exc:  # noqa: BLE001 -- one venue's failure must not sink the batch
+        logger.warning(
+            "tensordock: fetch failed after retries, returning no offers: %s",
+            sanitize_for_log(str(exc)),
         )
-        response.raise_for_status()
-        payload = response.json()
-    except Exception:
         return []
 
     if not isinstance(payload, dict):
+        logger.warning("tensordock: unexpected response schema (not a dict), returning no offers")
         return []
     return parse_tensordock(_hostnodes_records(payload), snapshotted_at)
 
 
-class TensordockProvider:
+class TensordockProvider(EnvKeyedProvider):
     """TensorDock provider (``TENSORDOCK_API_KEY`` token)."""
 
     name = "tensordock"
     required_env: tuple[str, ...] = ("TENSORDOCK_API_KEY",)
-
-    def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Read the TensorDock hostnodes (key guaranteed by the key-gated registry)."""
-        return fetch_tensordock(os.environ["TENSORDOCK_API_KEY"], now)
+    _fetch_fn = staticmethod(fetch_tensordock)

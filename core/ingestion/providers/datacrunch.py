@@ -10,13 +10,13 @@ exposes a **spot** price (``spot_price_per_hour``) in addition to on-demand -> w
 from __future__ import annotations
 
 import datetime as dt
-import os
 from typing import Any, Sequence
 
 import requests
 
 from core.ingestion.protocols import Snapshot
-from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.base import EnvKeyedProvider, normalize_gpu_model
+from core.utils.net import DEFAULT_TIMEOUT_S, call_with_retry
 
 _DATACRUNCH_TOKEN_URL = "https://api.datacrunch.io/v1/oauth2/token"
 _DATACRUNCH_INSTANCE_TYPES_URL = "https://api.datacrunch.io/v1/instance-types"
@@ -89,38 +89,46 @@ def fetch_datacrunch(
     client_secret: str,
     snapshotted_at: dt.datetime,
     *,
-    timeout: float = 30.0,
+    timeout: float = DEFAULT_TIMEOUT_S,
 ) -> list[Snapshot]:
-    """OAuth2 (client_credentials) then catalogue -> timestamped snapshots (I/O, untested)."""
-    token_response = requests.post(
-        _DATACRUNCH_TOKEN_URL,
-        json={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-        },
-        timeout=timeout,
-    )
-    token_response.raise_for_status()
+    """OAuth2 (client_credentials) then catalogue -> timestamped snapshots (I/O, untested).
+
+    Each of the two calls (token, catalogue) retries independently on 5xx/timeout/
+    connection error only (never on a 4xx).
+    """
+
+    def _token_call() -> requests.Response:
+        token_response = requests.post(
+            _DATACRUNCH_TOKEN_URL,
+            json={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            timeout=timeout,
+        )
+        token_response.raise_for_status()
+        return token_response
+
+    token_response = call_with_retry(_token_call, venue="datacrunch")
     access_token = token_response.json()["access_token"]
 
-    response = requests.get(
-        _DATACRUNCH_INSTANCE_TYPES_URL,
-        headers={"Authorization": f"Bearer {access_token}"},
-        timeout=timeout,
-    )
-    response.raise_for_status()
+    def _catalogue_call() -> requests.Response:
+        response = requests.get(
+            _DATACRUNCH_INSTANCE_TYPES_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response
+
+    response = call_with_retry(_catalogue_call, venue="datacrunch")
     return parse_datacrunch(response.json(), snapshotted_at)
 
 
-class DatacrunchProvider:
+class DatacrunchProvider(EnvKeyedProvider):
     """DataCrunch provider (``DATACRUNCH_CLIENT_ID`` / ``DATACRUNCH_CLIENT_SECRET`` pair)."""
 
     name = "datacrunch"
     required_env: tuple[str, ...] = ("DATACRUNCH_CLIENT_ID", "DATACRUNCH_CLIENT_SECRET")
-
-    def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Read the DataCrunch catalogue (keys guaranteed by the key-gated registry)."""
-        return fetch_datacrunch(
-            os.environ["DATACRUNCH_CLIENT_ID"], os.environ["DATACRUNCH_CLIENT_SECRET"], now
-        )
+    _fetch_fn = staticmethod(fetch_datacrunch)

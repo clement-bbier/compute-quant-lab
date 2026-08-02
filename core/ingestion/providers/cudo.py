@@ -16,13 +16,13 @@ pricing assumption is correct, not a per-node price needing division.
 from __future__ import annotations
 
 import datetime as dt
-import os
 from typing import Any, Sequence
 
 import requests
 
 from core.ingestion.protocols import Snapshot
-from core.ingestion.providers.base import normalize_gpu_model
+from core.ingestion.providers.base import EnvKeyedProvider, normalize_gpu_model
+from core.utils.net import DEFAULT_TIMEOUT_S, call_with_retry
 
 _CUDO_MACHINE_TYPES_URL = "https://rest.compute.cudo.org/v1/vms/machine-types"
 
@@ -86,25 +86,30 @@ def parse_cudo(
 
 
 def fetch_cudo(
-    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = 30.0
+    api_key: str, snapshotted_at: dt.datetime, *, timeout: float = DEFAULT_TIMEOUT_S
 ) -> list[Snapshot]:
-    """Real call to the CUDO API -> timestamped snapshots (I/O, not unit-tested)."""
-    response = requests.get(
-        _CUDO_MACHINE_TYPES_URL,
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=timeout,
-    )
-    response.raise_for_status()
+    """Real call to the CUDO API -> timestamped snapshots (I/O, not unit-tested).
+
+    Retries on 5xx/timeout/connection error only (never on a 4xx).
+    """
+
+    def _call() -> requests.Response:
+        response = requests.get(
+            _CUDO_MACHINE_TYPES_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response
+
+    response = call_with_retry(_call, venue="cudo")
     payload = response.json()
     return parse_cudo(payload.get("machineTypes", []), snapshotted_at)
 
 
-class CudoProvider:
+class CudoProvider(EnvKeyedProvider):
     """CUDO Compute provider (``CUDO_API_KEY`` token)."""
 
     name = "cudo"
     required_env: tuple[str, ...] = ("CUDO_API_KEY",)
-
-    def fetch(self, now: dt.datetime) -> list[Snapshot]:
-        """Read the CUDO machine types (key guaranteed by the key-gated registry)."""
-        return fetch_cudo(os.environ["CUDO_API_KEY"], now)
+    _fetch_fn = staticmethod(fetch_cudo)
