@@ -1,5 +1,9 @@
 # Storage roadmap — from file to real time
 
+> **Status: Phases 0-1 delivered** (`core/storage/` — `ParquetSnapshotStore` +
+> DuckDB query layer, see [`core/storage/results/SYNTHESIS.md`](../core/storage/results/SYNTHESIS.md)).
+> Phases 2-5 below remain roadmap, not yet built.
+>
 > How the lab stores data to **train models on a reliable history** today,
 > and **serve real time** tomorrow — without over-building. Guiding rule:
 > *the right storage depends on the usage*, and we only move to the next
@@ -24,7 +28,7 @@ reproducibility.
 
 | Leg | Cadence | History | Current storage |
 |---|---|---|---|
-| Energy (ENTSO-E) | hourly, batch | deep (API) | `data/raw/` + plain git |
+| Energy (ENTSO-E) | hourly, batch | deep (API) | `data/raw/` (local cache, gitignored by design) |
 | Compute (Vast/RunPod) | snapshot (live) | **none -> we accumulate it** | `data/snapshots/*.csv` |
 | Compute forward | simulated | -- | project artefacts |
 
@@ -44,17 +48,19 @@ strategies/models (OCP). Migrating between phases becomes painless.
 
 ## 3. The phases (each with its own trigger)
 
-### Phase 0 — Cold store: **Parquet, plain git** *(do this now)*
+### Phase 0 — Cold store: **Parquet, plain git** *(delivered — `core/storage/`)*
 - Replace `CsvSnapshotStore` with **`ParquetSnapshotStore`**: columnar, typed,
   compressed, partitioned (`source` / month). Append-only, idempotent (dedup kept).
-- **Track** `data/snapshots/` (+ `raw/`, `interim/`) in git as plain files ->
-  every dataset versioned through normal git history.
+- **Track** `data/snapshots/` in git as plain files -> every dataset versioned
+  through normal git history. `data/raw/`, `data/interim/`, and `data/cold/`
+  stay local, gitignored caches by design (see the ADR 005 addendum) — only
+  `data/snapshots/` is plain-git-tracked.
 - **Quality fix** along the way: keep the **distribution** of offers per
   model (do not reduce to 1 row/model) — aggregation (trimmed mean) belongs
   to the P04 index, not to the store.
 - **Trigger**: this is the foundation, no prerequisite. **Owner**: `data-engineer`.
 
-### Phase 1 — Query layer: **DuckDB** *(once you want SQL)*
+### Phase 1 — Query layer: **DuckDB** *(delivered — `core/storage/duckdb_query.py`)*
 - DuckDB reads the Parquet **directly in SQL**, embedded, **zero server**.
 - Usage: EDA, point-in-time joins at scale, feature building (P07/P09).
 - **Trigger**: pandas-on-files becomes painful, or analytical SQL is needed.
@@ -110,5 +116,6 @@ other (plan -> tests-first -> commit -> convergence). Owned modules:
 `core/storage/` + `infra/`. Owners: `infra-engineer` (to be built via
 `agent-architect`) + `data-engineer`.
 
-**Recommended next concrete step: Phase 0** (`ParquetSnapshotStore` + plain
-git tracking + distribution fix) — small, high-leverage, unblocks everything else.
+**Recommended next concrete step: Phase 2** (Redpanda tick collector) — Phases
+0-1 are delivered; Phase 2 is the next trigger-justified move, once intraday
+granularity or a live pipeline is actually needed.
