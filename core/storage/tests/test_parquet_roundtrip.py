@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, Sequence
 
 import pandas as pd
@@ -12,6 +13,30 @@ from core.storage.protocols import PriceStore
 from core.storage.schema import AVAILABILITY, PRICE, SNAPSHOTTED_AT, SOURCE
 
 Frame = Callable[[Sequence[tuple]], pd.DataFrame]
+
+
+def test_read_empty_lake_logs_warning(
+    store: ParquetPriceStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        out = store.read()
+    assert out.empty
+    assert "empty" in caplog.text.lower()
+
+
+def test_write_logs_new_rows_and_dedup_count(
+    store: ParquetPriceStore, make_frame: Frame, caplog: pytest.LogCaptureFixture
+) -> None:
+    frame = make_frame([(0, "vastai", "H100", 2.50, 8), (0, "runpod", "H100", 2.10, 1)])
+    with caplog.at_level(logging.INFO):
+        store.write(frame)
+    assert "2 new row" in caplog.text
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        store.write(frame)  # re-writing the same rows: all deduplicated
+    assert "0 new row" in caplog.text
+    assert "2 already present" in caplog.text
 
 
 def test_store_satisfies_pricestore_protocol(store: ParquetPriceStore) -> None:

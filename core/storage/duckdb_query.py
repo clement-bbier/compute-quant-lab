@@ -17,6 +17,9 @@ import duckdb
 import pandas as pd
 
 from core.storage.parquet_store import ParquetPriceStore
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 #: DuckDB schema of the empty view (cold lake) — aligned on the enriched cold store + partition.
 _EMPTY_VIEW_SCHEMA = (
@@ -62,6 +65,12 @@ def query(sql: str, store: ParquetPriceStore, *, view: str = "prices") -> pd.Dat
                 f"'{glob}', hive_partitioning => true, union_by_name => true)"
             )
         else:
+            logger.warning(
+                "duckdb_query: lake %s is empty, substituting a 0-row '%s' table "
+                "(right schema, no data)",
+                store.root,
+                view,
+            )
             con.execute(f"CREATE TABLE {view} ({_EMPTY_VIEW_SCHEMA})")
         return con.execute(sql).fetchdf()
     finally:

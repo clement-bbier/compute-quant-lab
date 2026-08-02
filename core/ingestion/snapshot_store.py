@@ -18,6 +18,9 @@ from typing import ClassVar, Iterable
 
 from core.ingestion.protocols import Snapshot
 from core.utils.coerce import lenient_float, lenient_int, lenient_str
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 _CORE_FIELDS: list[str] = [
     "snapshotted_at",
@@ -107,8 +110,11 @@ class CsvSnapshotStore:
         """
         seen: set[tuple[str, str, str, str]] = {s.dedup_key for s in self.load()}
         written: Path | None = None
+        n_written = 0
+        n_deduped = 0
         for snap in rows:
             if snap.dedup_key in seen:
+                n_deduped += 1
                 continue
             seen.add(snap.dedup_key)
             path = self._file_for(snap.snapshotted_at)
@@ -134,4 +140,11 @@ class CsvSnapshotStore:
                     writer.writeheader()
                 writer.writerow({k: "" if v is None else v for k, v in record.items()})
             written = path
+            n_written += 1
+        logger.info(
+            "CsvSnapshotStore %s: %d new row(s) written, %d deduplicated",
+            self.directory,
+            n_written,
+            n_deduped,
+        )
         return written if written is not None else self.directory

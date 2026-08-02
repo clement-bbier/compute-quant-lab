@@ -21,6 +21,9 @@ import pyarrow as pa
 import pyarrow.dataset as pads
 
 from core.storage.schema import COLUMNS, SNAPSHOTTED_AT, SOURCE, normalize_frame
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 #: Monthly partition column derived from ``snapshotted_at`` (``YYYYMM``).
 _MONTH = "month"
@@ -49,13 +52,20 @@ class ParquetPriceStore:
         if frame.empty:
             return 0
         incoming = frame.drop_duplicates(subset=COLUMNS)  # intra-batch dedup
+        n_intra_batch_dupes = len(frame) - len(incoming)
         existing = self.read()
         if not existing.empty:
             anti = incoming.merge(
                 existing[COLUMNS].drop_duplicates(), on=COLUMNS, how="left", indicator=True
             )
             incoming = incoming[anti["_merge"].to_numpy() == "left_only"]
+        n_dupes = len(frame) - n_intra_batch_dupes - len(incoming)
         if incoming.empty:
+            logger.info(
+                "ParquetPriceStore %s: 0 new row(s) written (%d already present)",
+                self.root,
+                n_dupes,
+            )
             return 0
         part = incoming.copy()
         part[_MONTH] = part[SNAPSHOTTED_AT].dt.strftime("%Y%m")
@@ -68,11 +78,18 @@ class ParquetPriceStore:
             existing_data_behavior="overwrite_or_ignore",
             basename_template=f"part-{uuid.uuid4().hex}-{{i}}.parquet",
         )
+        logger.info(
+            "ParquetPriceStore %s: %d new row(s) written, %d deduplicated",
+            self.root,
+            len(part),
+            n_dupes,
+        )
         return len(part)
 
     def read(self, *, as_of: dt.datetime | None = None, source: str | None = None) -> pd.DataFrame:
         """Read the whole lake back as a typed canonical frame (order not guaranteed)."""
         if not any(self.root.rglob("*.parquet")):
+            logger.warning("ParquetPriceStore %s: lake is empty, returning 0 rows", self.root)
             return normalize_frame(pd.DataFrame(columns=COLUMNS))
         # exclude_invalid_files: the lake can coexist with other files in the same root
         # (P04 CSV under dual writing) — only the store's Parquet files are read.

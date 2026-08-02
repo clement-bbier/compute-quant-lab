@@ -29,6 +29,10 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as pads
 
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 #: Originating market (``"ercot"``).
 SOURCE = "source"
 #: Series (``"rtm_spp"`` / ``"load_forecast"`` / ``"available_capacity"`` / ``"net_load_forecast"``).
@@ -89,13 +93,20 @@ class EnergyColdStore:
         if frame.empty:
             return 0
         incoming = frame.drop_duplicates(subset=COLUMNS)
+        n_intra_batch_dupes = len(frame) - len(incoming)
         existing = self.read()
         if not existing.empty:
             anti = incoming.merge(
                 existing[COLUMNS].drop_duplicates(), on=COLUMNS, how="left", indicator=True
             )
             incoming = incoming[anti["_merge"].to_numpy() == "left_only"]
+        n_dupes = len(frame) - n_intra_batch_dupes - len(incoming)
         if incoming.empty:
+            logger.info(
+                "EnergyColdStore %s: 0 new row(s) written (%d already present)",
+                self.root,
+                n_dupes,
+            )
             return 0
         part = incoming.copy()
         part[_MONTH] = part[INTERVAL_START].dt.strftime("%Y%m")
@@ -108,11 +119,18 @@ class EnergyColdStore:
             existing_data_behavior="overwrite_or_ignore",
             basename_template=f"part-{uuid.uuid4().hex}-{{i}}.parquet",
         )
+        logger.info(
+            "EnergyColdStore %s: %d new row(s) written, %d deduplicated",
+            self.root,
+            len(part),
+            n_dupes,
+        )
         return len(part)
 
     def read(self, *, series: str | None = None) -> pd.DataFrame:
         """Read the lake back (optionally filtered on a ``series``) as a typed frame."""
         if not any(self.root.rglob("*.parquet")):
+            logger.warning("EnergyColdStore %s: lake is empty, returning 0 rows", self.root)
             return normalize_energy_frame(pd.DataFrame(columns=COLUMNS))
         dataset = pads.dataset(
             self.root, format="parquet", partitioning="hive", exclude_invalid_files=True

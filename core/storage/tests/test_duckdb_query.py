@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, Sequence
 
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from core.storage import ParquetPriceStore
 from core.storage.duckdb_query import query
@@ -48,6 +50,15 @@ def test_query_on_empty_store_returns_empty(store: ParquetPriceStore) -> None:
     out = query("SELECT COUNT(*) AS n FROM prices", store)
 
     assert out["n"].iloc[0] == 0
+
+
+def test_query_on_empty_store_logs_warning(
+    store: ParquetPriceStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        query("SELECT COUNT(*) AS n FROM prices", store)
+
+    assert "empty" in caplog.text.lower()
 
 
 def test_query_mixes_legacy_and_enriched_parquet(

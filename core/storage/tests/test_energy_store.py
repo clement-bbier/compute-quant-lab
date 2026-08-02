@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -53,6 +54,29 @@ def test_rejects_naive_timestamp(tmp_path: Path) -> None:
     bad["interval_start"] = pd.Timestamp("2024-01-15T06:00:00")  # naive -> forbidden
     with pytest.raises(ValueError, match="naive"):
         EnergyColdStore(tmp_path).write(bad)
+
+
+def test_read_empty_lake_logs_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    store = EnergyColdStore(tmp_path)
+    with caplog.at_level(logging.WARNING):
+        out = store.read()
+    assert out.empty
+    assert "empty" in caplog.text.lower()
+
+
+def test_write_logs_new_rows_and_dedup_count(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    store = EnergyColdStore(tmp_path)
+    with caplog.at_level(logging.INFO):
+        store.write(_frame())
+    assert "2 new row" in caplog.text
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        store.write(_frame())  # same content -> fully deduplicated
+    assert "0 new row" in caplog.text
+    assert "2 already present" in caplog.text
 
 
 def test_new_publish_time_appends(tmp_path: Path) -> None:

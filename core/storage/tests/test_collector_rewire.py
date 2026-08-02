@@ -8,7 +8,10 @@ keeps the distinct offers that the CSV (P04 dedup) overwrites.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from pathlib import Path
+
+import pytest
 
 from core.ingestion.protocols import Snapshot
 from core.ingestion.snapshot_store import CsvSnapshotStore
@@ -46,3 +49,14 @@ def test_snapshot_parquet_is_idempotent(tmp_path: Path) -> None:
 
     assert written == 0
     assert len(parquet_store.read()) == 3
+
+
+def test_snapshot_zero_rows_logs_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """V7.2: a dead collector (every venue returned nothing) must WARN, not INFO."""
+    csv_store = CsvSnapshotStore(tmp_path / "snap")
+    parquet_store = ParquetPriceStore(tmp_path / "snap")
+
+    with caplog.at_level(logging.WARNING):
+        snapshot(csv_store, parquet_store, fetch=list)
+
+    assert "0 reading" in caplog.text
