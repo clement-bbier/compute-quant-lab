@@ -42,3 +42,12 @@ silently dropping columns.
   single `VenueRate` per source) is a deliberate split: the store preserves
   the full observed distribution, `build_spot_index` is where aggregation
   belongs.
+
+## Addendum — 2026-08-02
+
+The "`data/cold/` and `data/interim/aligned_spark.parquet` move to direct
+git/git-lfs tracking" line above no longer matches the repo: `.gitignore`
+excludes both `/data/cold/*` and `/data/interim/*` (only `.gitkeep` is kept).
+Only `data/snapshots/` is actually plain-git-tracked today. This decision was
+inverted at some point after acceptance without updating this ADR; recorded
+here rather than silently rewritten into the original text above.

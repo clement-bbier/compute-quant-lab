@@ -39,9 +39,11 @@ without touching any other venue's file.
 - PrimeIntellect aggregates other providers under the hood, so its
   `source=primeintellect:<provider>` values can double-count a venue that is
   also wired in directly (e.g. `primeintellect:datacrunch` overlapping the
-  direct `datacrunch` venue). `build_spot_index` does not yet apply a
-  direct-over-aggregator preference rule — tracked as an open correctness
-  gap, not resolved by this decision.
+  direct `datacrunch` venue). **RESOLVED**: `prefer_direct_venues`
+  (`core/ingestion/compute_index.py:61`) drops aggregator quotes for venues
+  also connected directly; `IndexConfig.prefer_direct` defaults to `True`
+  (`compute_index.py:107`) and is applied on the active index-building path
+  before outlier filtering (`compute_index.py:196`).
 - Confidence level per venue (high/medium/low, see the provider docstrings)
   should be treated as a live caveat on data quality, not just implementation
   history, until each has been confirmed against a real API response.
