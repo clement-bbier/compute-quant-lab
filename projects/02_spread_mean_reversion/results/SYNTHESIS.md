@@ -35,7 +35,7 @@ real data.
 | 4 | **Sharpe 7.70 not credible** | **High** | No: (a) synthetic data where the strategy tracks the OU generating process exactly (zero model risk); (b) hourly annualization √8760 on **autocorrelated** returns (mean reversion) -> inflated Sharpe (≈ ÷5 on a daily basis); (c) hit_ratio 0.17 + Sharpe 7.7 -> PnL concentrated on few trades (skewed distribution, fragile to timing). |
 | 5 | **Spurious cointegration** | Medium | Yes: correct discipline — **MacKinnon** p-value via `coint` (not a raw ADF), tested to *reject* two independent random walks. No: but only validated in-sample. |
 | 6 | **Realistic costs (illiquid compute)** | **High** | No: 15 bps round-trip is optimistic — on fragmented compute markets **slippage dominates** (cf. `/spread-trading-playbook`), shorting GPU rentals is difficult/impossible, capacity is limited. Symmetric linear cost model is unrealistic. |
-| 7 | **Reproducibility** | — | Yes: seed + bit-exact determinism + MLflow (params/metrics/SHA/DVC) + `n_trials`. `dvc_version=no-dvc-data` (expected: no real data versioned). |
+| 7 | **Reproducibility** | — | Yes: seed + bit-exact determinism + MLflow (params/metrics/git SHA) + `n_trials`. No real data versioned for this synthetic run (expected). |
 
 **Most serious flag**: the result is **not an alpha** — it is an infrastructure validation
 on simulated data whose generator is known. The high Sharpe is *expected* and misleading.

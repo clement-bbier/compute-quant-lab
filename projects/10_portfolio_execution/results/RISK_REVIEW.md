@@ -38,7 +38,7 @@ the correctness of the pipeline.
 5. **Realistic costs** — done. Core of the project: linear costs + convex impact, **PnL judged on net**.
    The sensitivity analysis shows the high turnover (86.5) makes the strategy fragile to costs.
 6. **Regime stationarity** — warning: a single simulated regime. Test multi-regime before any conclusion.
-7. **Reproducibility** — done. Fixed seed, MLflow run (params + SHA + DVC), `last_run.json` snapshot.
+7. **Reproducibility** — done. Fixed seed, MLflow run (params + git SHA), `last_run.json` snapshot.
 
 ## Blind spots specific to aggregation (§10)
 - **Ignored correlations**: inverse-vol weights by marginal vol, not by joint risk contribution.

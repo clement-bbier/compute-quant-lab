@@ -39,5 +39,5 @@ or a **logged** fallback assumption. Dedicated tests enforce the invariant (flag
 
 ## Key results
 End-to-end theoretical base generated over 4 maturities (exogenous carry + P04 forward),
-implied yield extracted from the Schwartz forward, reproducible MLflow run (params + git SHA +
-DVC). 19 passing tests. Details: [README.md](README.md). WARNING: THEORETICAL/SIMULATED.
+implied yield extracted from the Schwartz forward, reproducible MLflow run (params + git SHA).
+19 passing tests. Details: [README.md](README.md). WARNING: THEORETICAL/SIMULATED.

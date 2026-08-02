@@ -36,8 +36,8 @@ uv run python projects/09_ml_signal_ensemble/src/run_train.py
 uv run pytest projects/09_ml_signal_ensemble/tests -q
 ```
 
-The run logs an MLflow run under `results/mlruns/` (params + `n_trials` + git SHA + DVC
-version + PnL figure) and writes `results/last_run.json`. Dashboard: `mlflow ui`.
+The run logs an MLflow run under `results/mlruns/` (params + `n_trials` + git SHA of the
+data + PnL figure) and writes `results/last_run.json`. Dashboard: `mlflow ui`.
 
 ## Reusable building blocks promoted into `core/models/`
 

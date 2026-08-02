@@ -20,7 +20,7 @@
   idempotent.
 - **`converters.py`** — `snapshots_to_frame`: the single *read* coupling point with
   `core.ingestion`.
-- **`demo.py`** — consumer run: DuckDB EDA + **DVC version logging**
+- **`demo.py`** — consumer run: DuckDB EDA + **git data-version logging**
   (`core.utils.tracking`) -> repro.
 - **`infra/collectors/gpu_price_snapshot.py`** — **dual write** rewire: CSV (P04, unchanged)
   + Parquet (cold store). Idempotent; injectable `fetch` (network-free tests).
@@ -42,12 +42,12 @@ Deterministic fixtures, **zero network**.
 ## Exit gate
 - [x] `ruff check .` — All checks passed.
 - [x] `mypy core` — clean (the initial crash was a stale `.mypy_cache`, purged).
-- [x] `pytest core/storage/tests` — 23 passed.
+- [x] `pytest core/storage/tests` — 40 passed.
 - [x] Synthesis + convergence handoffs (later applied; see `docs/decisions/005-parquet-cold-store-and-dvc-removal.md`).
 - [x] **`data/snapshots/` as versioned Parquet**: *live* seed was blocked at the time this
   synthesis was written (no `.env` in the worktree, no `VASTAI/RUNPOD` token, reading the
   main `.env` refused by the credentials guardrail). **No data was fabricated**. Data is now
-  versioned as plain git / git-lfs, not DVC — see
+  versioned as plain git / git-lfs — see
   `docs/decisions/005-parquet-cold-store-and-dvc-removal.md`.
 - [x] Nothing written outside `core/storage/` + `infra/collectors/` (+ the `data/snapshots/`
   artifact). Neither merge nor push.

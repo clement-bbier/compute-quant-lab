@@ -68,7 +68,7 @@ def _metrics(result: SpreadResult) -> dict[str, float]:
 
 
 def _data_version(path: Path) -> str:
-    """Git fingerprint of the data file (plain git, no more DVC)."""
+    """Git fingerprint of the data file."""
     try:
         return (
             subprocess.check_output(

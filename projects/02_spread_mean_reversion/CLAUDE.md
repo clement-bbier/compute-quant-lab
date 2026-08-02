@@ -30,8 +30,8 @@ We bet on this mean reversion (z-score with a hysteresis band), backtested by th
 - [x] Full cointegration analysis (EG + Johansen + half-life + rolling stability), anti-spurious tested
 - [x] Hysteresis mean-reversion strategy, anti look-ahead (P08 guard), determinism
 - [x] Integration with P01 (spread pricing) + P08 (backtest) + `core.ingestion` (compute leg)
-- [x] Reproducible MLflow run (params + metrics + SHA + DVC + PnL figure + simulated flag + n_trials)
-- [x] 22 tests green; `ruff`/`mypy core` green
+- [x] Reproducible MLflow run (params + metrics + git SHA + PnL figure + simulated flag + n_trials)
+- [x] 23 tests green; `ruff`/`mypy core` green
 - [ ] **Real data**: ENTSO-E token (registration in progress) + accumulating compute snapshots
 - [ ] Institutional tier (3b): deflated Sharpe, walk-forward, dynamic sizing, execution
 

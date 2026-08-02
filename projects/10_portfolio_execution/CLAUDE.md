@@ -36,14 +36,14 @@ the `Strategy`/`PointInTimeView` abstraction from **P08** (`core.backtest`). The
 ## Real/simulated boundary (non-negotiable)
 The 3 signals are the **real** P02/P06/P09 producers (`simulated` inherited from each); the
 desk price series, however, remains **synthetic and labeled** (`simulated=True`). No PnL is
-ever sold as alpha (see [results/RISK_REVIEW.md]).
+ever sold as alpha (see [results/RISK_REVIEW.md](results/RISK_REVIEW.md)).
 
 ## Progress (PoC-now)
 - [x] Inverse-vol weighting + risk budget + ERC seam (OCP), vol floor, gross cap
 - [x] Linear + quadratic impact execution model, oracle parity with P08
 - [x] Composite `DeskStrategy` anti look-ahead (P08 guard), determinism, exact attribution
-- [x] Reproducible MLflow run (params + **net AND gross** metrics + SHA + DVC + net PnL figure)
-- [x] 37 green tests; `ruff`/`mypy core` clean
+- [x] Reproducible MLflow run (params + **net AND gross** metrics + git SHA + net PnL figure)
+- [x] 42 green tests; `ruff`/`mypy core` clean
 - [x] **Real signals** P02/P06/P09 promoted into `core.signals` (P12), wired via `REAL_PRODUCERS`
 - [ ] `risk-validator` agent (missing, protected zone)
 - [ ] Institutional tier: constrained risk-parity optimizer, capacity, desk limits, live execution

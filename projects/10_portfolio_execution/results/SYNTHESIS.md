@@ -11,7 +11,7 @@ The **desk pipeline** now runs on the **3 real signals** without any change to i
 - each producer is **point-in-time** (proven by invariance to future falsification, 23 tests in `core/signals`);
 - `MLEnsembleSignal` is in **exact parity** with the P09 adapter; `FuturesBasisSignal` is genuinely wired to P06's cost-of-carry (a backwardation regime flips the sign of the signal);
 - **net PnL = gross − costs** and **exact attribution** (Σ contributions = gross PnL);
-- reproducible MLflow run (params + net/gross metrics + figure + SHA + DVC).
+- reproducible MLflow run (params + net/gross metrics + figure + git SHA).
 
 ## 2. Metrics (gross vs net)
 | Metric | Gross | Net |

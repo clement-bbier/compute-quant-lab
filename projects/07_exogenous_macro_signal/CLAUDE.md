@@ -26,7 +26,7 @@ Each observation carries two timestamps: `value_ts` (period described) and
 
 ## Reproducibility
 MLflow run via `core.utils.tracking.run` (params: variables, publication lags,
-windows, seed; SHA + DVC tags). Raw exogenous data → `data/raw/exogenous/`, local
+windows, seed; git SHA tag). Raw exogenous data → `data/raw/exogenous/`, local
 cache (gitignored by design, never committed).
 
 ## ERCOT branch (L0 grid-stress, REAL data)

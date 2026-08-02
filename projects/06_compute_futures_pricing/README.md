@@ -64,7 +64,7 @@ uv run pytest projects/06_compute_futures_pricing/tests
 ## Reproducibility
 MLflow run (`p06_compute_futures_pricing`) logging params (spot + real/assumed source,
 `r`, `y`, Schwartz params, maturity grid, `simulated=True`), metrics (base and implied
-yield per maturity), git SHA and DVC version (via `core.utils.tracking.run`).
+yield per maturity), git SHA of the data (via `core.utils.tracking.run`).
 Deterministic analytic oracle (no Monte Carlo) → reproducible result.
 
 ## Limitations & blind spots

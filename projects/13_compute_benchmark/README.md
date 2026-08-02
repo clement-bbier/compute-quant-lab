@@ -76,9 +76,9 @@ An invariant test guarantees no drift:
 
 `run_build_benchmark.py` logs an **MLflow** run (`compute_benchmark`): aggregation
 parameters (method, staleness, fix frequency, window, models), metrics (number of fixes,
-mean spread %, history state), **git SHA** + **DVC version** of the data, tag
+mean spread %, history state), **git SHA** of the data, tag
 `provenance=real_spot`. Since the versioned cold store is immutable, a run replayed on the same
-DVC version is reproducible. Summary written to `results/benchmark_summary.md`.
+git commit is reproducible. Summary written to `results/benchmark_summary.md`.
 
 ## 6. Run it
 

@@ -47,7 +47,7 @@ non-credible Sharpe of 7.70 (where the strategy fit the generating process too c
 6. **Regime stationarity** — *not tested*: a single synthetic regime, drawdown -0.88 =
    fragility signal. Real data has regime breaks — an acknowledged limitation.
 7. **Reproducibility** — *guaranteed.* Fixed seed, **deterministic** run (identical metrics
-   on rerun), MLflow logs params + `n_trials` + git SHA + DVC version + PnL figure.
+   on rerun), MLflow logs params + `n_trials` + git SHA of the data + PnL figure.
 
 ## What it would take to believe it (institutional tier)
 

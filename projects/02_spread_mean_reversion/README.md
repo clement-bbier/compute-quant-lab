@@ -17,7 +17,7 @@ real compute snapshots ─┘                                            │
             strategy.MeanReversionStrategy (z-score hysteresis, ≤ t) ─► core.backtest (P08)
                                                                        │
                                                                        ▼
-                                   MLflow run (params + metrics + SHA + DVC + PnL figure)
+                                   MLflow run (params + metrics + git SHA + PnL figure)
 ```
 
 ## Modules (`src/`)

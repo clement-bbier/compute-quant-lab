@@ -94,7 +94,7 @@ only writes to its own module; the protected zone (`CLAUDE.md`, `.claude/`, `.mc
 
 Structural decisions that came out of past convergence sessions are recorded as ADRs in
 `docs/decisions/` (worktree/convergence model, the provider registry architecture, the
-Parquet cold store + DVC removal, the real/simulated type invariant, and known open gaps
+Parquet cold store migration, the real/simulated type invariant, and known open gaps
 like per-project CI wiring) — read there before re-deciding something already settled.
 
 ## 8. Conventions

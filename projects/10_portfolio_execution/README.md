@@ -46,21 +46,21 @@ signals P02/P06/P09 (real) ──► DeskStrategy (composite P08 Strategy)
 ## Reproducibility
 MLflow run via `core.backtest.tracking.tracked_run`: params (weighting, costs, κ, signals,
 `n_trials`, `simulated`) + **net and gross** metrics + per-signal contribution + net PnL
-figure + git SHA + DVC version. Fixed seed (`SEED=42`). Snapshot in `results/last_run.json`.
+figure + git SHA of the data. Fixed seed (`SEED=42`). Snapshot in `results/last_run.json`.
 
 ## Run it
 ```bash
 # Prerequisite: P08's Rust core compiled in the worktree
 uv run maturin develop -m core/backtest/_loop/Cargo.toml --release
 
-uv run pytest projects/10_portfolio_execution/tests   # 37 tests
+uv run pytest projects/10_portfolio_execution/tests   # 42 tests
 uv run python projects/10_portfolio_execution/src/run_desk.py
 ```
 > Warning: `pyproject.toml`'s `testpaths` points at the P01 foundation; run P10 tests via
 > **explicit path** — see `docs/decisions/002-per-project-ci-testpaths-gap.md`.
 
 ## Status
-Pipeline validated end-to-end on the **3 real signals** P02/P06/P09 (37 green tests,
+Pipeline validated end-to-end on the **3 real signals** P02/P06/P09 (42 green tests,
 `ruff`/`mypy core` clean, MLflow run logged). Net PnL is **negative** (−4.4654): the positive
 gross on a mean-reverting synthetic series is an artifact (the signals track the generating
 process), not alpha, and execution costs push it down further. Details and adversarial
