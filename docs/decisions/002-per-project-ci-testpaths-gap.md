@@ -32,11 +32,12 @@ isolated steps, not a single merged `pytest` call.
 - A bare `uv run pytest` at the repo root does **not** exercise most of the
   codebase; this is expected, not a regression to fix by editing
   `testpaths`.
-- `.github/workflows/ci.yml` must enumerate every test directory explicitly
-  (guarding each with `[ -d "$d" ] || continue` so an unmatched glob doesn't
-  leak a literal path into pytest's argv) — verify this list against the
-  actual `projects/*/tests` and `core/*/tests` directories before trusting a
-  green CI run as full coverage.
+- `Makefile`'s `TEST_DIRS` (not `.github/workflows/ci.yml`, which just calls
+  `make test`) must enumerate every test directory explicitly (guarding each
+  with `[ -d "$d" ] || continue` so an unmatched glob doesn't leak a literal
+  path into pytest's argv) — verify this list against the actual
+  `projects/*/tests` and `core/*/tests` directories before trusting a green
+  CI run as full coverage.
 - Fixing the root cause (the numbered `projects/NN_name/` prefix isn't an
   importable package, forcing `sys.path.insert` and bare-name `conftest`
   collisions) is tracked as accepted architectural debt, not scheduled —

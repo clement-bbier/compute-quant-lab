@@ -7,8 +7,9 @@ Accepted (deliberate debt) — 2026-06
 Project directories are named `projects/01_digital_spark_spread/`,
 `projects/02_spread_mean_reversion/`, etc. A leading digit makes a directory
 name invalid as a Python package (`import projects.02_spread_mean_reversion`
-is a syntax error), which forces every runner script to manipulate
-`sys.path` directly (six call sites: P02, P04, P07, P08, P13, P14) and
+is a syntax error), which forces every runner script and per-project
+`conftest.py` to manipulate `sys.path` directly (28 call sites across the
+tree as of this writing) and
 prevents pytest from collecting multiple project test directories in one
 session without `conftest` name collisions (see
 [002](002-per-project-ci-testpaths-gap.md)). It is also the reason two

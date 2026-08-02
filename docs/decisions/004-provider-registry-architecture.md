@@ -44,6 +44,8 @@ without touching any other venue's file.
   also connected directly; `IndexConfig.prefer_direct` defaults to `True`
   (`compute_index.py:107`) and is applied on the active index-building path
   before outlier filtering (`compute_index.py:196`).
-- Confidence level per venue (high/medium/low, see the provider docstrings)
-  should be treated as a live caveat on data quality, not just implementation
-  history, until each has been confirmed against a real API response.
+- Confidence level per venue (high/medium/low, recorded in this ADR's
+  Context section above — not currently duplicated in the provider modules
+  themselves) should be treated as a live caveat on data quality, not just
+  implementation history, until each has been confirmed against a real API
+  response.
