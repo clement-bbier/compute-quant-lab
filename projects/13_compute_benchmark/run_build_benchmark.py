@@ -216,8 +216,9 @@ def main() -> None:
     report = run(args.root)
     if not report.history.n_snapshots:
         _LOG.warning(
-            "Cold store empty: populate via `git checkout data-snapshots -- data/snapshots` "
-            "before rerunning for a real benchmark."
+            "Cold store empty: data/snapshots is versioned directly on main, updated "
+            "continuously by the CI cron. Pull the latest main before rerunning for a "
+            "real benchmark."
         )
 
 

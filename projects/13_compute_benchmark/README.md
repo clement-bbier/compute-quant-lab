@@ -18,9 +18,12 @@ At a fix instant `t`, for a GPU model (e.g. H100), the benchmark publishes:
 
 ## 2. Underlying data (real, point-in-time)
 
-- Source: on-demand price snapshots from GPU marketplaces (Vast.ai, RunPod) accumulated
-  24/7, stored in a **versioned Parquet cold store** (`core.storage`, append-only,
-  idempotent). Provenance `real_spot` — never simulated.
+- Source: on-demand price snapshots from GPU marketplaces accumulated 24/7 — 7 connected
+  providers (`core/ingestion/providers/`: Cudo, DataCrunch, Hyperstack, PrimeIntellect,
+  RunPod, TensorDock, Vast.ai), of which PrimeIntellect relays several more underlying
+  venues, for **15 active venues** in the current cold store
+  (`results/benchmark_summary.md`). Stored in a **versioned Parquet cold store**
+  (`core.storage`, append-only, idempotent). Provenance `real_spot` — never simulated.
 - Unit: **USD per GPU-hour**. **UTC** tz-aware timestamps.
 - ⚠️ **Short history at the start.** Compute pricing has no deep public history:
   it's being accumulated. The index is therefore thin at launch (cf. `results/benchmark_summary.md`),
@@ -80,9 +83,8 @@ DVC version is reproducible. Summary written to `results/benchmark_summary.md`.
 ## 6. Run it
 
 ```bash
-# data/snapshots is versioned as plain git on main. For the most recent
-# collection (accumulated continuously by the CI cron):
-git checkout data-snapshots -- data/snapshots
+# data/snapshots is versioned as plain git directly on main, updated continuously
+# by the CI cron — nothing to check out, the local clone already has it.
 
 uv run pytest -q projects/13_compute_benchmark/tests          # tests
 uv run python projects/13_compute_benchmark/run_build_benchmark.py   # run + results/
@@ -91,9 +93,10 @@ uv run streamlit run projects/13_compute_benchmark/dashboard/app.py  # demo dash
 
 ## 7. Known limitations
 
-- Short history (a few fixes at launch) → thin series; series and averages are not very
-  statistically significant while accumulation is young.
-- Only 2 venues today (Vast.ai, RunPod) → the trimmed mean and MAD don't filter
-  anything yet; the index = average of the two venue medians. Real robustness kicks in beyond 3 venues.
+- Short history (accumulation started 2026-06-22) → series and averages are not yet
+  very statistically significant while the window is young.
+- 15 venues active as of this run (`results/benchmark_summary.md`) → the MAD filter and
+  trimmed mean are live and filtering on most multi-venue models; single-venue models
+  (e.g. RTX3080, RTX6000ADA) still report dispersion as undefined by design (§4).
 - Venue survivorship: a marketplace disappearing biases the history (to monitor).
 - `on_demand` only (spot/reserved not aggregated — standard practice, never mix lease types).
