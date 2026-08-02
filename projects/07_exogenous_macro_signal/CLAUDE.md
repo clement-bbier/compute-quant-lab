@@ -43,7 +43,7 @@ an RTM spike, out of sample.
   to the baseline, bootstrap CI + Benjamini-Hochberg multi-spec correction.
 - `src/ercot_eval.py` (79 L) — PR-AUC metrics + statistical tests.
 - `src/run_ercot_calibration.py` (70 L) — orchestration → MLflow run.
-- 448 LOC total, 14 dedicated tests in `tests/test_ercot_*.py`.
+- 457 LOC total, 14 dedicated tests in `tests/test_ercot_*.py`.
 
 Reads **exclusively** from the real ERCOT cold store (`data/cold/ercot`, rule
 `training-cold-store`) — never a synthetic fallback, unlike the rest of P07.

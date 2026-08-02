@@ -45,6 +45,7 @@ already in place.
   - `features/` point-in-time feature engineering · `models/` XGBoost, purged-CV, deflated Sharpe
   - `backtest/` engine + metrics · `storage/` Parquet cold store + DuckDB query layer · `signals/` reusable signal producers · `utils/` config, logging, tracking (MLflow)
 - `data/` — `snapshots/` (raw collected, **git-versioned**) → `interim/` → `processed/`; `cold/` = typed Parquet lake (ERCOT)
+- `dashboard_kit/` — shared design tokens + dark theme for every Streamlit dashboard (`.streamlit/config.toml` mirrors its palette)
 - `experiments/` — MLflow runs (local tracking, no server)
 - `projects/NN_name/` — a standalone research project (has its own CLAUDE.md); the numeric prefix is deliberate debt, see [docs/decisions/003](docs/decisions/003-projects-numeric-prefix-debt.md)
 - `infra/mcp-servers/` — **code** for custom MCP servers (≠ root `.mcp.json`)
@@ -61,7 +62,7 @@ already in place.
 ## 5. Orchestration mechanisms (`.claude/`)
 
 - **rules/** — path-scoped constraints (Python quality, data integrity, no look-ahead)
-- **skills/** — procedures: `/run-backtest`, `/data-quality-check`, `/new-research-project`
+- **skills/** — procedures: `/run-backtest`, `/data-quality-check`, `/new-research-project`, `/new-agent`
   - **knowledge layer**: `/cointegration-analysis`, `/spread-trading-playbook`, `/backtest-pitfalls`
   - **parallel scanning**: `/market-scan` (swarm of subagents on the compute market)
 - **agents/** — the lab's "staff" (see §6)

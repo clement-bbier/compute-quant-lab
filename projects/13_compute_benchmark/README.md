@@ -26,8 +26,8 @@ At a fix instant `t`, for a GPU model (e.g. H100), the benchmark publishes:
   (`core.storage`, append-only, idempotent). Provenance `real_spot` — never simulated.
 - Unit: **USD per GPU-hour**. **UTC** tz-aware timestamps.
 - ⚠️ **Short history at the start.** Compute pricing has no deep public history:
-  it's being accumulated. The index is therefore thin at launch (cf. `results/benchmark_summary.md`),
-  and grows every day. This is acknowledged, not hidden.
+  it's being accumulated. Collection started 2026-06-22; the index was thin at launch
+  (cf. `results/benchmark_summary.md`) and grows every day. This is acknowledged, not hidden.
 
 ## 3. Index construction (canonical method)
 
