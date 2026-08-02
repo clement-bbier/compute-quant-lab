@@ -13,10 +13,10 @@ Each transport brings its frames back to the **canonical gridstatus schema** (co
 ``"Interval Start"`` / ``"Location"`` / ``"SPP"`` / ``"Publish Time"`` / ``"System
 Total"``) that the ``ercot.py`` parsers already consume -- zero parsing duplication.
 
-Warning: the hosted schema is *presumed* (snake_case + ``_utc`` suffixes), built from the
-public GridStatus.io documentation. **To be confirmed by the live test** (``-m live`` with a
-real key): if a column differs, the adjustment is localised in the mappers below.
-Free plan quota: 500k rows/month -> always pass ``limit`` on large pulls.
+Hosted schema (snake_case + ``_utc`` suffixes) -- **CONFIRMED live** (V5.2 campaign, all 4
+``test_hosted_live_*`` tests in ``tests/test_hosted_transport.py``): every dataset below and
+both hosted-only columns map cleanly through the mappers here against the real GridStatus.io
+API. Free plan quota: 500k rows/month -> always pass ``limit`` on large pulls.
 """
 
 from __future__ import annotations
@@ -26,15 +26,16 @@ from typing import Protocol
 
 import pandas as pd
 
-#: Dataset IDs of the hosted GridStatus.io API (to be confirmed via ``list_datasets()``).
+#: Dataset IDs of the hosted GridStatus.io API -- confirmed live (V5.2 campaign).
 RTM_DATASET = "ercot_spp_real_time_15_min"
 FORECAST_DATASET = "ercot_load_forecast"
 ADEQUACY_DATASET = "ercot_short_term_system_adequacy"
 NET_LOAD_DATASET = "ercot_net_load_forecast"
 
-#: Hosted capacity column kept for the L0 reserve margin (to be confirmed live).
+#: Hosted capacity column kept for the L0 reserve margin -- confirmed live (V5.2 campaign).
 _HOSTED_CAPACITY_COL = "available_capacity_generation"
-#: Hosted net-load column (to be confirmed live; absent from the OSS lib -> hosted only).
+#: Hosted net-load column (absent from the OSS lib -> hosted only) -- confirmed live
+#: (V5.2 campaign).
 _HOSTED_NETLOAD_COL = "net_load_forecast"
 
 
@@ -225,7 +226,7 @@ def _hosted_adequacy_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
 
     STSA is a **capacity** report (NOT a demand one). We keep
     ``available_capacity_generation`` (forecast available generation capacity) as the
-    capacity of the L0 reserve margin. Hosted name to be confirmed by the live test.
+    capacity of the L0 reserve margin. Hosted name confirmed live (V5.2 campaign).
     """
     return pd.DataFrame(
         {
@@ -240,8 +241,8 @@ def _hosted_adequacy_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
 def _hosted_net_load_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
     """Rename the hosted ``ercot_net_load_forecast`` schema to the canonical one.
 
-    Net-load = load - renewables (the sunset ramp is the scarcity driver). Presumed hosted
-    column ``net_load_forecast`` -> to be confirmed by the live test.
+    Net-load = load - renewables (the sunset ramp is the scarcity driver). Hosted column
+    ``net_load_forecast`` confirmed live (V5.2 campaign).
     """
     return pd.DataFrame(
         {

@@ -1,7 +1,8 @@
 """Tests of the injectable ERCOT transport (P17 -- hosted GridStatus.io egress).
 
-Offline: MOCKED hosted client + fixtures of the *presumed* hosted schema. The live test
-(``test_fetch_live.py``) validates the real schema with a real key.
+Offline: MOCKED hosted client + fixtures of the hosted schema, confirmed against the real
+API by the live tests below (``@pytest.mark.live``, V5.2 campaign) and by
+``test_fetch_live.py``.
 """
 
 from __future__ import annotations
@@ -31,7 +32,9 @@ class _FakeClient:
 
 
 def _hosted_rtm_frame() -> pd.DataFrame:
-    # Presumed hosted schema (snake_case + *_utc). To be confirmed by the live test.
+    # Hosted schema (snake_case + *_utc) -- CONFIRMED live (V5.2 campaign,
+    # test_hosted_live_rtm_real_schema): the real GridStatus.io response maps cleanly
+    # through _hosted_rtm_to_canonical with this column shape.
     return pd.DataFrame(
         {
             "interval_start_utc": ["2024-01-15T06:00:00Z", "2024-01-15T06:15:00Z"],

@@ -11,16 +11,23 @@ What the smoke test validates:
 - The ErcotMarket connector is properly registered in the registry.
 - get_spp() returns data with a volume > 0.
 - The RTM series is UTC tz-aware and monotonically increasing.
-- get_load_forecast() returns data with publish_time < interval_start.
+- get_load_forecast() returns a well-formed raw feed (schema, UTC, margin coherence,
+  plausible range). NOT a point-in-time claim: the raw feed includes late-published
+  revisions for elapsed intervals (confirmed live, V5.2) -- point-in-time is guaranteed
+  one layer up, by reserve_forecast_as_of (see test_hosted_transport.py).
 - Both calls cover at least 1 day of data.
 """
 
 from __future__ import annotations
 
+import os
+
 import pytest
 import pandas as pd
 
-from core.ingestion.energy.base import available_markets, get_market
+from core.ingestion.energy.base import available_markets
+from core.ingestion.energy.ercot import ErcotMarket
+from core.ingestion.energy.ercot_transport import GridstatusIoTransport
 
 
 @pytest.mark.live
@@ -32,7 +39,10 @@ def test_ercot_is_registered() -> None:
 @pytest.mark.live
 def test_rtm_price_live() -> None:
     """Pull 2 days of real RTM prices and check the shape guarantees."""
-    market = get_market("ercot")
+    key = os.environ.get("GRIDSTATUS_API_KEY")
+    if not key:
+        pytest.skip("GRIDSTATUS_API_KEY is missing -- export the key for the live test")
+    market = ErcotMarket(transport=GridstatusIoTransport(limit=500))
 
     # 2 recent days -- we take D-3 to D-1 to avoid incomplete data
     end = pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=1)
@@ -65,8 +75,19 @@ def test_rtm_price_live() -> None:
 
 @pytest.mark.live
 def test_reserve_forecast_live() -> None:
-    """Pull real load forecasts and check the L0 section 2 point-in-time invariant."""
-    market = get_market("ercot")
+    """Pull real load forecasts and check the raw-feed schema (not a point-in-time claim).
+
+    ``reserve_forecast(start, end)`` filters on **publication date**, not interval date (its
+    own docstring: "the caller then filters on publish_time <= cutoff"). Confirmed live: the
+    real GridStatus.io ``ercot_load_forecast`` dataset includes late-published revisions for
+    already-elapsed intervals, so ``publish_time >= interval_start`` is common here and is
+    NOT a look-ahead bug -- the point-in-time guarantee lives one layer up, in
+    ``reserve_forecast_as_of`` (covered live by ``test_hosted_live_reserve_margin_real``).
+    """
+    key = os.environ.get("GRIDSTATUS_API_KEY")
+    if not key:
+        pytest.skip("GRIDSTATUS_API_KEY is missing -- export the key for the live test")
+    market = ErcotMarket(transport=GridstatusIoTransport(limit=500))
 
     # We request the reports published in the last 48h
     end = pd.Timestamp.now(tz="UTC")
@@ -92,13 +113,6 @@ def test_reserve_forecast_live() -> None:
     # UTC timezone
     assert str(df["publish_time"].dt.tz) == "UTC"
     assert str(df["interval_start"].dt.tz) == "UTC"
-
-    # L0 section 2 causal invariant: publish_time < interval_start
-    violations = (df["publish_time"] >= df["interval_start"]).sum()
-    assert violations == 0, (
-        f"{violations} rows violate the causal invariant "
-        "(publish_time >= interval_start) -- potential look-ahead"
-    )
 
     # Margin coherence
     expected_margin = df["forecast_capacity_mw"] - df["forecast_load_mw"]
