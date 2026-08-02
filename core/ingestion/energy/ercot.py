@@ -58,6 +58,9 @@ from core.ingestion.energy.ercot_transport import (
     GridstatusDirectTransport,
     GridstatusIoTransport,
 )
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Default location for the ERCOT system RTM price
 _DEFAULT_RTM_LOCATION = "HB_BUSAVG"
@@ -291,14 +294,16 @@ class ErcotMarket:
     def _transport(self) -> ErcotTransport:
         """Resolve the transport: injected > hosted (key present) > direct (geoblocked)."""
         if self._injected is not None:
+            logger.info("ERCOT transport resolved: injected (%s)", type(self._injected).__name__)
             return self._injected
         resolved = self._resolved
         if resolved is None:
-            resolved = (
-                GridstatusIoTransport()
-                if os.environ.get("GRIDSTATUS_API_KEY")
-                else GridstatusDirectTransport()
-            )
+            if os.environ.get("GRIDSTATUS_API_KEY"):
+                logger.info("ERCOT transport resolved: hosted (GridStatus.io, key present)")
+                resolved = GridstatusIoTransport()
+            else:
+                logger.info("ERCOT transport resolved: direct (gridstatus.Ercot, no key)")
+                resolved = GridstatusDirectTransport()
             self._resolved = resolved
         return resolved
 

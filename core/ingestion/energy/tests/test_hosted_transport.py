@@ -7,6 +7,7 @@ API by the live tests below (``@pytest.mark.live``, V5.2 campaign) and by
 
 from __future__ import annotations
 
+import logging
 import os
 
 import pandas as pd
@@ -14,6 +15,7 @@ import pytest
 
 from core.ingestion.energy.ercot import ErcotMarket
 from core.ingestion.energy.ercot_transport import (
+    DEFAULT_GRIDSTATUS_LIMIT,
     GridstatusDirectTransport,
     GridstatusIoTransport,
 )
@@ -112,6 +114,49 @@ def test_transport_selection_hosted_when_key_present(monkeypatch: pytest.MonkeyP
 def test_transport_selection_direct_when_key_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GRIDSTATUS_API_KEY", raising=False)
     assert isinstance(ErcotMarket()._transport(), GridstatusDirectTransport)
+
+
+def test_transport_selection_hosted_logs_choice(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("GRIDSTATUS_API_KEY", "dummy-key")
+    with caplog.at_level(logging.INFO):
+        ErcotMarket()._transport()
+    assert "hosted" in caplog.text.lower()
+
+
+def test_transport_selection_direct_logs_choice(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("GRIDSTATUS_API_KEY", raising=False)
+    with caplog.at_level(logging.INFO):
+        ErcotMarket()._transport()
+    assert "direct" in caplog.text.lower()
+
+
+def test_transport_selection_injected_logs_choice(caplog: pytest.LogCaptureFixture) -> None:
+    injected = GridstatusDirectTransport()
+    with caplog.at_level(logging.INFO):
+        ErcotMarket(transport=injected)._transport()
+    assert "injected" in caplog.text.lower()
+
+
+def test_gridstatus_io_default_limit_is_capped_not_unlimited() -> None:
+    """Task V7.2 point 2: the free-tier quota must never be uncapped by omission."""
+    transport = GridstatusIoTransport(client=object())
+    assert transport._limit == DEFAULT_GRIDSTATUS_LIMIT
+    assert transport._limit is not None
+
+
+def test_gridstatus_io_explicit_limit_overrides_default() -> None:
+    transport = GridstatusIoTransport(client=object(), limit=2000)
+    assert transport._limit == 2000
+
+
+def test_gridstatus_io_default_limit_logs_info(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO):
+        GridstatusIoTransport(client=object())
+    assert "cap" in caplog.text.lower()
 
 
 def test_injected_transport_takes_precedence(monkeypatch: pytest.MonkeyPatch) -> None:

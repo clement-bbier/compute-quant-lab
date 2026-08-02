@@ -26,11 +26,22 @@ from typing import Protocol
 
 import pandas as pd
 
+from core.utils.logging import get_logger
+from core.utils.net import call_with_retry
+
+logger = get_logger(__name__)
+
 #: Dataset IDs of the hosted GridStatus.io API -- confirmed live (V5.2 campaign).
 RTM_DATASET = "ercot_spp_real_time_15_min"
 FORECAST_DATASET = "ercot_load_forecast"
 ADEQUACY_DATASET = "ercot_short_term_system_adequacy"
 NET_LOAD_DATASET = "ercot_net_load_forecast"
+
+#: Row cap applied when the caller does not pass an explicit ``limit`` (free plan quota:
+#: 500k rows/month -- an uncapped pull on a wide date range could exhaust it in one call).
+#: Chosen well under the monthly quota so a handful of uncapped calls in a session still
+#: leaves headroom; callers needing more (backfills) pass ``limit`` explicitly.
+DEFAULT_GRIDSTATUS_LIMIT: int = 10_000
 
 #: Hosted capacity column kept for the L0 reserve margin -- confirmed live (V5.2 campaign).
 _HOSTED_CAPACITY_COL = "available_capacity_generation"
@@ -119,7 +130,10 @@ class GridstatusIoTransport:
     client
         Already-built client (test injection). If provided, ``api_key`` is ignored.
     limit
-        Row cap per request (free quota = 500k/month). ``None`` = no cap.
+        Row cap per request (free quota = 500k/month). ``None`` (default) resolves to
+        :data:`DEFAULT_GRIDSTATUS_LIMIT` -- an explicit uncapped pull is no longer
+        possible by omission; pass a larger ``limit`` explicitly for a backfill that
+        needs more rows.
     """
 
     def __init__(
@@ -131,7 +145,13 @@ class GridstatusIoTransport:
     ) -> None:
         self._api_key = api_key
         self._client = client
-        self._limit = limit
+        if limit is None:
+            logger.info(
+                "GridStatus.io: no limit specified, capping at default %d rows/request "
+                "(free-tier quota protection)",
+                DEFAULT_GRIDSTATUS_LIMIT,
+            )
+        self._limit = limit if limit is not None else DEFAULT_GRIDSTATUS_LIMIT
 
     def _get_client(self) -> object:
         if self._client is None:
@@ -143,8 +163,21 @@ class GridstatusIoTransport:
             self._client = GridStatusClient(api_key=key)
         return self._client
 
+    def _get_dataset(self, dataset: str, **kwargs: object) -> pd.DataFrame:
+        """Retry-wrapped ``get_dataset`` call, shared by every ``fetch_*`` method.
+
+        Retries on 5xx/timeout/connection error only (never on a 4xx): a malformed
+        query or bad key will fail identically on a second try and only spends the
+        free-tier quota for nothing.
+        """
+        client = self._get_client()
+        return call_with_retry(
+            lambda: client.get_dataset(dataset, **kwargs),  # type: ignore[attr-defined]
+            venue=f"gridstatus:{dataset}",
+        )
+
     def fetch_rtm_spp(self, start: pd.Timestamp, end: pd.Timestamp, location: str) -> pd.DataFrame:
-        raw = self._get_client().get_dataset(  # type: ignore[attr-defined]
+        raw = self._get_dataset(
             RTM_DATASET,
             start=_date_str(start),
             end=_date_str(end),
@@ -155,7 +188,7 @@ class GridstatusIoTransport:
         return _hosted_rtm_to_canonical(raw)
 
     def fetch_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        raw = self._get_client().get_dataset(  # type: ignore[attr-defined]
+        raw = self._get_dataset(
             FORECAST_DATASET,
             start=_date_str(start),
             end=_date_str(end),
@@ -164,7 +197,7 @@ class GridstatusIoTransport:
         return _hosted_forecast_to_canonical(raw)
 
     def fetch_system_adequacy(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        raw = self._get_client().get_dataset(  # type: ignore[attr-defined]
+        raw = self._get_dataset(
             ADEQUACY_DATASET,
             start=_date_str(start),
             end=_date_str(end),
@@ -173,7 +206,7 @@ class GridstatusIoTransport:
         return _hosted_adequacy_to_canonical(raw)
 
     def fetch_net_load_forecast(self, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-        raw = self._get_client().get_dataset(  # type: ignore[attr-defined]
+        raw = self._get_dataset(
             NET_LOAD_DATASET,
             start=_date_str(start),
             end=_date_str(end),
