@@ -128,7 +128,7 @@ Not yet captured — placeholders below mark where they belong. To fill one in: 
 ## Roadmap
 
 - Storage: cold-store phases 0-1 are done ([P11](core/storage/)); real-time serving (hot store, streaming) is phases 2-4, documented but not built — see [`docs/storage-roadmap.md`](docs/storage-roadmap.md).
-- Energy leg: switch FR/DE from synthetic to real ENTSO-E once `ENTSOE_API_TOKEN` is configured — the connector is coded and tested, the switch is a config change, not a rewrite.
+- Energy leg: switch FR/DE from synthetic to real ENTSO-E once `ENTSOE_API_TOKEN` is configured — the connector is coded, live-smoke-tested (FR day-ahead, see `projects/02_spread_mean_reversion/tests/test_entsoe_live.py`), the switch is a config change, not a rewrite.
 
 ## License
 
