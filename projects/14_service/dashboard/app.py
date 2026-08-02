@@ -26,7 +26,10 @@ from core.ingestion.compute_index import InsufficientDataError
 from core.ingestion.protocols import SnapshotStore
 from core.storage import ParquetSnapshotStore
 from core.utils.config import SNAPSHOTS_DIR
+from core.utils.logging import configure_logging
 from dashboard_kit import COLORS, SIZES, apply_page, header, money_axis
+
+configure_logging()
 
 # Makes the product modules (under src/) importable outside pytest (after stable imports).
 _SRC = Path(__file__).resolve().parents[1] / "src"

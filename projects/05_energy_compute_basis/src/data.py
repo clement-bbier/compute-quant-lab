@@ -8,7 +8,6 @@ Labeled real/synthetic boundary (rule forward-real-simulated): each loader retur
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import numpy as np
@@ -16,9 +15,9 @@ import pandas as pd
 
 from core.storage.energy_store import EnergyColdStore
 from core.utils.config import REPO_ROOT, SNAPSHOTS_DIR, get_env
-from core.utils.logging import sanitize_for_log
+from core.utils.logging import get_logger, sanitize_for_log
 
-log = logging.getLogger("p05.data")
+log = get_logger("p05.data")
 
 _COMPUTE_ANCHOR_USD = 2.30  # community H100 market anchor ($/GPU·h)
 _ENERGY_STORE_ROOT = REPO_ROOT / "data" / "cold" / "energy"

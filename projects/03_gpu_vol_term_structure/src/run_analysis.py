@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import logging
 import math
 import os
 import sys
@@ -41,6 +40,7 @@ import mlflow  # noqa: E402
 
 from core.ingestion import CsvSnapshotStore  # noqa: E402
 from core.utils import tracking  # noqa: E402
+from core.utils.logging import configure_logging, get_logger  # noqa: E402
 from forward.build_curve import build_forward_curve  # noqa: E402
 
 from signals import directional_signal  # noqa: E402
@@ -48,8 +48,7 @@ from spot_series import build_spot_series  # noqa: E402
 from term_structure import TermStructureAnalyzer  # noqa: E402
 from vol import EwmaVol, RealizedVol, log_returns  # noqa: E402
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("run_analysis")
+logger = get_logger("run_analysis")
 
 SNAPSHOT_DIR = _ROOT / "data" / "snapshots"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
@@ -232,4 +231,5 @@ to the real index once `data/snapshots/` is deep enough, with no other change.
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

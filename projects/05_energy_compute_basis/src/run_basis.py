@@ -14,7 +14,6 @@ Real/synthetic boundary: ``energy_source`` / ``compute_source`` are logged as pa
 
 from __future__ import annotations
 
-import logging
 import os
 import sys
 from pathlib import Path
@@ -29,12 +28,12 @@ import mlflow  # noqa: E402
 
 from basis import BasisCalculator, BasisResult, DislocationSummary, detect_dislocations  # noqa: E402
 from core.pricing import DataFramePriceSource  # noqa: E402
+from core.utils.logging import configure_logging, get_logger  # noqa: E402
 from core.utils.tracking import run as mlflow_run  # noqa: E402
 from data import hourly_index, load_compute_index, load_regional_energy  # noqa: E402
 from region_config import DEFAULT_REGIONS, RegionConfig, build_regional_pricer  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-log = logging.getLogger("run_basis")
+log = get_logger("run_basis")
 
 EXPERIMENT = "p05_energy_compute_basis"
 GPU = "H100"
@@ -202,4 +201,5 @@ def main(
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

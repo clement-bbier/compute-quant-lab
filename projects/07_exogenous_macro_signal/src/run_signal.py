@@ -22,7 +22,7 @@ import pandas as pd
 
 from core.features import FeatureSpec, PointInTimeFeatureBuilder
 from core.utils.config import RAW_DIR
-from core.utils.logging import get_logger
+from core.utils.logging import configure_logging, get_logger
 from core.utils.tracking import run as tracked_run
 
 _HERE = Path(__file__).parent
@@ -170,4 +170,5 @@ def _write_synthesis(summary: dict[str, Any]) -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

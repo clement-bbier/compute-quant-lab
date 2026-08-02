@@ -13,17 +13,15 @@ lag=0), versioned as plain git. No writes to ``data/raw/`` (immutable).
 
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from core.utils.logging import sanitize_for_log
+from core.utils.logging import configure_logging, get_logger, sanitize_for_log
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-log = logging.getLogger("prepare_dataset")
+log = get_logger("prepare_dataset")
 
 # Repo root: this file lives at projects/01_digital_spark_spread/src/.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -110,4 +108,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

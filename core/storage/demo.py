@@ -12,14 +12,14 @@ run and materialises ``results/run_summary.json``.
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
 from core.storage.duckdb_query import query
 from core.storage.parquet_store import ParquetPriceStore
+from core.utils.logging import configure_logging, get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "data" / "snapshots"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -75,5 +75,5 @@ def main(store: ParquetPriceStore | None = None) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
     main()

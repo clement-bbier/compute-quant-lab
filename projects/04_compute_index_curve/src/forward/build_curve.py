@@ -11,18 +11,18 @@ else Python MC fallback — the engine's identity is tracked (``engine``).
 
 from __future__ import annotations
 
-import logging
 from typing import Sequence
 
 import mlflow
 
 from core.utils import tracking
+from core.utils.logging import get_logger
 from forward.calibrators import ImposedHalfLifeCalibrator, OlsAr1Calibrator
 from forward.models import Curve
 from forward.oracle import PythonMonteCarloForward
 from forward.protocols import ForwardCalibrator, ForwardCurveModel
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 #: Default calibrator: OLS AR(1) (standard Schwartz) with robust half-life fallback.
 DEFAULT_CALIBRATOR: ForwardCalibrator = OlsAr1Calibrator(

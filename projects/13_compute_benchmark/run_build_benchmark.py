@@ -36,7 +36,7 @@ from core.ingestion.protocols import Snapshot  # noqa: E402
 from core.storage import ParquetSnapshotStore  # noqa: E402
 from core.utils import tracking  # noqa: E402
 from core.utils.config import SNAPSHOTS_DIR  # noqa: E402
-from core.utils.logging import get_logger  # noqa: E402
+from core.utils.logging import configure_logging, get_logger  # noqa: E402
 
 _LOG = get_logger("p13.benchmark")
 _RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -223,4 +223,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

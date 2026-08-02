@@ -20,7 +20,6 @@ The actual live reading comes from :func:`core.ingestion.gpu_market.fetch_live_g
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -28,8 +27,9 @@ from core.ingestion.gpu_market import fetch_live_gpu_prices
 from core.ingestion.protocols import Snapshot
 from core.ingestion.snapshot_store import CsvSnapshotStore
 from core.storage import ParquetPriceStore, snapshots_to_frame
+from core.utils.logging import configure_logging, get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "data" / "snapshots"
 
@@ -74,5 +74,5 @@ def snapshot(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
     snapshot()

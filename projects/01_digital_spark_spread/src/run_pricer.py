@@ -9,7 +9,6 @@ logs params + metrics + git SHA to MLflow, and drops a JSON summary in
 from __future__ import annotations
 
 import json
-import logging
 import os
 import subprocess
 from pathlib import Path
@@ -28,10 +27,10 @@ from core.pricing import (
     SparkSpreadPricer,
     SpreadResult,
 )
+from core.utils.logging import configure_logging, get_logger
 from core.utils.tracking import run
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-log = logging.getLogger("run_pricer")
+log = get_logger("run_pricer")
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA = REPO_ROOT / "data" / "interim" / "aligned_spark.parquet"
@@ -131,4 +130,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

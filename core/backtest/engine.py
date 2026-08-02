@@ -19,7 +19,6 @@ See ``core/backtest/_loop/README.md`` for the build instructions.
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Protocol
 
 import numpy as np
@@ -34,8 +33,9 @@ from core.backtest.protocols import (
     MetricsCalculator,
     Strategy,
 )
+from core.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class _Accumulator(Protocol):

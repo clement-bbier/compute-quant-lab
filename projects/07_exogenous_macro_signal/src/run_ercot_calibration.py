@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # src/: ercot_dataset,
 import mlflow  # noqa: E402
 
 from core.storage.energy_store import EnergyColdStore  # noqa: E402
-from core.utils.logging import get_logger  # noqa: E402
+from core.utils.logging import configure_logging, get_logger  # noqa: E402
 from core.utils.tracking import run  # noqa: E402
 from ercot_calibration import run_calibration  # noqa: E402
 from ercot_dataset import build_calibration_dataset  # noqa: E402
@@ -67,4 +67,5 @@ def main() -> None:  # pragma: no cover (operational, reads the real cold store)
 
 
 if __name__ == "__main__":  # pragma: no cover
+    configure_logging()
     main()

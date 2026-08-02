@@ -40,7 +40,7 @@ from core.storage.energy_store import (
     VALUE,
     EnergyColdStore,
 )
-from core.utils.logging import get_logger
+from core.utils.logging import configure_logging, get_logger
 
 log = get_logger("entsoe_backfill")
 
@@ -190,6 +190,7 @@ def main() -> None:  # pragma: no cover (operational, requires the API token + n
     """Operational entry point. Range and destination are configurable on the command line."""
     from entsoe import EntsoePandasClient  # noqa: PLC0415
 
+    configure_logging()
     args = _parse_args()
     token = os.environ.get("ENTSOE_API_TOKEN")
     if not token:

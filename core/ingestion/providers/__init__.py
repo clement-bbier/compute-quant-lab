@@ -21,7 +21,6 @@ automatically aggregate the new venue as soon as a key is configured.
 from __future__ import annotations
 
 import datetime as dt
-import logging
 import os
 
 from core.ingestion.protocols import Snapshot
@@ -33,9 +32,9 @@ from core.ingestion.providers.primeintellect import PrimeintellectProvider
 from core.ingestion.providers.runpod import RunpodProvider
 from core.ingestion.providers.tensordock import TensordockProvider
 from core.ingestion.providers.vastai import VastaiProvider
-from core.utils.logging import sanitize_for_log
+from core.utils.logging import get_logger, sanitize_for_log
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 #: Registered venues (7 active). The order fixes the aggregation order of the observations:
 #: the W1 foundation (Vast.ai, RunPod) then the W2 venues. Each one is key-gated in

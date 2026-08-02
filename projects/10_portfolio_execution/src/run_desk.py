@@ -41,7 +41,7 @@ from core.signals import (
     MLEnsembleSignal,
     SignalProducer,
 )
-from core.utils.logging import get_logger
+from core.utils.logging import configure_logging, get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
@@ -356,4 +356,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

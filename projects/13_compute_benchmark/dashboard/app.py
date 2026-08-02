@@ -36,7 +36,10 @@ from core.ingestion.compute_index import DEFAULT_INDEX_CONFIG  # noqa: E402
 from core.ingestion.protocols import Snapshot  # noqa: E402
 from core.storage import ParquetSnapshotStore  # noqa: E402
 from core.utils.config import REPO_ROOT, SNAPSHOTS_DIR  # noqa: E402
+from core.utils.logging import configure_logging  # noqa: E402
 from dashboard_kit import COLORS, SIZES, apply_page, header, money_axis  # noqa: E402
+
+configure_logging()
 
 CONFIG = DEFAULT_INDEX_CONFIG
 

@@ -18,7 +18,7 @@ import mlflow
 
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
 from core.backtest.tracking import log_metrics, log_pnl_figure, tracked_run
-from core.utils.logging import get_logger
+from core.utils.logging import configure_logging, get_logger
 
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE / "src"))
@@ -71,4 +71,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

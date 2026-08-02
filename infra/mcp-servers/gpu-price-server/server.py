@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 
 import service
 from core.storage import ParquetPriceStore
+from core.utils.logging import configure_logging
 
 
 def _snapshot_root() -> Path:
@@ -70,4 +71,5 @@ def query(sql: str) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
+    configure_logging()
     mcp.run()

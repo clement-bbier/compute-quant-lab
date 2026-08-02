@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import logging
 import os
 import sys
 from pathlib import Path
@@ -41,12 +40,12 @@ from core.pricing.derivatives import (  # noqa: E402
     CostOfCarryModel,
     FuturesQuote,
 )
+from core.utils.logging import configure_logging, get_logger  # noqa: E402
 from core.utils.tracking import run  # noqa: E402
 from forward.models import SchwartzParams  # noqa: E402
 from p04_forward_adapter import DAYS_PER_YEAR, P04ForwardAdapter  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-log = logging.getLogger("run_pricing")
+log = get_logger("run_pricing")
 
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 
@@ -168,4 +167,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

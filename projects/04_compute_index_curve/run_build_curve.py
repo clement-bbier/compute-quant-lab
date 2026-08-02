@@ -17,7 +17,6 @@ suffice to replace it with the real index series once collection has accumulated
 from __future__ import annotations
 
 import json
-import logging
 import math
 import os
 import sys
@@ -30,10 +29,10 @@ os.environ.setdefault("MLFLOW_TRACKING_URI", (_ROOT / "experiments" / "mlruns").
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from core.ingestion import CsvSnapshotStore, InsufficientDataError, build_spot_index  # noqa: E402
+from core.utils.logging import configure_logging, get_logger  # noqa: E402
 from forward.build_curve import build_forward_curve  # noqa: E402
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("run_build_curve")
+logger = get_logger("run_build_curve")
 
 SNAPSHOT_DIR = _ROOT / "data" / "snapshots"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -112,4 +111,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()
