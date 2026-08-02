@@ -225,6 +225,7 @@ def _jsonable(value: Any) -> Any:
         if pd.isna(value):
             return None
     except (TypeError, ValueError):
+        # pd.isna raises on non-scalars (list, array): not a NaN, fall through.
         pass
     if hasattr(value, "item"):  # numpy scalars
         return value.item()

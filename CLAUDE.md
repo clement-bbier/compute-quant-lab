@@ -61,7 +61,10 @@ already in place.
 
 ## 5. Orchestration mechanisms (`.claude/`)
 
-- **rules/** — path-scoped constraints (Python quality, data integrity, no look-ahead)
+- **rules/** — path-scoped constraints, auto-loaded on the paths they declare:
+  `python-quality`, `data-integrity`, `quant-no-lookahead`, `observability` (logging
+  policy), `forward-real-simulated` (the real/simulated boundary),
+  `training-cold-store`, `backtest-mlflow-logging`
 - **skills/** — procedures: `/run-backtest`, `/data-quality-check`, `/new-research-project`, `/new-agent`
   - **knowledge layer**: `/cointegration-analysis`, `/spread-trading-playbook`, `/backtest-pitfalls`
   - **parallel scanning**: `/market-scan` (swarm of subagents on the compute market)
