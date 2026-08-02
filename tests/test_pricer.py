@@ -27,6 +27,15 @@ from core.pricing import (
     SparkSpreadPricer,
     SpreadResult,
 )
+from core.pricing import pricer as pricer_module
+
+try:
+    from core.pricing.pricer import RustKernel
+
+    RustKernel()
+    _RUST_COMPILED = True
+except Exception:  # pragma: no cover - depends on the subcrate being compiled
+    _RUST_COMPILED = False
 
 # --- Thesis constants (8x H100) -------------------------------------------------------
 H100_TDP_W = 700.0
@@ -256,16 +265,42 @@ def test_concrete_implementations_satisfy_protocols():
     assert isinstance(PythonOracle(), object)  # kernel checked via parity test
 
 
-def test_default_kernel_falls_back_to_python_oracle_and_logs_warning(caplog):
-    """V7.2: when Rust isn't compiled, the fallback to the Python oracle must be visible.
+def test_default_kernel_falls_back_to_python_oracle_and_logs_warning(monkeypatch, caplog):
+    """V7.2: when Rust is unavailable, the fallback to the Python oracle must be visible.
 
-    The Rust subcrate is not built in this test environment (no ``maturin develop``), so
-    the default (uninjected) kernel resolves through the fallback path -- mirroring
-    ``core.backtest.engine``'s already-logged Rust->Python bascule.
+    Environment-independent by construction: whether or not the ``_kernel`` crate is
+    actually compiled in the machine running this test (it IS in CI, where the three
+    subcrates are built before ``make test``), Rust unavailability is forced here via
+    monkeypatch so the fallback branch of ``_default_kernel`` is exercised deterministically
+    everywhere. Asserting on the real environment instead (as the original version of this
+    test did) is a red herring: it is green precisely when Rust is absent and fails the
+    moment CI compiles the crates -- an environment-dependent test can never be correct on
+    both sides, so the environment must be controlled, not assumed.
     """
+
+    def _raise_import_error() -> None:
+        raise ImportError("simulated: _kernel not compiled")
+
+    monkeypatch.setattr(pricer_module, "RustKernel", _raise_import_error)
+
     with caplog.at_level("WARNING"):
         pricer = SparkSpreadPricer(_ref_power_model(), ConstantFx(1.0))
 
     assert isinstance(pricer._kernel, PythonOracle)
     assert "Rust kernel" in caplog.text
     assert "Python oracle" in caplog.text
+
+
+@pytest.mark.skipif(not _RUST_COMPILED, reason="Rust kernel not compiled (maturin develop)")
+def test_default_kernel_uses_rust_when_compiled_and_logs_nothing(caplog):
+    """Symmetric case: when Rust IS available, the default kernel uses it silently.
+
+    No fallback warning is logged -- the fast path is the expected, non-degraded case;
+    only the absence of Rust is a WARNING-worthy condition (per the observability rule,
+    a deliberate fallback is logged, the normal path is not).
+    """
+    with caplog.at_level("WARNING"):
+        pricer = SparkSpreadPricer(_ref_power_model(), ConstantFx(1.0))
+
+    assert isinstance(pricer._kernel, RustKernel)
+    assert "Rust kernel" not in caplog.text

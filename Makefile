@@ -44,9 +44,14 @@ kernels: ## Build the three Rust extension modules
 		uv run maturin develop -m "$$c/Cargo.toml" || exit 1; \
 	done
 
+#: Import name of each crate's compiled extension, in the same order as $(CRATES).
+KERNEL_MODULES := _kernel backtest_loop forward_engine
+
 check-kernels: ## Pre-flight: fail fast if the Rust kernels aren't built (uv sync removes them)
-	@uv run python -c "import _kernel, backtest_loop, forward_engine" 2>/dev/null \
-		|| { echo "kernels missing — run \`make kernels\`" >&2; exit 1; }
+	@for m in $(KERNEL_MODULES); do \
+		uv run python -c "import $$m" 2>/dev/null \
+			|| { echo "kernel module '$$m' missing — run \`make kernels\`" >&2; exit 1; }; \
+	done
 
 test: check-kernels ## Run every test suite in isolation
 	@ran=0; \
