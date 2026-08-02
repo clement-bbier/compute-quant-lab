@@ -111,8 +111,8 @@ All figures below are reproducible by rerunning the cited command; where the art
 | P08 engine demo Sharpe | 0.615 | [`projects/08_backtest_risk_engine/results/SYNTHESIS.md`](projects/08_backtest_risk_engine/results/SYNTHESIS.md) |
 | P09 ensemble Sharpe / PSR | 0.17 / 0.66 | [`projects/09_ml_signal_ensemble/results/SYNTHESIS.md`](projects/09_ml_signal_ensemble/results/SYNTHESIS.md) |
 | P10 desk net Sharpe (real signals, after costs) | −7.12 | [`projects/10_portfolio_execution/results/SYNTHESIS.md`](projects/10_portfolio_execution/results/SYNTHESIS.md) |
-| P11 storage layer tests | 23 passed | [`core/storage/results/SYNTHESIS.md`](core/storage/results/SYNTHESIS.md) |
-| P13 published models | 6 (B200, H100, H200, RTX4090, RTX5090, V100) | [`projects/13_compute_benchmark/results/benchmark_summary.md`](projects/13_compute_benchmark/results/benchmark_summary.md) |
+| P11 storage layer tests | 40 passed | [`core/storage/results/SYNTHESIS.md`](core/storage/results/SYNTHESIS.md) |
+| P13 published models | 24 (A100, A40, A6000, B200, B300, CPUNODE, H100, H200, L4, L40, L40S, RTX3080, RTX3090, RTX4000ADA, RTX4090, RTX5080, RTX5090, RTX6000ADA, RTX6000ADA48GB, RTXPRO4000, RTXPRO4500, RTXPRO5000, RTXPRO6000B96GB, V100) across 15 venues | [`projects/13_compute_benchmark/results/benchmark_summary.md`](projects/13_compute_benchmark/results/benchmark_summary.md) |
 
 The negative and near-zero Sharpes above are reported deliberately: [`/backtest-pitfalls`](.claude/skills/backtest-pitfalls/) auditing exists precisely to stop a flattering-but-fragile number from being presented as edge (see P02's own adversarial verdict on its 7.70).
 

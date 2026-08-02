@@ -25,7 +25,7 @@
 - **`infra/collectors/gpu_price_snapshot.py`** — **dual write** rewire: CSV (P04, unchanged)
   + Parquet (cold store). Idempotent; injectable `fetch` (network-free tests).
 
-## Tests — `pytest core/storage/tests`: **23 passed**
+## Tests — `pytest core/storage/tests`: **40 passed**
 | Family | File | Guarantee |
 |---|---|---|
 | (a) round-trip | `test_parquet_roundtrip.py` | types, source/month partition, **distribution preserved**, `PriceStore` conformance, naive rejection |
