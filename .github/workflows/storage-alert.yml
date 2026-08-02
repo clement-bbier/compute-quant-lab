@@ -1,13 +1,13 @@
 name: storage-alert
 
-# Alerte avant de saturer le stockage GitHub (le repo accumule l'historique compute
-# en git ordinaire dans data/snapshots/, sans LFS ni DVC). Hebdomadaire : si la taille
-# du repo depasse le seuil, ouvre une issue -> GitHub t'envoie un mail (notifications
-# issues activees par defaut). Aucun secret requis (GITHUB_TOKEN suffit).
+# Alerts before GitHub storage fills up (the repo accumulates the compute history
+# in plain git under data/snapshots/, no LFS). Weekly: if the repo size exceeds the
+# threshold, opens an issue -> GitHub emails you (issue notifications enabled by
+# default). No secret required (GITHUB_TOKEN is enough).
 
 on:
   schedule:
-    - cron: "0 8 * * 1" # tous les lundis 08:00 UTC
+    - cron: "0 8 * * 1" # every Monday 08:00 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -18,23 +18,23 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      THRESHOLD_KB: "700000" # ~700 Mo (alerte AVANT la limite douce ~1 Go de GitHub)
+      THRESHOLD_KB: "700000" # ~700 MB (alert BEFORE GitHub's ~1 GB soft limit)
     steps:
-      - name: Mesurer la taille du repo et alerter si depassement
+      - name: Measure repo size and alert if over threshold
         run: |
           size=$(gh api "repos/${{ github.repository }}" --jq .size)
-          echo "Taille repo : ${size} Ko (seuil ${THRESHOLD_KB} Ko)"
+          echo "Repo size: ${size} KB (threshold ${THRESHOLD_KB} KB)"
           if [ "$size" -lt "$THRESHOLD_KB" ]; then
-            echo "Sous le seuil, rien a faire."
+            echo "Below threshold, nothing to do."
             exit 0
           fi
-          # Dedup : ne pas rouvrir si une alerte est deja ouverte.
+          # Dedup: don't reopen if an alert is already open.
           open=$(gh issue list --state open --json title \
-            --jq '[.[] | select(.title | startswith("URGENT stockage"))] | length')
+            --jq '[.[] | select(.title | startswith("URGENT storage"))] | length')
           if [ "$open" -gt 0 ]; then
-            echo "Alerte deja ouverte, on ne duplique pas."
+            echo "Alert already open, not duplicating."
             exit 0
           fi
           gh issue create \
-            --title "URGENT stockage GitHub : ${size} Ko (seuil ${THRESHOLD_KB})" \
-            --body "Le repo atteint ${size} Ko. Action : migrer data/snapshots/ vers du stockage objet (S3/R2) ou compacter l'historique git. Cf. docs/storage-roadmap.md. (Alerte auto storage-alert.yml.)"
+            --title "URGENT GitHub storage: ${size} KB (threshold ${THRESHOLD_KB})" \
+            --body "The repo has reached ${size} KB. Action: migrate data/snapshots/ to object storage (S3/R2) or compact the git history. See docs/storage-roadmap.md. (Auto alert from storage-alert.yml.)"
