@@ -11,9 +11,10 @@ backtest logged to MLflow + git SHA + DVC version" executable.
 ## Architecture (two phases)
 1. **Phase 1 (Python, guarded)**: at each t, `GuardedView(data, t)` → `strategy.signal()`
    → position array. The look-ahead guard lives here (tested red).
-2. **Phase 2 (Rust, mandatory)**: `backtest_loop.accumulate(positions, prices, fees, slippage)`
+2. **Phase 2 (Rust, optional fast path)**: `backtest_loop.accumulate(positions, prices, fees, slippage)`
    → PnL / returns / turnover / trades over the long history. Pure Python oracle =
-   `core/backtest/reference_loop.py` (bit-exact parity).
+   `core/backtest/reference_loop.py` (bit-exact parity, tested fallback used
+   automatically when the compiled crate isn't available).
 
 ## Reproducibility
 Every run logs to MLflow: params + metrics (PnL, Sharpe, max DD, turnover, hit ratio)

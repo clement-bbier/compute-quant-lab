@@ -9,15 +9,16 @@ P10, …) plugs into it.
 1. **Phase 1 (Python, guarded)** — at each `t`, `GuardedView(data, t)` feeds
    `strategy.signal()`, producing a position array. The look-ahead guard
    lives here, tested red (a strategy peeking at `t+1` makes the run fail).
-2. **Phase 2 (Rust, mandatory)** — `backtest_loop.accumulate(positions,
+2. **Phase 2 (Rust, optional fast path)** — `backtest_loop.accumulate(positions,
    prices, fees, slippage)` accumulates PnL / returns / turnover / trades
    over the full history. A pure Python oracle
-   (`core/backtest/reference_loop.py`) gives bit-exact parity, tested.
+   (`core/backtest/reference_loop.py`) is the tested fallback, bit-exact
+   parity, used automatically when the compiled crate isn't available.
 
 ## Modules
 | Path | Role |
 |---|---|
-| `core/backtest/engine.py` | Two-phase orchestration; hard-imports the compiled `backtest_loop` (no fallback — see `core/backtest/_loop/README.md`). |
+| `core/backtest/engine.py` | Two-phase orchestration; imports the compiled `backtest_loop` when available, else the tested Python fallback (`core/backtest/reference_loop.py`) — see `core/backtest/_loop/README.md`. |
 | `core/backtest/guards.py` | `GuardedView`, the look-ahead guard (rejects negative indices to block numpy wrap-around). |
 | `core/backtest/metrics.py` | Sharpe (annualized), max drawdown, turnover, hit ratio. |
 | `core/backtest/costs.py` | Fee + slippage cost model, injected. |
@@ -63,8 +64,9 @@ via `core.utils.tracking`.
 ## Limitations / out of scope
 Deflated Sharpe (only `n_trials` is tracked, not yet applied), purged/embargoed
 cross-validation, multi-asset backtests, fine-grained execution modeling —
-tier-3b items, not implemented here. `core.backtest`'s hard dependency on the
-compiled Rust kernel (no Python fallback) is a deliberate choice distinct
-from P01's kernel, which does fall back — see
+tier-3b items, not implemented here. `core.backtest` treats the compiled Rust
+kernel as an optional fast path, falling back to the tested Python oracle
+when the crate isn't built (`import core.backtest` never requires
+`maturin develop`) — see
 [docs/decisions/002-per-project-ci-testpaths-gap.md](../../docs/decisions/002-per-project-ci-testpaths-gap.md)
 for the related CI wiring gap.
