@@ -4,13 +4,17 @@ The pure logic (``parse_tensordock``) is isolated from the network call (``fetch
 token-gated). Authentication uses a Bearer token on ``TENSORDOCK_API_KEY``.
 
 Chosen endpoint: ``GET https://dashboard.tensordock.com/api/v2/hostnodes``
-- returns 403 without auth, **200 with a Bearer** (verified live 2026-06-23)
+- returns 403 without auth, **200 with a Bearer** (verified live 2026-06-23, reconfirmed
+  in the V5.2 campaign): ``TENSORDOCK_API_KEY`` alone is sufficient, no other credential
+  is sent or required.
 - real envelope: ``{"data": {"hostnodes": [...]}}`` -- everything sits under ``data``; the
   ``_hostnodes_records`` helper reads ``data.hostnodes`` and tolerates the older flat form
   ``{"hostnodes": ...}`` as well as a mapping indexed by id.
-- Warning: during the live test the inventory was **empty**
-  (``{"data": {"hostnodes": []}}``): the per-node detail (below) is designed against the
-  documented shape and still needs confirmation under load.
+- Warning: the live inventory has been **empty** on every check so far (2026-06-23 and
+  the V5.2 campaign): ``{"data": {"hostnodes": []}}``. The per-node detail below (in
+  particular the per-GPU vs per-node price hypothesis) is therefore still **unconfirmed**
+  against a populated response -- there has never been a non-empty inventory to check it
+  against.
 
 Expected per-node schema (to be confirmed live):
 
@@ -28,15 +32,18 @@ Expected per-node schema (to be confirmed live):
         }
     }
 
-Fields **to be confirmed live**:
+Confirmed live (V5.2 campaign):
+
+- Root envelope is ``{"data": {"hostnodes": [...]}}`` (a list, not a mapping indexed by id).
+- The v2 endpoint ``/api/v2/hostnodes`` exists and returns 200 with a Bearer token.
+
+Still **unconfirmed** (no populated live response seen to date):
 
 - ``specs.gpu.price`` : is it really the $/GPU·h (the assumption taken here) or the price of
   the whole node (in which case it would need dividing by ``specs.gpu.amount``)?
 - ``specs.gpu.amount`` : GPUs available for rent, or the machine total?
 - ``specs.gpu.type`` : exact format of the GPU model name (e.g. ``"h100-sxm5-80gb"`` vs
   ``"H100 SXM5"``).
-- Is the root envelope ``{"hostnodes": [...]}`` or ``{"hostnodes": {"id": {...}}}``?
-- Is the v2 endpoint really ``/api/v2/hostnodes`` (403 without auth = it exists)?
 
 On an unexpected response / missing field, the connector cleanly returns ``[]``.
 """
