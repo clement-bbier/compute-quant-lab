@@ -35,10 +35,23 @@ from benchmark.report import multi_venue_models, summarize_history  # noqa: E402
 from core.ingestion.compute_index import DEFAULT_INDEX_CONFIG  # noqa: E402
 from core.ingestion.protocols import Snapshot  # noqa: E402
 from core.storage import ParquetSnapshotStore  # noqa: E402
-from core.utils.config import SNAPSHOTS_DIR  # noqa: E402
+from core.utils.config import REPO_ROOT, SNAPSHOTS_DIR  # noqa: E402
 from dashboard_kit import COLORS, SIZES, apply_page, header, money_axis  # noqa: E402
 
 CONFIG = DEFAULT_INDEX_CONFIG
+
+
+def _default_root_display() -> str:
+    """Sidebar default: relative to the repo root when possible, else the absolute path.
+
+    ``SNAPSHOTS_DIR`` is normally under ``REPO_ROOT``, but tests point it at an unrelated
+    temp directory to isolate fixtures from real data — falling back to the absolute path
+    there keeps the widget correct instead of raising.
+    """
+    try:
+        return str(SNAPSHOTS_DIR.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(SNAPSHOTS_DIR)
 
 
 @st.cache_data(show_spinner=False)
@@ -76,8 +89,8 @@ def main() -> None:
         'measurement only, no timing signal ("rent on X now").',
     )
 
-    root = st.sidebar.text_input("Cold store root (Parquet)", value=str(SNAPSHOTS_DIR))
-    snapshots = _load(root)
+    root = st.sidebar.text_input("Cold store root (Parquet)", value=_default_root_display())
+    snapshots = _load(str((REPO_ROOT / root).resolve()))
 
     history = summarize_history(snapshots)
     if not snapshots:

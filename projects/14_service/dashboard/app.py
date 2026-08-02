@@ -151,7 +151,7 @@ def _render_curve(store: ParquetSnapshotStore, model: str) -> None:
         xaxis_title="date (UTC)",
         height=SIZES["chart_height_short"],
     )
-    money_axis(fig)
+    money_axis(fig, values=curve["index_price"])
     st.plotly_chart(fig, use_container_width=True)
 
 
