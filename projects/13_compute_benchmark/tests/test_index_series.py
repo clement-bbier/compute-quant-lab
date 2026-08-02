@@ -53,7 +53,7 @@ def test_no_lookahead_future_snapshot_leaves_past_fixes_unchanged(
     two_day_snapshots, fix_day1, fix_day2
 ) -> None:
     # A reading after the last fix must not modify ANY earlier fix.
-    leak = Snapshot(fix_day2 + dt.timedelta(hours=5), "vastai", "H100", 99.0)
+    leak = Snapshot(fix_day2 + dt.timedelta(hours=5), "vastai", "H100", 99.0, simulated=False)
     base = build_index_series(two_day_snapshots, [fix_day1, fix_day2], "H100")
     after = build_index_series([*two_day_snapshots, leak], [fix_day1, fix_day2], "H100")
     assert [p.price_usd_per_hour for p in after.points] == pytest.approx(
@@ -71,8 +71,8 @@ def test_observed_fix_grid_returns_sorted_distinct_timestamps(two_day_snapshots)
 def test_observed_fix_grid_can_filter_by_model() -> None:
     ts = dt.datetime(2026, 6, 21, 0, 0, tzinfo=dt.timezone.utc)
     snaps = [
-        Snapshot(ts, "vastai", "H100", 2.0),
-        Snapshot(ts + dt.timedelta(hours=1), "vastai", "A100", 1.0),
+        Snapshot(ts, "vastai", "H100", 2.0, simulated=False),
+        Snapshot(ts + dt.timedelta(hours=1), "vastai", "A100", 1.0, simulated=False),
     ]
     assert observed_fix_grid(snaps, gpu_model="H100") == [ts]
 

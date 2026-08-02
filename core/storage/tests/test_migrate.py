@@ -18,9 +18,17 @@ def test_migrate_preserves_all_rows(tmp_path: Path) -> None:
     csv_dir = tmp_path / "csv"
     CsvSnapshotStore(csv_dir).append(
         [
-            Snapshot(_ORIGIN, "vastai", "H100", 2.50, "on_demand", 8),
-            Snapshot(_ORIGIN + dt.timedelta(hours=1), "vastai", "H100", 2.55, "on_demand", 8),
-            Snapshot(_ORIGIN, "runpod", "H100", 2.20, "on_demand", 1),
+            Snapshot(_ORIGIN, "vastai", "H100", 2.50, "on_demand", 8, simulated=False),
+            Snapshot(
+                _ORIGIN + dt.timedelta(hours=1),
+                "vastai",
+                "H100",
+                2.55,
+                "on_demand",
+                8,
+                simulated=False,
+            ),
+            Snapshot(_ORIGIN, "runpod", "H100", 2.20, "on_demand", 1, simulated=False),
         ]
     )
     store = ParquetPriceStore(tmp_path / "parquet")
@@ -35,7 +43,9 @@ def test_migrate_preserves_all_rows(tmp_path: Path) -> None:
 
 def test_migrate_is_idempotent(tmp_path: Path) -> None:
     csv_dir = tmp_path / "csv"
-    CsvSnapshotStore(csv_dir).append([Snapshot(_ORIGIN, "vastai", "H100", 2.50, "on_demand", 8)])
+    CsvSnapshotStore(csv_dir).append(
+        [Snapshot(_ORIGIN, "vastai", "H100", 2.50, "on_demand", 8, simulated=False)]
+    )
     store = ParquetPriceStore(tmp_path / "parquet")
 
     migrate_csv_snapshots(csv_dir, store)

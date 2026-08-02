@@ -23,10 +23,18 @@ _DAY0 = dt.datetime(2026, 6, 1, 0, 30, tzinfo=dt.timezone.utc)  # before any dat
 
 def _snaps_two_days() -> list[Snapshot]:
     return [
-        Snapshot(_DAY1 - dt.timedelta(hours=1), "vastai", _GPU, 2.00, availability=100),
-        Snapshot(_DAY1 - dt.timedelta(hours=2), "runpod", _GPU, 2.10, availability=50),
-        Snapshot(_DAY2 - dt.timedelta(hours=1), "vastai", _GPU, 2.40, availability=100),
-        Snapshot(_DAY2 - dt.timedelta(hours=2), "runpod", _GPU, 2.50, availability=50),
+        Snapshot(
+            _DAY1 - dt.timedelta(hours=1), "vastai", _GPU, 2.00, availability=100, simulated=False
+        ),
+        Snapshot(
+            _DAY1 - dt.timedelta(hours=2), "runpod", _GPU, 2.10, availability=50, simulated=False
+        ),
+        Snapshot(
+            _DAY2 - dt.timedelta(hours=1), "vastai", _GPU, 2.40, availability=100, simulated=False
+        ),
+        Snapshot(
+            _DAY2 - dt.timedelta(hours=2), "runpod", _GPU, 2.50, availability=50, simulated=False
+        ),
     ]
 
 
@@ -49,7 +57,11 @@ def test_future_snapshot_does_not_change_past_fix() -> None:
     base = _snaps_two_days()
     _, prices_base = build_spot_series(base, [_DAY1, _DAY2], _GPU)
 
-    future = base + [Snapshot(_DAY2 + dt.timedelta(days=1), "vastai", _GPU, 9.99, availability=100)]
+    future = base + [
+        Snapshot(
+            _DAY2 + dt.timedelta(days=1), "vastai", _GPU, 9.99, availability=100, simulated=False
+        )
+    ]
     _, prices_future = build_spot_series(future, [_DAY1, _DAY2], _GPU)
 
     assert np.array_equal(prices_base, prices_future)

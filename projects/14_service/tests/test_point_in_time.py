@@ -17,9 +17,11 @@ def _store_with_late_arrival() -> FakeSnapshotStore:
     h = "H100"
     return FakeSnapshotStore(
         [
-            Snapshot(ago(5), "vastai", h, 2.00, availability=10),
-            Snapshot(ago(5), "lambda", h, 2.10, availability=10),
-            Snapshot(ago(1), "runpod", h, 1.90, availability=10),  # arrives AFTER ago(3)
+            Snapshot(ago(5), "vastai", h, 2.00, availability=10, simulated=False),
+            Snapshot(ago(5), "lambda", h, 2.10, availability=10, simulated=False),
+            Snapshot(
+                ago(1), "runpod", h, 1.90, availability=10, simulated=False
+            ),  # arrives AFTER ago(3)
         ]
     )
 

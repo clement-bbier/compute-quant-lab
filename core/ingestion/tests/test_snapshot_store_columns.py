@@ -1,9 +1,11 @@
-"""Round-trip tests for the 12-column CSV snapshot store.
+"""Round-trip tests for the 13-column CSV snapshot store.
 
 The store used to persist only the 6 core columns, silently dropping the enriched
 descriptive fields (``region``, ``gpu_memory_gb``, ``vcpu``, ``ram_gb``, ``disk_gb``,
 ``provider_detail``) that the W2 venue wave was built to capture. These tests pin the
-full round-trip and the backward compatibility of legacy 6-column files.
+full round-trip and the backward compatibility of legacy 6-column files, plus (V7.3)
+the in-place header upgrade that protects the mandatory ``simulated`` provenance column
+from the same silent-drop fate.
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ def _enriched() -> Snapshot:
         ram_gb=1800.0,
         disk_gb=32000.0,
         provider_detail="n3-H100x8",
+        simulated=False,
     )
 
 
@@ -56,8 +59,8 @@ def test_round_trip_preserves_all_twelve_columns(tmp_path: Path) -> None:
     assert loaded == original
 
 
-def test_written_header_lists_twelve_columns(tmp_path: Path) -> None:
-    """A file created by this version carries the full schema on disk."""
+def test_written_header_lists_thirteen_columns(tmp_path: Path) -> None:
+    """A file created by this version carries the full schema (12 + provenance) on disk."""
     store = CsvSnapshotStore(tmp_path)
     store.append([_enriched()])
 
@@ -78,13 +81,16 @@ def test_written_header_lists_twelve_columns(tmp_path: Path) -> None:
         "ram_gb",
         "disk_gb",
         "provider_detail",
+        "simulated",
     ]
 
 
 def test_unset_optional_fields_round_trip_as_none(tmp_path: Path) -> None:
     """A bare snapshot stays bare: empty CSV cells decode back to ``None``, not ``""``."""
     store = CsvSnapshotStore(tmp_path)
-    bare = Snapshot(_TS, "vastai", "H100", 2.34, lease_type="spot", availability=42)
+    bare = Snapshot(
+        _TS, "vastai", "H100", 2.34, lease_type="spot", availability=42, simulated=False
+    )
 
     store.append([bare])
     (loaded,) = store.load()
@@ -122,13 +128,20 @@ def test_reads_legacy_six_column_file(tmp_path: Path) -> None:
     assert loaded.availability == 3
     assert loaded.region is None
     assert loaded.provider_detail is None
+    # V7.3: a row predating `simulated` is documented provenance (real collector
+    # output), backfilled to False -- not rejected, not a guessed default.
+    assert loaded.simulated is False
 
 
 def test_append_to_legacy_file_keeps_its_header_layout(tmp_path: Path) -> None:
     """Appending to a legacy file must not misalign its columns.
 
-    The pre-existing 6-column header is respected; the enriched fields are dropped
-    for that file rather than shifting every value one cell to the left.
+    The pre-existing 6-column header is respected for the purely optional descriptive
+    fields (dropped for the newly-appended row too, rather than shifting every value one
+    cell to the left). The mandatory ``simulated`` provenance column is different (V7.3
+    reinforcement of this test, not a relaxation): the header is upgraded in place to add
+    it, so the row appended to a legacy file still carries its real provenance instead of
+    silently losing it to ``extrasaction="ignore"``.
     """
     path = tmp_path / "gpu_prices_202606.csv"
     with path.open("w", newline="") as f:
@@ -148,18 +161,26 @@ def test_append_to_legacy_file_keeps_its_header_layout(tmp_path: Path) -> None:
     store = CsvSnapshotStore(tmp_path)
     store.append([_enriched()])
 
+    with path.open(newline="") as f:
+        header = next(csv.reader(f))
+    assert header == [*_LEGACY_HEADER, "simulated"]
+
     loaded = {s.source: s for s in store.load()}
     assert set(loaded) == {"runpod", "hyperstack"}
     # Core columns stay correctly aligned for the row appended to the legacy file.
     assert loaded["hyperstack"].price_usd_per_hour == 1.9
     assert loaded["hyperstack"].availability == 8
     assert loaded["hyperstack"].gpu_model == "H100"
+    # The new row's real provenance survives; the pre-existing legacy row (which
+    # predates the column) backfills to False rather than being corrupted.
+    assert loaded["hyperstack"].simulated is False
+    assert loaded["runpod"].simulated is False
 
 
 def test_idempotence_is_unaffected_by_the_new_columns(tmp_path: Path) -> None:
     """Descriptive fields are not part of the dedup key, so they never split a row."""
     store = CsvSnapshotStore(tmp_path)
-    bare = Snapshot(_TS, "hyperstack", "H100", 1.9, availability=8)
+    bare = Snapshot(_TS, "hyperstack", "H100", 1.9, availability=8, simulated=False)
 
     store.append([_enriched()])
     store.append([bare])  # same natural key, different metadata -> still a duplicate

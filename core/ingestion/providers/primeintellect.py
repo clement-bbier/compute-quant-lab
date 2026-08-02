@@ -69,6 +69,7 @@ def parse_primeintellect(
                 region=region,
                 gpu_memory_gb=gpu_memory_gb,
                 provider_detail=str(provider) if provider else None,
+                simulated=False,
             )
         )
     return out

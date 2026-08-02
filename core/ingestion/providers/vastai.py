@@ -68,6 +68,7 @@ def parse_vastai_offers(
                 vcpu=vcpu,
                 ram_gb=ram_gb,
                 disk_gb=disk_gb,
+                simulated=False,
             )
         )
     return out

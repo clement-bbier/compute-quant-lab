@@ -55,6 +55,7 @@ def parse_runpod_gpu_types(
                 lease_type="on_demand",
                 availability=1,
                 gpu_memory_gb=gpu_memory_gb,
+                simulated=False,
             )
         )
     return out

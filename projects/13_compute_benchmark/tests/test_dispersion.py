@@ -31,7 +31,7 @@ def test_dispersion_cv_is_population_coefficient_of_variation(two_day_snapshots,
 
 def test_single_venue_dispersion_is_undefined_but_priced(fix_day2) -> None:
     # Single-venue robustness (e.g. H100 on a single marketplace): no dispersion, flagged.
-    solo = [Snapshot(fix_day2 - dt.timedelta(hours=1), "vastai", "H100", 2.0)]
+    solo = [Snapshot(fix_day2 - dt.timedelta(hours=1), "vastai", "H100", 2.0, simulated=False)]
     d = dispersion_at(solo, fix_day2, "H100")
     assert d.n_venues == 1
     assert not d.is_defined
@@ -43,7 +43,7 @@ def test_single_venue_dispersion_is_undefined_but_priced(fix_day2) -> None:
 def test_no_lookahead_future_snapshot_does_not_change_dispersion(
     two_day_snapshots, fix_day2
 ) -> None:
-    leak = Snapshot(fix_day2 + dt.timedelta(hours=3), "newbie", "H100", 0.01)
+    leak = Snapshot(fix_day2 + dt.timedelta(hours=3), "newbie", "H100", 0.01, simulated=False)
     base = dispersion_at(two_day_snapshots, fix_day2, "H100")
     after = dispersion_at([*two_day_snapshots, leak], fix_day2, "H100")
     assert after.spread_abs == pytest.approx(base.spread_abs)

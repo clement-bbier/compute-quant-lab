@@ -23,9 +23,11 @@ _ORIGIN = dt.datetime(2025, 1, 1, tzinfo=dt.timezone.utc)
 
 def _rows() -> list[Snapshot]:
     return [
-        Snapshot(_ORIGIN, "vastai", "H100", 2.50, "on_demand", 8),
-        Snapshot(_ORIGIN, "vastai", "H100", 2.65, "on_demand", 4),  # distinct offer, same CSV key
-        Snapshot(_ORIGIN, "runpod", "H100", 2.20, "on_demand", 1),
+        Snapshot(_ORIGIN, "vastai", "H100", 2.50, "on_demand", 8, simulated=False),
+        Snapshot(
+            _ORIGIN, "vastai", "H100", 2.65, "on_demand", 4, simulated=False
+        ),  # distinct offer, same CSV key
+        Snapshot(_ORIGIN, "runpod", "H100", 2.20, "on_demand", 1, simulated=False),
     ]
 
 

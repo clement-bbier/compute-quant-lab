@@ -44,8 +44,8 @@ def test_fix_instant_is_the_latest_observation(app) -> None:
     latest = dt.datetime(2026, 7, 21, 18, 41, tzinfo=dt.timezone.utc)
     store = FakeSnapshotStore(
         [
-            Snapshot(latest - dt.timedelta(hours=3), "runpod", "H100", 2.20),
-            Snapshot(latest, "vastai", "H100", 2.00),
+            Snapshot(latest - dt.timedelta(hours=3), "runpod", "H100", 2.20, simulated=False),
+            Snapshot(latest, "vastai", "H100", 2.00, simulated=False),
         ]
     )
     assert app._fix_instant(store) == latest
@@ -54,7 +54,15 @@ def test_fix_instant_is_the_latest_observation(app) -> None:
 def test_fix_instant_never_returns_a_future_instant(app) -> None:
     """Point-in-time: the fix instant is bounded by what the store actually holds."""
     store = FakeSnapshotStore(
-        [Snapshot(dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc), "vastai", "H100", 2.0)]
+        [
+            Snapshot(
+                dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc),
+                "vastai",
+                "H100",
+                2.0,
+                simulated=False,
+            )
+        ]
     )
     stored = [s.snapshotted_at for s in store.load()]
     assert app._fix_instant(store) <= max(stored)
@@ -70,10 +78,26 @@ def test_available_models_drops_single_venue_skus(app) -> None:
     """A model quoted by one venue alone cannot be benchmarked cross-venue."""
     store = FakeSnapshotStore(
         [
-            Snapshot(dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc), "vastai", "H100", 2.0),
-            Snapshot(dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc), "runpod", "H100", 2.1),
             Snapshot(
-                dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc), "cudo", "1XB300SXM6262GB", 9.0
+                dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc),
+                "vastai",
+                "H100",
+                2.0,
+                simulated=False,
+            ),
+            Snapshot(
+                dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc),
+                "runpod",
+                "H100",
+                2.1,
+                simulated=False,
+            ),
+            Snapshot(
+                dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc),
+                "cudo",
+                "1XB300SXM6262GB",
+                9.0,
+                simulated=False,
             ),
         ]
     )
@@ -85,11 +109,11 @@ def test_available_models_ranks_by_venue_coverage(app) -> None:
     at = dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc)
     store = FakeSnapshotStore(
         [
-            Snapshot(at, "vastai", "A100", 1.0),
-            Snapshot(at, "runpod", "A100", 1.1),
-            Snapshot(at, "cudo", "A100", 1.2),
-            Snapshot(at, "vastai", "H100", 2.0),
-            Snapshot(at, "runpod", "H100", 2.1),
+            Snapshot(at, "vastai", "A100", 1.0, simulated=False),
+            Snapshot(at, "runpod", "A100", 1.1, simulated=False),
+            Snapshot(at, "cudo", "A100", 1.2, simulated=False),
+            Snapshot(at, "vastai", "H100", 2.0, simulated=False),
+            Snapshot(at, "runpod", "H100", 2.1, simulated=False),
         ]
     )
     assert app._available_models(store) == ["A100", "H100"]

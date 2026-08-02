@@ -80,6 +80,7 @@ def parse_cudo(
                 availability=int(mt.get("totalGpuFree", 0) or 0),
                 region=region,
                 gpu_memory_gb=gpu_memory_gb,
+                simulated=False,
             )
         )
     return out

@@ -20,7 +20,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as pads
 
-from core.storage.schema import COLUMNS, SNAPSHOTTED_AT, SOURCE, normalize_frame
+from core.storage.schema import COLUMNS, INGESTED_AT, SNAPSHOTTED_AT, SOURCE, normalize_frame
 from core.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -47,7 +47,15 @@ class ParquetPriceStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def write(self, frame: pd.DataFrame) -> int:
-        """Append ``frame`` to the lake (typed, partitioned, deduplicated); returns new rows."""
+        """Append ``frame`` to the lake (typed, partitioned, deduplicated); returns new rows.
+
+        ``ingested_at`` is stamped here, forward-only, at the instant of this write --
+        never accepted from the caller's frame -- so it always reflects when the row
+        actually entered the lake (as opposed to ``snapshotted_at``, when the price was
+        observed). Deduplication (``COLUMNS`` only) ignores it: replaying the same
+        observation is still a no-op even though a hypothetical second write would stamp
+        a different ``ingested_at``.
+        """
         frame = normalize_frame(frame)
         if frame.empty:
             return 0
@@ -68,6 +76,7 @@ class ParquetPriceStore:
             )
             return 0
         part = incoming.copy()
+        part[INGESTED_AT] = pd.Timestamp.now(tz="UTC")
         part[_MONTH] = part[SNAPSHOTTED_AT].dt.strftime("%Y%m")
         table = pa.Table.from_pandas(part, preserve_index=False)
         pads.write_dataset(

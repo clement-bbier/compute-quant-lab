@@ -6,6 +6,18 @@ proprietary series under ``data/snapshots/`` (tracked as plain git files) and
 guarantees **idempotence**: re-appending a reading that is already stored (same
 natural key) is a no-op. That is what makes a scheduled collector safe to replay
 without creating duplicates.
+
+Provenance column (``simulated``, V7.3): mandatory on :class:`Snapshot`, but a
+*monthly* CSV file is append-only and the live hourly collector will hit an existing
+file whose header predates the column within the hour this ships. Unlike the purely
+optional descriptive fields (which a legacy header may simply never gain), ``simulated``
+must never be silently dropped by ``extrasaction="ignore"`` -- so ``append`` rewrites an
+out-of-date header **once**, in place, the first time it needs to write a column the
+on-disk header lacks (see :meth:`CsvSnapshotStore._ensure_header_has`). Existing data
+rows are untouched (short rows, not corrupted ones); ``load`` backfills their missing
+``simulated`` cell to ``False`` -- documented provenance (every row ever written by this
+store came from a real collector run; there is no synthetic compute-price fallback),
+not a guessed default.
 """
 
 from __future__ import annotations
@@ -42,7 +54,12 @@ _OPTIONAL_FIELDS: list[str] = [
     "provider_detail",
 ]
 
-_FIELDS: list[str] = [*_CORE_FIELDS, *_OPTIONAL_FIELDS]
+#: Mandatory provenance column (V7.3): unlike ``_OPTIONAL_FIELDS``, a legacy file missing
+#: it is upgraded in place on next append (see module docstring) rather than silently
+#: dropping the value forever.
+_PROVENANCE_FIELDS: list[str] = ["simulated"]
+
+_FIELDS: list[str] = [*_CORE_FIELDS, *_OPTIONAL_FIELDS, *_PROVENANCE_FIELDS]
 
 
 @dataclass
@@ -71,11 +88,15 @@ class CsvSnapshotStore:
         Legacy 6-column files stay readable: the optional descriptive columns are
         simply absent, and decode to ``None``. Empty strings decode to ``None`` too,
         so a row written with an unset optional field round-trips faithfully.
+
+        A row predating the ``simulated`` column (empty or absent cell) backfills to
+        ``False`` -- documented provenance, not a guessed default (see module docstring).
         """
         out: list[Snapshot] = []
         for path in sorted(self.directory.glob("gpu_prices_*.csv")):
             with path.open(newline="") as f:
                 for row in csv.DictReader(f):
+                    simulated_raw = row.get("simulated")
                     out.append(
                         Snapshot(
                             snapshotted_at=dt.datetime.fromisoformat(row["snapshotted_at"]),
@@ -90,6 +111,7 @@ class CsvSnapshotStore:
                             ram_gb=lenient_float(row.get("ram_gb") or None),
                             disk_gb=lenient_float(row.get("disk_gb") or None),
                             provider_detail=lenient_str(row.get("provider_detail") or None),
+                            simulated=simulated_raw == "True" if simulated_raw else False,
                         )
                     )
         return out
@@ -100,12 +122,43 @@ class CsvSnapshotStore:
             header = next(csv.reader(f), [])
         return header or list(_FIELDS)
 
+    def _ensure_header_has(self, path: Path, header: list[str], required: str) -> list[str]:
+        """Rewrite ``path``'s header line in place if it lacks ``required``; return the new header.
+
+        Used only for :data:`_PROVENANCE_FIELDS` (``simulated``), never for the purely
+        optional descriptive columns: those may stay legitimately absent from an old
+        header forever, but provenance must never be silently dropped by
+        ``extrasaction="ignore"`` once it exists on every ``Snapshot``. Only the single
+        header line is touched -- O(1), independent of the file's row count -- existing
+        data rows keep their original (shorter) column count and are backfilled on
+        :meth:`load` instead of being rewritten.
+        """
+        if required in header:
+            return header
+        upgraded = [*header, required]
+        with path.open() as f:
+            body = f.read().split("\n", 1)
+        rest = body[1] if len(body) > 1 else ""
+        with path.open("w", newline="") as f:
+            csv.writer(f).writerow(upgraded)
+            f.write(rest)
+        logger.info(
+            "CsvSnapshotStore %s: upgraded header to add '%s' (existing rows unaffected)",
+            path,
+            required,
+        )
+        return upgraded
+
     def append(self, rows: Iterable[Snapshot]) -> Path:
         """Append ``rows``, deduplicating on the natural key; return the last file written.
 
-        A file created by this version carries all 12 columns. A pre-existing legacy
-        file keeps its own 6-column header: rows appended to it are projected onto
-        that header, since rewriting history in place is not this store's job. Use
+        A file created by this version carries every column in :data:`_FIELDS`. A
+        pre-existing file whose header lacks a purely optional descriptive column (e.g.
+        the legacy 6-column layout) keeps that gap: rows appended to it are projected
+        onto its own header via ``extrasaction="ignore"``, since retroactively enriching
+        hardware metadata is not this store's job. The mandatory provenance column
+        (``simulated``) is different: a header missing it is upgraded in place first (see
+        :meth:`_ensure_header_has`), so it is never silently dropped. Use
         :mod:`core.storage.migrate` to lift legacy CSV files into the Parquet lake.
         """
         seen: set[tuple[str, str, str, str]] = {s.dedup_key for s in self.load()}
@@ -120,6 +173,9 @@ class CsvSnapshotStore:
             path = self._file_for(snap.snapshotted_at)
             new_file = not path.exists()
             fieldnames = list(_FIELDS) if new_file else self._header_of(path)
+            if not new_file:
+                for provenance_field in _PROVENANCE_FIELDS:
+                    fieldnames = self._ensure_header_has(path, fieldnames, provenance_field)
             record = {
                 "snapshotted_at": snap.snapshotted_at.isoformat(),
                 "source": snap.source,
@@ -133,6 +189,7 @@ class CsvSnapshotStore:
                 "ram_gb": snap.ram_gb,
                 "disk_gb": snap.disk_gb,
                 "provider_detail": snap.provider_detail,
+                "simulated": snap.simulated,
             }
             with path.open("a", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore", restval="")

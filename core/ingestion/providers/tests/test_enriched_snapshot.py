@@ -38,6 +38,7 @@ def test_snapshot_accepts_optional_descriptive_fields() -> None:
         ram_gb=256.0,
         disk_gb=2048.0,
         provider_detail="acme-cloud",
+        simulated=False,
     )
     assert s.region == "US, GA"
     assert s.gpu_memory_gb == 80.0
@@ -53,6 +54,7 @@ def test_snapshot_optional_fields_default_to_none() -> None:
         source="runpod",
         gpu_model="A100",
         price_usd_per_hour=1.19,
+        simulated=False,
     )
     assert s.region is None
     assert s.gpu_memory_gb is None
@@ -71,6 +73,7 @@ def test_snapshot_dedup_key_excludes_descriptive_fields() -> None:
         price_usd_per_hour=2.50,
         lease_type="on_demand",
         availability=8,
+        simulated=False,
     )
     enriched = Snapshot(
         snapshotted_at=_TS,
@@ -85,6 +88,7 @@ def test_snapshot_dedup_key_excludes_descriptive_fields() -> None:
         ram_gb=128.0,
         disk_gb=1000.0,
         provider_detail="some-dc",
+        simulated=False,
     )
     assert base.dedup_key == enriched.dedup_key
 
@@ -98,6 +102,7 @@ def test_snapshot_backward_compat_positional_construction() -> None:
         price_usd_per_hour=2.50,
         lease_type="on_demand",
         availability=4,
+        simulated=False,
     )
     assert s.region is None
     assert s.gpu_memory_gb is None

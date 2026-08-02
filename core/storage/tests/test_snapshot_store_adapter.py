@@ -16,9 +16,9 @@ _TS = dt.datetime(2026, 6, 21, 12, tzinfo=dt.timezone.utc)
 def _seed(store: ParquetSnapshotStore) -> None:
     store.append(
         [
-            Snapshot(_TS, "vastai", "H100", 2.0, "on_demand", 1),
-            Snapshot(_TS, "vastai", "H100", 2.2, "on_demand", 1),
-            Snapshot(_TS, "runpod", "H100", 2.4, "on_demand", 1),
+            Snapshot(_TS, "vastai", "H100", 2.0, "on_demand", 1, simulated=False),
+            Snapshot(_TS, "vastai", "H100", 2.2, "on_demand", 1, simulated=False),
+            Snapshot(_TS, "runpod", "H100", 2.4, "on_demand", 1, simulated=False),
         ]
     )
 
@@ -26,7 +26,9 @@ def _seed(store: ParquetSnapshotStore) -> None:
 def test_append_load_preserves_distribution_and_idempotent(tmp_path) -> None:
     store = ParquetSnapshotStore(tmp_path / "lake")
     _seed(store)
-    store.append([Snapshot(_TS, "vastai", "H100", 2.0, "on_demand", 1)])  # re-append = no-op
+    store.append(
+        [Snapshot(_TS, "vastai", "H100", 2.0, "on_demand", 1, simulated=False)]
+    )  # re-append = no-op
     snaps = store.load()
     assert len(snaps) == 3  # the 3 distinct offers kept (distribution preserved)
     assert {s.source for s in snaps} == {"vastai", "runpod"}

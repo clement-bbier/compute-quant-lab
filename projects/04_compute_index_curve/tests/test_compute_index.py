@@ -34,7 +34,7 @@ def test_oldest_retained_observation_is_tracked(index_snapshots, as_of) -> None:
 
 def test_no_lookahead_future_observation_ignored(index_snapshots, as_of) -> None:
     # An observation posterior to as_of must never modify the fix (point-in-time).
-    leak = Snapshot(as_of + dt.timedelta(hours=2), "vastai", "H100", 100.0)
+    leak = Snapshot(as_of + dt.timedelta(hours=2), "vastai", "H100", 100.0, simulated=False)
     base = build_spot_index(index_snapshots, as_of, "H100")
     after = build_spot_index([*index_snapshots, leak], as_of, "H100")
     assert after.price_usd_per_hour == base.price_usd_per_hour == pytest.approx(2.15)
@@ -42,15 +42,15 @@ def test_no_lookahead_future_observation_ignored(index_snapshots, as_of) -> None
 
 def test_stale_venue_not_carried_forward(as_of) -> None:
     # No carry-forward: a venue whose only reading is stale is ignored.
-    fresh = Snapshot(as_of - dt.timedelta(hours=1), "vastai", "H100", 2.0)
-    stale = Snapshot(as_of - dt.timedelta(hours=30), "old", "H100", 1.5)
+    fresh = Snapshot(as_of - dt.timedelta(hours=1), "vastai", "H100", 2.0, simulated=False)
+    stale = Snapshot(as_of - dt.timedelta(hours=30), "old", "H100", 1.5, simulated=False)
     pt = build_spot_index([fresh, stale], as_of, "H100")
     assert pt.n_sources == 1
     assert pt.price_usd_per_hour == pytest.approx(2.0)
 
 
 def test_insufficient_data_raises(as_of) -> None:
-    only_stale = [Snapshot(as_of - dt.timedelta(hours=30), "old", "H100", 1.5)]
+    only_stale = [Snapshot(as_of - dt.timedelta(hours=30), "old", "H100", 1.5, simulated=False)]
     with pytest.raises(InsufficientDataError):
         build_spot_index(only_stale, as_of, "H100")
 
@@ -76,10 +76,10 @@ def test_intra_venue_distribution_aggregated_not_arbitrary(as_of) -> None:
     # never an arbitrarily picked offer (the fixed bug). 100.0 is an intra-venue outlier.
     ts = as_of - dt.timedelta(hours=1)
     offers = [
-        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 1),
-        Snapshot(ts, "vastai", "H100", 2.2, "on_demand", 1),
-        Snapshot(ts, "vastai", "H100", 100.0, "on_demand", 1),
-        Snapshot(ts, "runpod", "H100", 2.4, "on_demand", 1),
+        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 1, simulated=False),
+        Snapshot(ts, "vastai", "H100", 2.2, "on_demand", 1, simulated=False),
+        Snapshot(ts, "vastai", "H100", 100.0, "on_demand", 1, simulated=False),
+        Snapshot(ts, "runpod", "H100", 2.4, "on_demand", 1, simulated=False),
     ]
     pt = build_spot_index(offers, as_of, "H100")
     # vastai -> median(2.0, 2.2, 100) = 2.2 ; runpod -> 2.4 ; 2 venues ; trimmed(k=0) = 2.3
@@ -93,9 +93,9 @@ def test_intra_venue_availability_is_summed(as_of) -> None:
 
     ts = as_of - dt.timedelta(hours=1)
     offers = [
-        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 3),
-        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 5),
-        Snapshot(ts, "runpod", "H100", 4.0, "on_demand", 2),
+        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 3, simulated=False),
+        Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 5, simulated=False),
+        Snapshot(ts, "runpod", "H100", 4.0, "on_demand", 2, simulated=False),
     ]
     cfg = IndexConfig(estimator=AvailabilityWeightedMean(), outlier_filter=NoOutlierFilter())
     pt = build_spot_index(offers, as_of, "H100", config=cfg)

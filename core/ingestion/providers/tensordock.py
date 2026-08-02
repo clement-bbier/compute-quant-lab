@@ -115,6 +115,7 @@ def _node_to_snapshot(node: Any, snapshotted_at: dt.datetime) -> Snapshot | None
         availability=amount,
         region=location.get("region") or location.get("country"),
         gpu_memory_gb=opt_float(gpu.get("vram")),
+        simulated=False,
     )
 
 

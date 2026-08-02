@@ -53,15 +53,19 @@ def h100_snapshots() -> list[Snapshot]:
     """
     h = "H100"
     return [
-        Snapshot(ago(1), "vastai", h, 2.00, availability=100),
-        Snapshot(ago(2), "runpod", h, 2.20, availability=50),
-        Snapshot(ago(0.5), "lambda", h, 2.10, availability=200),
-        Snapshot(ago(3), "coreweave", h, 2.30, availability=10),
-        Snapshot(ago(0.2), "scam", h, 0.05, availability=1),  # outlier -> MAD rejection
-        Snapshot(ago(30), "old", h, 1.50, availability=99),  # stale > 24 h
-        Snapshot(ago(0.1), "aws", h, 5.00, availability=999),  # excluded hyperscaler
-        Snapshot(AS_OF + dt.timedelta(hours=1), "future", h, 9.99),  # look-ahead
-        Snapshot(ago(1), "vastai", "A100", 1.00),  # other GPU
+        Snapshot(ago(1), "vastai", h, 2.00, availability=100, simulated=False),
+        Snapshot(ago(2), "runpod", h, 2.20, availability=50, simulated=False),
+        Snapshot(ago(0.5), "lambda", h, 2.10, availability=200, simulated=False),
+        Snapshot(ago(3), "coreweave", h, 2.30, availability=10, simulated=False),
+        Snapshot(
+            ago(0.2), "scam", h, 0.05, availability=1, simulated=False
+        ),  # outlier -> MAD rejection
+        Snapshot(ago(30), "old", h, 1.50, availability=99, simulated=False),  # stale > 24 h
+        Snapshot(
+            ago(0.1), "aws", h, 5.00, availability=999, simulated=False
+        ),  # excluded hyperscaler
+        Snapshot(AS_OF + dt.timedelta(hours=1), "future", h, 9.99, simulated=False),  # look-ahead
+        Snapshot(ago(1), "vastai", "A100", 1.00, simulated=False),  # other GPU
     ]
 
 

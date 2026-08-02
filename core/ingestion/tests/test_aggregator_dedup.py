@@ -33,6 +33,7 @@ def _snap(source: str, price: float) -> Snapshot:
         price_usd_per_hour=price,
         lease_type="on_demand",
         availability=1,
+        simulated=False,
     )
 
 

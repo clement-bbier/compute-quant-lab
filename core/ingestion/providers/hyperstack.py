@@ -130,6 +130,7 @@ def parse_hyperstack(
                     vcpu=opt_int(flavor.get("cpu")),
                     ram_gb=opt_float(flavor.get("ram")),
                     disk_gb=opt_float(flavor.get("disk")),
+                    simulated=False,
                 )
             )
     return out

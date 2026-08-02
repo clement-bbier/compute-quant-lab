@@ -18,10 +18,22 @@ of calibration reproducibility (training-cold-store rule: training reads this im
 plain-git-versioned lake, never live data). Parallel to the GPU price lake
 (``ParquetPriceStore``), with a distinct schema because energy carries two timestamps
 (publication + target).
+
+Point-in-time reads (V7.3): ``read(as_of=...)`` filters on ``publish_time`` -- a row
+published after ``as_of`` is excluded, so a backtest replaying instant ``t`` never sees a
+forecast vintage that was not yet known at ``t``. ``as_of=None`` (default) returns
+everything, unchanged from pre-V7.3 behaviour (full backward compatibility).
+
+Provenance (``simulated``, ``ingested_at``): same tolerated-absent contract as the GPU
+lake (``core.storage.schema``) -- every backfill collector wired today (ENTSO-E, ERCOT)
+reads a real market, so ``simulated`` is always written ``False`` and a legacy row
+missing the column is backfilled to ``False``, not rejected. ``ingested_at`` is stamped
+forward-only at write time; legacy rows backfill to ``NaT`` (unknown ingestion time).
 """
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from pathlib import Path
 
@@ -43,9 +55,17 @@ PUBLISH_TIME = "publish_time"
 INTERVAL_START = "interval_start"
 #: Observed value ($/MWh for RTM, MW for load/capacity/net-load).
 VALUE = "value"
+#: Real (``False``) vs simulated (``True``) provenance — tolerated-absent on legacy rows
+#: (backfilled to ``False``; see module docstring).
+SIMULATED = "simulated"
+#: Instant the row entered the lake (UTC tz-aware) — forward-only, absent on legacy rows.
+INGESTED_AT = "ingested_at"
 
 #: Mandatory columns of the energy schema.
 COLUMNS: list[str] = [SOURCE, SERIES, PUBLISH_TIME, INTERVAL_START, VALUE]
+
+#: Provenance columns — tolerated-absent (see module docstring for backfill values).
+PROVENANCE_COLUMNS: list[str] = [SIMULATED, INGESTED_AT]
 
 _MONTH = "month"
 _PARTITIONING = pads.partitioning(
@@ -54,12 +74,22 @@ _PARTITIONING = pads.partitioning(
 
 
 def normalize_energy_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    """Project ``frame`` onto the energy schema and enforce dtypes (UTC timestamps)."""
+    """Project ``frame`` onto the energy schema and enforce dtypes (UTC timestamps).
+
+    ``simulated``/``ingested_at`` (:data:`PROVENANCE_COLUMNS`) are tolerated-absent, same
+    contract as the GPU lake schema: backfilled to ``False``/``NaT`` when the input frame
+    predates these columns (see module docstring for the provenance rationale).
+    """
     missing = [c for c in COLUMNS if c not in frame.columns]
     if missing:
         raise ValueError(f"frame columns ({missing}) must be present for the energy cold store.")
-    out = frame.loc[:, COLUMNS].copy()
-    for col in (PUBLISH_TIME, INTERVAL_START):
+    present_provenance = [c for c in PROVENANCE_COLUMNS if c in frame.columns]
+    out = frame.loc[:, COLUMNS + present_provenance].copy()
+    if SIMULATED not in out.columns:
+        out[SIMULATED] = False
+    if INGESTED_AT not in out.columns:
+        out[INGESTED_AT] = pd.NaT
+    for col in (PUBLISH_TIME, INTERVAL_START, INGESTED_AT):
         ts = pd.to_datetime(out[col])
         if getattr(ts.dtype, "tz", None) is None:
             if ts.notna().any():
@@ -71,7 +101,8 @@ def normalize_energy_frame(frame: pd.DataFrame) -> pd.DataFrame:
     out[SOURCE] = out[SOURCE].astype(str)
     out[SERIES] = out[SERIES].astype(str)
     out[VALUE] = out[VALUE].astype("float64")
-    return out.reset_index(drop=True)
+    out[SIMULATED] = out[SIMULATED].astype("bool")
+    return out[COLUMNS + PROVENANCE_COLUMNS].reset_index(drop=True)
 
 
 class EnergyColdStore:
@@ -88,7 +119,12 @@ class EnergyColdStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def write(self, frame: pd.DataFrame) -> int:
-        """Append ``frame`` (typed, partitioned, deduplicated); returns the number of new rows."""
+        """Append ``frame`` (typed, partitioned, deduplicated); returns the number of new rows.
+
+        ``ingested_at`` is stamped here, forward-only, at the instant of this write --
+        never accepted from the caller's frame (mirrors ``ParquetPriceStore.write``).
+        Deduplication (``COLUMNS`` only) ignores it.
+        """
         frame = normalize_energy_frame(frame)
         if frame.empty:
             return 0
@@ -109,6 +145,7 @@ class EnergyColdStore:
             )
             return 0
         part = incoming.copy()
+        part[INGESTED_AT] = pd.Timestamp.now(tz="UTC")
         part[_MONTH] = part[INTERVAL_START].dt.strftime("%Y%m")
         table = pa.Table.from_pandas(part, preserve_index=False)
         pads.write_dataset(
@@ -127,8 +164,25 @@ class EnergyColdStore:
         )
         return len(part)
 
-    def read(self, *, series: str | None = None) -> pd.DataFrame:
-        """Read the lake back (optionally filtered on a ``series``) as a typed frame."""
+    def read(
+        self,
+        *,
+        series: str | None = None,
+        as_of: pd.Timestamp | dt.datetime | None = None,
+    ) -> pd.DataFrame:
+        """Read the lake back (optionally filtered on ``series``/``as_of``) as a typed frame.
+
+        Parameters
+        ----------
+        series
+            Keep only this series when given.
+        as_of
+            Point-in-time cutoff (UTC tz-aware): a row **published after** ``as_of``
+            (``publish_time > as_of``) is excluded -- it was not yet known at that
+            instant. ``None`` (default) returns every row regardless of publication time,
+            unchanged from pre-V7.3 behaviour (full backward compatibility). The
+            boundary is inclusive: a row with ``publish_time == as_of`` is kept.
+        """
         if not any(self.root.rglob("*.parquet")):
             logger.warning("EnergyColdStore %s: lake is empty, returning 0 rows", self.root)
             return normalize_energy_frame(pd.DataFrame(columns=COLUMNS))
@@ -138,4 +192,9 @@ class EnergyColdStore:
         out = normalize_energy_frame(dataset.to_table().to_pandas())
         if series is not None:
             out = out[out[SERIES] == series]
+        if as_of is not None:
+            cutoff = pd.Timestamp(as_of)
+            if cutoff.tzinfo is None:
+                raise ValueError("as_of must be a tz-aware datetime (UTC), not naive.")
+            out = out[out[PUBLISH_TIME] <= cutoff.tz_convert("UTC")]
         return out.reset_index(drop=True)

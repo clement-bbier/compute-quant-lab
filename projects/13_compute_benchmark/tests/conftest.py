@@ -51,9 +51,17 @@ def two_day_snapshots() -> list[Snapshot]:
     h = "H100"
     return [
         # Window of fix D-1 (a few hours before D-1 00:30).
-        Snapshot(FIX_DAY1 - dt.timedelta(hours=2), "vastai", h, 2.00, availability=100),
-        Snapshot(FIX_DAY1 - dt.timedelta(hours=2), "runpod", h, 2.20, availability=50),
+        Snapshot(
+            FIX_DAY1 - dt.timedelta(hours=2), "vastai", h, 2.00, availability=100, simulated=False
+        ),
+        Snapshot(
+            FIX_DAY1 - dt.timedelta(hours=2), "runpod", h, 2.20, availability=50, simulated=False
+        ),
         # Window of fix D (a few hours before D 00:30).
-        Snapshot(FIX_DAY2 - dt.timedelta(hours=2), "vastai", h, 2.10, availability=100),
-        Snapshot(FIX_DAY2 - dt.timedelta(hours=2), "runpod", h, 2.30, availability=50),
+        Snapshot(
+            FIX_DAY2 - dt.timedelta(hours=2), "vastai", h, 2.10, availability=100, simulated=False
+        ),
+        Snapshot(
+            FIX_DAY2 - dt.timedelta(hours=2), "runpod", h, 2.30, availability=50, simulated=False
+        ),
     ]

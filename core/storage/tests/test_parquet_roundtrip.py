@@ -10,7 +10,7 @@ import pytest
 
 from core.storage import ParquetPriceStore
 from core.storage.protocols import PriceStore
-from core.storage.schema import AVAILABILITY, PRICE, SNAPSHOTTED_AT, SOURCE
+from core.storage.schema import AVAILABILITY, INGESTED_AT, PRICE, SIMULATED, SNAPSHOTTED_AT, SOURCE
 
 Frame = Callable[[Sequence[tuple]], pd.DataFrame]
 
@@ -94,3 +94,31 @@ def test_write_rejects_naive_timestamps(store: ParquetPriceStore, make_frame: Fr
 
     with pytest.raises(ValueError):
         store.write(frame)
+
+
+def test_write_stamps_ingested_at_forward_only(store: ParquetPriceStore, make_frame: Frame) -> None:
+    """`ingested_at` reflects the write, never accepted from the caller's frame."""
+    frame = make_frame([(0, "vastai", "H100", 2.50, 8)])
+    frame[INGESTED_AT] = pd.Timestamp("2020-01-01", tz="UTC")  # caller-supplied value: ignored
+
+    store.write(frame)
+    out = store.read()
+
+    assert out[INGESTED_AT].notna().all()
+    assert (out[INGESTED_AT] > pd.Timestamp("2020-01-01", tz="UTC")).all()
+    assert str(out[INGESTED_AT].dtype).startswith("datetime64[") and str(
+        out[INGESTED_AT].dtype
+    ).endswith(", UTC]")
+
+
+def test_write_backfills_simulated_false_for_legacy_frame(
+    store: ParquetPriceStore, make_frame: Frame
+) -> None:
+    """`make_frame` yields only the mandatory COLUMNS: `simulated` is absent from the input."""
+    frame = make_frame([(0, "vastai", "H100", 2.50, 8)])
+    assert SIMULATED not in frame.columns
+
+    store.write(frame)
+    out = store.read()
+
+    assert bool(out[SIMULATED].iloc[0]) is False

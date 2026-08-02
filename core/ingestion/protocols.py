@@ -22,7 +22,7 @@ Price unit: USD per GPU-hour ($/GPU·h), per the P04 framing.
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Protocol, Sequence, runtime_checkable
 
@@ -63,6 +63,13 @@ class Snapshot:
     ``disk_gb``, ``provider_detail``) enrich the observation when the venue's API exposes
     them. They do NOT take part in ``dedup_key``: idempotence stays on (instant, source,
     model, lease) -- hardware metadata never breaks point-in-time deduplication.
+
+    ``simulated`` is **mandatory, keyword-only, no default** (rule ``forward-real-simulated``,
+    ADR 006): every venue connector in this lab reads a live marketplace, so it always passes
+    ``simulated=False`` explicitly -- there is no synthetic compute-price fallback today. The
+    field is keyword-only (``kw_only=True``) so it can be mandatory without breaking the
+    existing positional order of the fields above it (a plain trailing no-default field would
+    be a ``TypeError`` after the defaulted ones).
     """
 
     snapshotted_at: dt.datetime
@@ -78,6 +85,8 @@ class Snapshot:
     ram_gb: float | None = None
     disk_gb: float | None = None
     provider_detail: str | None = None
+    # -- mandatory provenance (keyword-only: no default, see class docstring) --
+    simulated: bool = field(kw_only=True)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "snapshotted_at", ensure_utc(self.snapshotted_at))

@@ -32,6 +32,7 @@ def _snap(source: str, price: float, *, age: dt.timedelta = dt.timedelta(0)) -> 
         price_usd_per_hour=price,
         lease_type="on_demand",
         availability=1,
+        simulated=False,
     )
 
 

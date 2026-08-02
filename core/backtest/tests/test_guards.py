@@ -6,11 +6,25 @@ run **fail** (raise `LookAheadError`). This is the "expected red".
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pytest
 
 from core.backtest.guards import GuardedView, LookAheadError
 from core.backtest.protocols import PointInTimeView
+
+
+def test_guard_raise_is_logged_at_error(caplog: pytest.LogCaptureFixture):
+    """V7.3: a look-ahead raise is a failed operation (observability rule) -> logged ERROR."""
+    data = np.array([10.0, 11.0, 12.0, 13.0], dtype=np.float64)
+    view = GuardedView(data, t=1)
+
+    with caplog.at_level(logging.ERROR), pytest.raises(LookAheadError):
+        view.at(2)
+
+    assert any(record.levelno == logging.ERROR for record in caplog.records)
+    assert "future access forbidden" in caplog.text
 
 
 def test_guard_exposes_only_data_up_to_t():

@@ -23,13 +23,13 @@ T1 = dt.datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
 def snapshots() -> list[Snapshot]:
     """7 deterministic readings: 2 sources, 3 models, 2 instants; vastai has 2 H100 offers at T1."""
     return [
-        Snapshot(T0, "vastai", "H100", 2.00, "on_demand", 5),
-        Snapshot(T0, "runpod", "H100", 2.20, "on_demand", 3),
-        Snapshot(T1, "vastai", "H100", 1.80, "on_demand", 4),
-        Snapshot(T1, "vastai", "H100", 1.90, "on_demand", 2),
-        Snapshot(T1, "runpod", "H100", 2.10, "on_demand", 1),
-        Snapshot(T0, "vastai", "A100", 1.00, "on_demand", 10),
-        Snapshot(T1, "vastai", "B200", 3.50, "on_demand", 1),
+        Snapshot(T0, "vastai", "H100", 2.00, "on_demand", 5, simulated=False),
+        Snapshot(T0, "runpod", "H100", 2.20, "on_demand", 3, simulated=False),
+        Snapshot(T1, "vastai", "H100", 1.80, "on_demand", 4, simulated=False),
+        Snapshot(T1, "vastai", "H100", 1.90, "on_demand", 2, simulated=False),
+        Snapshot(T1, "runpod", "H100", 2.10, "on_demand", 1, simulated=False),
+        Snapshot(T0, "vastai", "A100", 1.00, "on_demand", 10, simulated=False),
+        Snapshot(T1, "vastai", "B200", 3.50, "on_demand", 1, simulated=False),
     ]
 
 

@@ -52,8 +52,8 @@ def test_compute_index_series_from_real_snapshots() -> None:
     snaps: list[Snapshot] = []
     for ts in grid:
         t = ts.to_pydatetime()
-        snaps.append(Snapshot(t, "vastai", "H100", 2.0, availability=10))
-        snaps.append(Snapshot(t, "runpod", "H100", 2.1, availability=8))
+        snaps.append(Snapshot(t, "vastai", "H100", 2.0, availability=10, simulated=False))
+        snaps.append(Snapshot(t, "runpod", "H100", 2.1, availability=8, simulated=False))
     series = compute_index_series(snaps, grid, "H100")
     assert len(series) == 3
     values = series.to_numpy()
@@ -67,8 +67,8 @@ def test_compute_index_series_omits_grid_points_without_fresh_snapshot() -> None
     )
     only_first = grid[0].to_pydatetime()
     snaps = [
-        Snapshot(only_first, "vastai", "H100", 2.0, availability=10),
-        Snapshot(only_first, "runpod", "H100", 2.1, availability=8),
+        Snapshot(only_first, "vastai", "H100", 2.0, availability=10, simulated=False),
+        Snapshot(only_first, "runpod", "H100", 2.1, availability=8, simulated=False),
     ]
     series = compute_index_series(snaps, grid, "H100")
     # The second fix is 4 days past the only snapshot (> 24h staleness): omitted, not NaN-filled.

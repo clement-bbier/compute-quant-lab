@@ -35,8 +35,12 @@ def test_dashboard_renders_with_snapshots(monkeypatch) -> None:
 
     now = dt.datetime.now(tz=dt.timezone.utc)
     snapshots = [
-        Snapshot(now - dt.timedelta(hours=1), "vastai", "H100", 2.00, availability=100),
-        Snapshot(now - dt.timedelta(hours=2), "runpod", "H100", 2.20, availability=50),
+        Snapshot(
+            now - dt.timedelta(hours=1), "vastai", "H100", 2.00, availability=100, simulated=False
+        ),
+        Snapshot(
+            now - dt.timedelta(hours=2), "runpod", "H100", 2.20, availability=50, simulated=False
+        ),
     ]
     root = Path(tempfile.mkdtemp())
     ParquetSnapshotStore(root).append(snapshots)

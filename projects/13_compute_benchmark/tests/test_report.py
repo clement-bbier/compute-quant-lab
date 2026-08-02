@@ -30,7 +30,7 @@ def test_summarize_history_empty_is_safe() -> None:
 
 def test_multi_venue_models_keeps_only_models_in_two_or_more_venues(two_day_snapshots) -> None:
     # H100 is in two venues; a single-venue A100 must not surface.
-    solo = Snapshot(two_day_snapshots[0].snapshotted_at, "vastai", "A100", 1.0)
+    solo = Snapshot(two_day_snapshots[0].snapshotted_at, "vastai", "A100", 1.0, simulated=False)
     models = multi_venue_models([*two_day_snapshots, solo])
     assert models == ["H100"]
 

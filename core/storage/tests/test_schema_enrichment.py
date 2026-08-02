@@ -24,12 +24,14 @@ from core.storage.schema import (
     DISK_GB,
     GPU_MEMORY_GB,
     GPU_MODEL,
+    INGESTED_AT,
     LEASE_TYPE,
     OPTIONAL_COLUMNS,
     PRICE,
     PROVIDER_DETAIL,
     RAM_GB,
     REGION,
+    SIMULATED,
     SNAPSHOTTED_AT,
     SOURCE,
     VCPU,
@@ -130,6 +132,7 @@ def test_snapshots_to_frame_propagates_optional_fields() -> None:
         ram_gb=None,
         disk_gb=None,
         provider_detail=None,
+        simulated=False,
     )
     frame = snapshots_to_frame([s])
     assert frame[REGION].iloc[0] == "no-luster-1"
@@ -151,6 +154,7 @@ def test_frame_to_snapshots_roundtrips_optional_fields() -> None:
         ram_gb=1480.0,
         disk_gb=2048.0,
         provider_detail="datacrunch",
+        simulated=False,
     )
     frame = snapshots_to_frame([s_in])
     restored = frame_to_snapshots(frame)
@@ -186,7 +190,88 @@ def test_snapshots_to_frame_all_none_preserved() -> None:
         source="runpod",
         gpu_model="A100",
         price_usd_per_hour=1.19,
+        simulated=False,
     )
     frame = snapshots_to_frame([s])
     for col in OPTIONAL_COLUMNS:
         assert frame[col].iloc[0] is None, f"Expected None for {col}"
+
+
+# -- Provenance (`simulated`, `ingested_at`): mandatory field + backward compat ------
+
+
+def test_snapshot_construction_fails_without_simulated() -> None:
+    """Red-first (ADR 006 pattern): `simulated` has no default, so omitting it is a TypeError."""
+    with pytest.raises(TypeError, match="simulated"):
+        Snapshot(  # type: ignore[call-arg]
+            snapshotted_at=_TS_PY,
+            source="vastai",
+            gpu_model="H100",
+            price_usd_per_hour=2.50,
+        )
+
+
+def test_snapshots_to_frame_propagates_simulated() -> None:
+    s = Snapshot(
+        snapshotted_at=_TS_PY,
+        source="vastai",
+        gpu_model="H100",
+        price_usd_per_hour=2.50,
+        simulated=False,
+    )
+    frame = snapshots_to_frame([s])
+    assert bool(frame[SIMULATED].iloc[0]) is False
+
+
+def test_frame_to_snapshots_roundtrips_simulated() -> None:
+    s_in = Snapshot(
+        snapshotted_at=_TS_PY,
+        source="vastai",
+        gpu_model="H100",
+        price_usd_per_hour=2.50,
+        simulated=False,
+    )
+    (s_out,) = frame_to_snapshots(snapshots_to_frame([s_in]))
+    assert s_out.simulated is False
+
+
+def test_normalize_frame_backfills_simulated_false_for_legacy_frame() -> None:
+    """A frame predating `simulated` backfills to False -- documented provenance, not a guess."""
+    legacy = _legacy_frame()
+    assert SIMULATED not in legacy.columns
+
+    result = normalize_frame(legacy)
+
+    assert SIMULATED in result.columns
+    assert bool(result[SIMULATED].iloc[0]) is False
+
+
+def test_normalize_frame_backfills_ingested_at_nat_for_legacy_frame() -> None:
+    """A frame predating `ingested_at` backfills to NaT (unknown ingestion time)."""
+    legacy = _legacy_frame()
+    assert INGESTED_AT not in legacy.columns
+
+    result = normalize_frame(legacy)
+
+    assert INGESTED_AT in result.columns
+    assert pd.isna(result[INGESTED_AT].iloc[0])
+
+
+def test_normalize_frame_keeps_simulated_and_ingested_at_when_present() -> None:
+    frame = _legacy_frame()
+    frame[SIMULATED] = True
+    frame[INGESTED_AT] = pd.Timestamp("2026-01-02", tz="UTC")
+
+    result = normalize_frame(frame)
+
+    assert bool(result[SIMULATED].iloc[0]) is True
+    assert result[INGESTED_AT].iloc[0] == pd.Timestamp("2026-01-02", tz="UTC")
+
+
+def test_normalize_frame_rejects_naive_ingested_at() -> None:
+    frame = _legacy_frame()
+    frame[SIMULATED] = False
+    frame[INGESTED_AT] = pd.Timestamp("2026-01-02")  # naive -> forbidden
+
+    with pytest.raises(ValueError, match="naive"):
+        normalize_frame(frame)
