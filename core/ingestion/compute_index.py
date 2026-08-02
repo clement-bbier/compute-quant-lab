@@ -36,6 +36,9 @@ from core.ingestion.protocols import (
     VenueRate,
     ensure_utc,
 )
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Hyperscaler list prices: reported elsewhere but excluded from the estimator (market standard).
 HYPERSCALERS: frozenset[str] = frozenset({"aws", "gcp", "azure"})
@@ -157,14 +160,17 @@ def build_spot_index(
     as_of = ensure_utc(as_of)
     cutoff = as_of - config.staleness
 
+    candidates = [
+        s for s in snapshots if s.gpu_model == gpu_model and s.lease_type == config.lease_type
+    ]
+    n_hyperscaler_excluded = sum(1 for s in candidates if s.source in config.excluded_sources)
     relevant = [
         s
-        for s in snapshots
-        if s.gpu_model == gpu_model
-        and s.lease_type == config.lease_type
-        and s.source not in config.excluded_sources
+        for s in candidates
+        if s.source not in config.excluded_sources
         and cutoff <= s.snapshotted_at <= as_of  # staleness + point-in-time
     ]
+    n_stale_rejected = len(candidates) - n_hyperscaler_excluded - len(relevant)
 
     # A venue weighs only once: we aggregate the DISTRIBUTION of its freshest cohort
     # (robust median) instead of keeping an arbitrary offer on a timestamp tie. The
@@ -186,6 +192,16 @@ def build_spot_index(
             )
         )
     if not venue_rates:
+        logger.warning(
+            "compute_index %s/%s @ %s: no fresh venue (0/%d candidates; %d hyperscaler-excluded, "
+            "%d stale-rejected) -> no fix",
+            gpu_model,
+            config.lease_type,
+            as_of.isoformat(),
+            len(candidates),
+            n_hyperscaler_excluded,
+            n_stale_rejected,
+        )
         raise InsufficientDataError(
             f"No fresh venue for {gpu_model}/{config.lease_type} at {as_of.isoformat()} "
             f"(window {config.staleness}): no fix (no carry-forward)."
@@ -193,10 +209,29 @@ def build_spot_index(
 
     # Before any statistic is computed: a venue relayed by an aggregator AND connected
     # directly must weigh once, else it skews both the MAD spread and the trimmed mean.
+    n_direct_over_aggregator_dropped = 0
     if config.prefer_direct:
+        before = venue_rates
         venue_rates = prefer_direct_venues(venue_rates)
+        n_direct_over_aggregator_dropped = len(before) - len(venue_rates)
 
     kept = config.outlier_filter.filter(venue_rates)
+    n_mad_rejected = len(venue_rates) - len(kept)
+
+    logger.info(
+        "compute_index %s/%s @ %s: %d source(s) kept (method=%s); rejections -- "
+        "hyperscaler=%d stale=%d direct_over_aggregator=%d mad_outlier=%d",
+        gpu_model,
+        config.lease_type,
+        as_of.isoformat(),
+        len(kept),
+        config.method,
+        n_hyperscaler_excluded,
+        n_stale_rejected,
+        n_direct_over_aggregator_dropped,
+        n_mad_rejected,
+    )
+
     if len(kept) < config.min_sources:
         raise InsufficientDataError(
             f"Venue count ({len(kept)}) must be >= min_sources ({config.min_sources}) after "

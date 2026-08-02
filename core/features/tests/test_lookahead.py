@@ -45,6 +45,14 @@ def test_guard_raises_when_used_knowledge_exceeds_asof(day_ts):
         assert_point_in_time(day_ts(1), used_knowledge)  # D2, D3 > D1 -> cheating
 
 
+def test_guard_logs_error_when_raising(day_ts, caplog):
+    """V7.2: a look-ahead violation must be visible in the logs, not just via the raise."""
+    used_knowledge = pd.Series([day_ts(2), day_ts(3)])
+    with caplog.at_level("ERROR"), pytest.raises(LookAheadError):
+        assert_point_in_time(day_ts(1), used_knowledge)
+    assert "used_knowledge_ts" in caplog.text
+
+
 def test_guard_passes_when_everything_is_already_known(day_ts):
     used_knowledge = pd.Series([day_ts(2), day_ts(3)])
     assert_point_in_time(day_ts(3), used_knowledge)  # everything <= D3: does not raise

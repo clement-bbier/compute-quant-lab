@@ -63,13 +63,19 @@ def snapshot(
     csv_path = csv_store.append(rows)
     written = parquet_store.write(snapshots_to_frame(rows))
 
-    logger.info(
-        "Snapshot collected: %d reading(s) -> CSV %s; %d new row(s) -> Parquet %s",
-        len(rows),
-        csv_path,
-        written,
-        parquet_store.root,
-    )
+    if not rows:
+        logger.warning(
+            "Snapshot collected 0 reading(s): every configured marketplace returned nothing "
+            "-- the collector may be dead (check provider keys / network)."
+        )
+    else:
+        logger.info(
+            "Snapshot collected: %d reading(s) -> CSV %s; %d new row(s) -> Parquet %s",
+            len(rows),
+            csv_path,
+            written,
+            parquet_store.root,
+        )
     return csv_path, written
 
 

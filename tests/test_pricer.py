@@ -254,3 +254,18 @@ def test_injected_kernel_is_used():
 def test_concrete_implementations_satisfy_protocols():
     assert isinstance(ConstantFx(1.0), FxConverter)
     assert isinstance(PythonOracle(), object)  # kernel checked via parity test
+
+
+def test_default_kernel_falls_back_to_python_oracle_and_logs_warning(caplog):
+    """V7.2: when Rust isn't compiled, the fallback to the Python oracle must be visible.
+
+    The Rust subcrate is not built in this test environment (no ``maturin develop``), so
+    the default (uninjected) kernel resolves through the fallback path -- mirroring
+    ``core.backtest.engine``'s already-logged Rust->Python bascule.
+    """
+    with caplog.at_level("WARNING"):
+        pricer = SparkSpreadPricer(_ref_power_model(), ConstantFx(1.0))
+
+    assert isinstance(pricer._kernel, PythonOracle)
+    assert "Rust kernel" in caplog.text
+    assert "Python oracle" in caplog.text

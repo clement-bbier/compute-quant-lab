@@ -28,6 +28,9 @@ from core.pricing.protocols import (
     PriceSource,
     SpreadKernel,
 )
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,24 @@ class RustKernel:
         )
 
 
+def _default_kernel() -> SpreadKernel:
+    """Rust fast path if compiled, else the Python oracle (bit-for-bit identical results).
+
+    Mirrors ``core.backtest.engine``'s kernel-selection logging: the Rust/Python choice
+    is a fallback (per the module docstring, absence of the crate only degrades
+    performance) and must therefore be visible, not silently decided once per pricer.
+    """
+    try:
+        return RustKernel()
+    except ImportError:
+        logger.warning(
+            "Rust kernel '_kernel' unavailable: falling back to the Python oracle (slow path, "
+            "bit-for-bit identical results). Run 'maturin develop -m "
+            "core/pricing/_kernel/Cargo.toml' for the fast path."
+        )
+        return PythonOracle()
+
+
 class SparkSpreadPricer:
     """Price the digital spark spread over a time grid, point-in-time.
 
@@ -104,7 +125,7 @@ class SparkSpreadPricer:
     ) -> None:
         self._power_model = power_model
         self._fx = fx
-        self._kernel: SpreadKernel = kernel if kernel is not None else PythonOracle()
+        self._kernel: SpreadKernel = kernel if kernel is not None else _default_kernel()
 
     def price(self, source: PriceSource, gpu: str, region: str) -> SpreadResult:
         """Compute the spread in EUR/GPU·h on the grid of the energy leg.

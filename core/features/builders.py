@@ -19,7 +19,10 @@ from dataclasses import dataclass
 import pandas as pd
 
 from core.features.protocols import KNOWLEDGE_TS, VALUE, VALUE_TS, ExogenousSource
+from core.utils.logging import get_logger
 from core.utils.timeindex import to_utc_index
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Default publication lags — set by the research director.
@@ -107,10 +110,12 @@ def assert_point_in_time(asof: pd.Timestamp, used_knowledge_ts: pd.Series) -> No
     """
     offenders = used_knowledge_ts[used_knowledge_ts > asof]
     if not offenders.empty:
-        raise LookAheadError(
+        message = (
             f"used_knowledge_ts ({len(offenders)} observation(s)) must be known at {asof}: "
             f"max knowledge_ts = {offenders.max()}"
         )
+        logger.error(message)
+        raise LookAheadError(message)
 
 
 def lag_feature(snapshot: pd.Series, k: int) -> float:

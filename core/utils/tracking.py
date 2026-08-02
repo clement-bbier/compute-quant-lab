@@ -27,6 +27,10 @@ from typing import Any, Iterator
 
 import mlflow
 
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: Default local MLflow store, relative to the repository root (git-ignored).
@@ -62,7 +66,8 @@ def init_tracking(store: Path | None = None, *, force: bool = False) -> None:
 def _git_sha() -> str:
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 -- any failure (no git, no repo) degrades the same way
+        logger.warning("could not resolve git SHA for MLflow tagging, using 'unknown': %s", exc)
         return "unknown"
 
 
