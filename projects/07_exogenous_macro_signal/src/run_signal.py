@@ -78,12 +78,9 @@ def measure_lead(panel_features: pd.DataFrame, spread: pd.Series) -> dict[str, A
 def _write_raw(frames: dict[str, pd.DataFrame]) -> dict[str, str]:
     """Writes the raw exogenous data to the local cache (`data/raw/`, gitignored by design)."""
     RAW_EXO_DIR.mkdir(parents=True, exist_ok=True)
-    paths = []
     for name, frame in frames.items():
-        path = RAW_EXO_DIR / f"{name}.parquet"
-        frame.to_parquet(path)
-        paths.append(str(path))
-    return {"status": "local_cache", "paths": ",".join(paths)}
+        frame.to_parquet(RAW_EXO_DIR / f"{name}.parquet")
+    return {"status": "local_cache (paths omitted)"}
 
 
 def main() -> None:
@@ -167,7 +164,7 @@ def _write_synthesis(summary: dict[str, Any]) -> None:
         "- Anti-overfit lead measurement: cross-correlation + out-of-sample OLS.",
         "",
         f"MLflow run: `{summary['run_id']}` — raw exogenous data: "
-        f"{summary['raw_data']['status']} (data/raw/, gitignored by design).",
+        f"{summary['raw_data']['status']}, cached under data/raw/ (gitignored by design).",
     ]
     (RESULTS_DIR / "SYNTHESIS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

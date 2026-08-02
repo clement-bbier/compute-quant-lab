@@ -20,4 +20,4 @@
 - UTC tz-aware alignment (naive datetime rejected).
 - Anti-overfit lead measurement: cross-correlation + out-of-sample OLS.
 
-MLflow run: `6863042e4aa14ca3bb65151c981a7d97` — raw exogenous data: local_cache (data/raw/, gitignored by design).
+MLflow run: `1e6d76331bdb4dd3b29f1addd7cd3894` — raw exogenous data: local_cache (paths omitted), cached under data/raw/ (gitignored by design).
