@@ -12,6 +12,10 @@
 /data/processed/*
 /data/cold/*
 !/data/**/.gitkeep
+# Exception: data/cold/energy/ (ENTSO-E FR/DE day-ahead prices) IS committed (V5.3) — the
+# zero-key real-data path for P02/P05, backfilled once via infra/collectors/entsoe_backfill.py.
+!/data/cold/energy/
+!/data/cold/energy/**
 
 # data/snapshots/ IS versioned: it's the raw data collected hour by hour,
 # irreplaceable (the price of compute has no purchasable history).

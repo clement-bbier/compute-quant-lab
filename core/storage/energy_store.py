@@ -5,6 +5,14 @@
 capacity / net-load: known at their publication time); for *realized* series (RTM
 prices), ``publish_time = interval_start`` (known at the end of the interval).
 
+ENTSO-E day-ahead prices (``source="entsoe_fr"`` / ``"entsoe_de"``, ``series="day_ahead_price"``,
+written by ``infra.collectors.entsoe_backfill``) are neither: ``entsoe-py`` returns no
+publication timestamp, so ``publish_time`` is an **approximated convention** — auction
+results are published around **D-1 ~12:45 Europe/Paris** (CET/CEST), so
+``publish_time = interval_start.floor("D") - 1 day`` at 12:45 local Paris time, converted
+to UTC. This is documented here, in the backfill script, and in the P02/P05 docs so the
+approximation is never mistaken for an API-confirmed timestamp.
+
 Append-only, **content-idempotent**, partitioned by ``series`` / month — the foundation
 of calibration reproducibility (training-cold-store rule: training reads this immutable
 plain-git-versioned lake, never live data). Parallel to the GPU price lake
