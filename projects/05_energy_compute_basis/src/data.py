@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from core.utils.config import SNAPSHOTS_DIR, get_env
+from core.utils.logging import sanitize_for_log
 
 log = logging.getLogger("p05.data")
 
@@ -55,7 +56,7 @@ def _try_entsoe(index: pd.DatetimeIndex, regions: list[str], token: str) -> pd.D
         log.info("Real ENTSO-E data retrieved for %s.", ", ".join(regions))
         return pd.DataFrame(columns, index=index)
     except Exception as exc:  # noqa: BLE001 - documented robust fallback
-        log.warning("ENTSO-E failure (%s) — falling back to synthetic.", exc)
+        log.warning("ENTSO-E failure (%s) — falling back to synthetic.", sanitize_for_log(str(exc)))
         return None
 
 

@@ -20,6 +20,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from core.utils.logging import sanitize_for_log
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("prepare_dataset")
 
@@ -59,7 +61,7 @@ def fetch_energy_entsoe(index: pd.DatetimeIndex, region: str) -> pd.Series | Non
         log.info("Real ENTSO-E data fetched: %d points (%s).", series.notna().sum(), region)
         return series.astype(float)
     except Exception as exc:  # noqa: BLE001 - documented robust fallback
-        log.warning("ENTSO-E fetch failed (%s) — synthetic fallback.", exc)
+        log.warning("ENTSO-E fetch failed (%s) — synthetic fallback.", sanitize_for_log(str(exc)))
         return None
 
 

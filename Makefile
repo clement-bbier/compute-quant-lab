@@ -18,6 +18,7 @@ TEST_DIRS := tests \
              core/models/tests \
              core/signals/tests \
              core/storage/tests \
+             core/utils/tests \
              infra/collectors/tests \
              infra/mcp-servers/*/tests \
              projects/*/tests

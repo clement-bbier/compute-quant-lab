@@ -33,6 +33,7 @@ from core.ingestion.providers.primeintellect import PrimeintellectProvider
 from core.ingestion.providers.runpod import RunpodProvider
 from core.ingestion.providers.tensordock import TensordockProvider
 from core.ingestion.providers.vastai import VastaiProvider
+from core.utils.logging import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,14 @@ def fetch_all(now: dt.datetime) -> list[Snapshot]:
         if missing:
             logger.warning("%s is missing: provider '%s' skipped.", missing[0], provider.name)
             continue
-        out.extend(provider.fetch(now))
+        try:
+            out.extend(provider.fetch(now))
+        except Exception as exc:  # noqa: BLE001 -- one venue's HTTP failure must not sink the batch
+            logger.warning(
+                "provider '%s' fetch failed, skipped: %s",
+                provider.name,
+                sanitize_for_log(str(exc)),
+            )
     return out
 
 
