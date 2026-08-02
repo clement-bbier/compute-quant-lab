@@ -6,9 +6,11 @@ token-gated). CUDO **bills each component separately**: ``gpuPriceHr`` is theref
 ``{"value": "2.50", "currency": "usd"}`` (value as a string). We keep the network-wide
 ``totalGpuFree`` availability. Lease: on-demand.
 
-Warning: endpoint/shape **to be confirmed live at convergence** (the SPA documentation
-cannot be captured without a key): ``/v1/vms/machine-types`` (network-wide list) -- a
-per-data-center variant is possible.
+Envelope and per-GPU pricing **confirmed live** (V5.2 campaign): ``GET
+/v1/vms/machine-types`` returns ``{"machineTypes": [...]}``; ``gpuPriceHr.value`` lands
+in the same range as the cross-venue median for the same model (e.g. A100 $1.50/GPU·h,
+matching the committed lake's median exactly) -- the per-component, already-per-GPU
+pricing assumption is correct, not a per-node price needing division.
 """
 
 from __future__ import annotations
