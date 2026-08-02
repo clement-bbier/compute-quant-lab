@@ -42,23 +42,28 @@ uv run pytest projects/02_spread_mean_reversion -q
 uv run python projects/02_spread_mean_reversion/src/run_backtest.py
 ```
 
-### Wiring up REAL data
-- **Energy**: create a free token at <https://transparency.entsoe.eu/> (My Account -> request
-  API access, email to transparency@entsoe.eu, activated in ~24 h), then `ENTSOE_API_TOKEN=…` in `.env`.
-- **Compute**: Vast.ai key (<https://vast.ai/> -> account -> API key) in `VASTAI_API_KEY`, then
-  accumulate via the `infra/collectors/gpu_price_snapshot.py` collector (history builds up
-  day by day; no retroactive compute data exists). Deeper alternative: Silicon Data
-  SDH100RT (paid, `SILICONDATA_API_TOKEN`, not yet wired).
+### Real data (V5.3: on by default, zero key required)
+- **Energy**: `load_energy_entsoe` reads the committed cold store (`data/cold/energy/`,
+  FR/DE ENTSO-E day-ahead prices, 2024-01-01 → today) first — no token needed on a fresh
+  clone. A live ENTSO-E token (`ENTSOE_API_TOKEN=…` in `.env`, free at
+  <https://transparency.entsoe.eu/>) only refreshes beyond the store's committed range.
+- **Compute**: still requires accumulated marketplace snapshots (`data/snapshots/`, built via
+  `infra/collectors/gpu_price_snapshot.py` day by day; no cold store or retroactive history
+  yet). Without snapshots, the pipeline falls back to the **labeled** simulated dataset
+  (`simulated=True`).
 
-`run_backtest.py` automatically detects real data (token + snapshots present) and otherwise falls back to
-the **labeled** simulated dataset `simulated=True`.
+`run_backtest.py` bounds the energy window to the real compute snapshots' own coverage (they're
+much shallower than the energy cold store) — see [results/SYNTHESIS.md](results/SYNTHESIS.md) §1.
 
 ## Results & pitfalls
-Reference run on **simulated** data: Sharpe ≈ 7.70 — **not credible** (the strategy tracks the
-OU generating process exactly). The backtest validates the *pipeline*, not an alpha. Full adversarial verdict
-(`/backtest-pitfalls`) and roadmap before any alpha claim: [results/SYNTHESIS.md](results/SYNTHESIS.md).
+V5.3 reference run on **real** data (`entsoe_cold_store+marketplace`, `simulated=False`):
+Sharpe ≈ 2.98 over ~1 month of real compute history — a preliminary read, not yet a validated
+edge (short window, no walk-forward). Prior **simulated** reference (Sharpe ≈ 7.70) is kept for
+comparison and was never credible (the strategy tracked the OU generating process exactly).
+Full adversarial verdict (`/backtest-pitfalls`) and roadmap before any alpha claim:
+[results/SYNTHESIS.md](results/SYNTHESIS.md).
 
-## Tests (22, green)
+## Tests (26, green)
 Cointegration (detection + **rejection** of a non-cointegrated pair, anti-spurious), OU half-life,
 point-in-time stability, z-score signal (entry/exit/hysteresis), **anti look-ahead** (P08 guard),
 backtest determinism, mandatory real/simulated provenance.

@@ -81,29 +81,55 @@ def _simulated_legs(n: int = 2000) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
-    """Loads both real legs if available, otherwise falls back to the labeled simulated dataset."""
-    token = os.environ.get("ENTSOE_API_TOKEN")
+    """Loads both real legs if available, otherwise falls back to the labeled simulated dataset.
+
+    Energy tries the committed cold store first (zero key required), then a live ENTSO-E
+    call if a token is set (see ``data_sources.load_energy_entsoe``). Compute still requires
+    accumulated marketplace snapshots — no cold store for it yet, so the energy window is
+    bounded to the snapshots' own coverage: stretching energy back to 2024 while compute only
+    exists for the last accumulated month would ffill a "flat" compute price across 2+ empty
+    years (degenerate, near-collinear series -- cointegration tests fail to converge on it),
+    not a meaningful real-data run.
+    """
+    from data_sources import load_energy_entsoe
+
     snapshots_dir = _REPO_ROOT / "data" / "snapshots"
     snapshots = CsvSnapshotStore(snapshots_dir).load()
-    if not token:
-        log.warning("No ENTSO-E token (ENTSOE_API_TOKEN) — falling back to the simulated dataset.")
-    elif not snapshots:
+    if not snapshots:
         log.warning(
             "No compute snapshot found in %s — falling back to the simulated dataset.",
             snapshots_dir,
         )
-    if token and snapshots:
-        from data_sources import load_energy_entsoe  # late import: network call, token-gated
-
-        energy = load_energy_entsoe(
-            REGION, pd.Timestamp("2024-01-01Z"), pd.Timestamp("2025-01-01Z")
+        energy_df, compute_df = _simulated_legs()
+        return (
+            energy_df,
+            compute_df,
+            DataProvenance(source="synthetic_cointegrated_ou", simulated=True),
         )
-        compute = compute_index_series(snapshots, energy.index, GPU)
-        energy_df = pd.DataFrame({REGION: energy})
-        compute_df = pd.DataFrame({GPU: compute}).dropna()
-        return energy_df, compute_df, DataProvenance(source="entsoe+marketplace", simulated=False)
-    energy_df, compute_df = _simulated_legs()
-    return energy_df, compute_df, DataProvenance(source="synthetic_cointegrated_ou", simulated=True)
+
+    window_start = pd.Timestamp(min(s.snapshotted_at for s in snapshots)).tz_convert("UTC")
+    window_end = pd.Timestamp(max(s.snapshotted_at for s in snapshots)).tz_convert("UTC")
+    try:
+        energy, energy_source = load_energy_entsoe(REGION, window_start, window_end)
+    except RuntimeError as exc:
+        log.warning(
+            "No real energy data available (%s) — falling back to the simulated dataset.", exc
+        )
+        energy_df, compute_df = _simulated_legs()
+        return (
+            energy_df,
+            compute_df,
+            DataProvenance(source="synthetic_cointegrated_ou", simulated=True),
+        )
+
+    compute = compute_index_series(snapshots, energy.index, GPU)
+    energy_df = pd.DataFrame({REGION: energy})
+    compute_df = pd.DataFrame({GPU: compute}).dropna()
+    return (
+        energy_df,
+        compute_df,
+        DataProvenance(source=f"{energy_source}+marketplace", simulated=False),
+    )
 
 
 def _cointegration_diagnostics(
@@ -124,7 +150,14 @@ def _cointegration_diagnostics(
 def main() -> None:
     energy_df, compute_df, provenance = _load_legs()
     dataset = build_spread(energy_df, compute_df, gpu=GPU, region=REGION, provenance=provenance)
-    diagnostics = _cointegration_diagnostics(energy_df[REGION], compute_df[GPU], dataset)
+    # Diagnostics run on the same aligned grid as the spread itself (dataset.spread's index):
+    # energy_df/compute_df can differ in length (compute is only observed at fresh-snapshot
+    # instants) -- engle_granger requires equal-length series, so reindex onto the P01-aligned
+    # grid rather than passing the raw, differently-shaped inputs.
+    aligned_index = dataset.spread.index
+    energy_aligned = energy_df[REGION].reindex(aligned_index)
+    compute_aligned = compute_df[GPU].reindex(aligned_index)
+    diagnostics = _cointegration_diagnostics(energy_aligned, compute_aligned, dataset)
 
     strategy = MeanReversionStrategy(z_entry=Z_ENTRY, z_exit=Z_EXIT, lookback=LOOKBACK)
     engine = BacktestEngine(

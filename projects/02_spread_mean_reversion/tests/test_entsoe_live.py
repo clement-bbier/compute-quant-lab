@@ -1,8 +1,9 @@
 """ENTSO-E first-contact live smoke test (V5.2 campaign) -- real API, real token.
 
 Minimal: 2-3 days of FR day-ahead prices via ``data_sources.load_energy_entsoe`` (P02's own
-ENTSO-E path). Skipped when ``ENTSOE_API_TOKEN`` is absent; never run in CI (see the ``live``
-marker in pyproject.toml).
+ENTSO-E path), forced past the cold store (empty scratch store injected) to actually exercise
+the live ``entsoe-py`` call. Skipped when ``ENTSOE_API_TOKEN`` is absent; never run in CI (see
+the ``live`` marker in pyproject.toml).
 
 Run: ``set -a && source .env && set +a && uv run pytest -m live projects/02_spread_mean_reversion -v``.
 """
@@ -13,6 +14,7 @@ import os
 
 import pandas as pd
 import pytest
+from core.storage.energy_store import EnergyColdStore
 
 from data_sources import load_energy_entsoe
 
@@ -20,7 +22,7 @@ REGION = "FR"
 
 
 @pytest.mark.live
-def test_entsoe_day_ahead_live() -> None:
+def test_entsoe_day_ahead_live(tmp_path) -> None:
     token = os.environ.get("ENTSOE_API_TOKEN")
     if not token:
         pytest.skip("ENTSOE_API_TOKEN is missing -- export the token for the live test")
@@ -28,8 +30,10 @@ def test_entsoe_day_ahead_live() -> None:
     end = pd.Timestamp.now(tz="UTC").normalize()
     start = end - pd.Timedelta(days=3)
 
-    series = load_energy_entsoe(REGION, start, end)
+    empty_store = EnergyColdStore(tmp_path)  # forces the live path, not the cold store
+    series, source = load_energy_entsoe(REGION, start, end, store=empty_store)
 
+    assert source == "entsoe_live"
     assert len(series) > 0, "The ENTSO-E series is empty"
 
     index = pd.DatetimeIndex(series.index)

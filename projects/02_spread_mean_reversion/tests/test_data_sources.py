@@ -1,7 +1,8 @@
 """Tests for the data loaders: P01 (pricing) integration and the real compute leg (ingestion).
 
-``load_energy_entsoe`` (ENTSO-E network call) is not unit-tested (I/O token-gated, like P04's
-Vast.ai connector). Here we test the *pure* wiring: spread pricing via P01 and
+``load_energy_entsoe``'s live ``entsoe-py`` path is not unit-tested (I/O token-gated, like
+P04's Vast.ai connector) -- see ``test_entsoe_live.py``. Its cold-store path *is* unit-tested
+here (deterministic, no network). We also test the *pure* wiring: spread pricing via P01 and
 building a compute index series from accumulated real snapshots.
 """
 
@@ -9,9 +10,18 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 from core.ingestion import Snapshot
+from core.storage.energy_store import (
+    INTERVAL_START,
+    PUBLISH_TIME,
+    SERIES,
+    SOURCE,
+    VALUE,
+    EnergyColdStore,
+)
 
-from data_sources import DataProvenance, build_spread, compute_index_series
+from data_sources import DataProvenance, build_spread, compute_index_series, load_energy_entsoe
 
 
 def _utc(n: int) -> pd.DatetimeIndex:
@@ -64,3 +74,33 @@ def test_compute_index_series_omits_grid_points_without_fresh_snapshot() -> None
     # The second fix is 4 days past the only snapshot (> 24h staleness): omitted, not NaN-filled.
     assert list(series.index) == [grid[0]]
     assert len(series) == 1
+
+
+def test_load_energy_entsoe_reads_cold_store_when_present(tmp_path) -> None:
+    store = EnergyColdStore(tmp_path)
+    idx = _utc(3)
+    store.write(
+        pd.DataFrame(
+            {
+                SOURCE: "entsoe_fr",
+                SERIES: "day_ahead_price",
+                PUBLISH_TIME: idx - pd.Timedelta(days=1),
+                INTERVAL_START: idx,
+                VALUE: [40.0, 41.0, 42.0],
+            }
+        )
+    )
+    series, source = load_energy_entsoe(
+        "FR", idx[0], idx[-1], store=store, token="unused-should-not-be-needed"
+    )
+    assert source == "entsoe_cold_store"
+    assert list(series.to_numpy()) == [40.0, 41.0, 42.0]
+    assert str(pd.DatetimeIndex(series.index).tz) == "UTC"
+    assert series.name == "FR"
+
+
+def test_load_energy_entsoe_raises_without_store_data_or_token(tmp_path) -> None:
+    empty_store = EnergyColdStore(tmp_path)
+    idx = _utc(3)
+    with pytest.raises(RuntimeError, match="ENTSOE_API_TOKEN"):
+        load_energy_entsoe("FR", idx[0], idx[-1], store=empty_store, token=None)
