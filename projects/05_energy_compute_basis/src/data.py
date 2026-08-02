@@ -1,8 +1,8 @@
-"""P05 I/O: regional energy (real ENTSO-E + synthetic fallback) and compute index (P04).
+"""P05 I/O: regional energy (cold store + real ENTSO-E + synthetic fallback) and compute index (P04).
 
 Labeled real/synthetic boundary (rule forward-real-simulated): each loader returns
-``(DataFrame, source_label)`` where ``source_label`` distinguishes real (``"entsoe"``,
-``"marketplace"``) from the deterministic fallback (``"synthetic"``). No writes to
+``(DataFrame, source_label)`` where ``source_label`` distinguishes real (``"entsoe_cold_store"``,
+``"entsoe"``, ``"marketplace"``) from the deterministic fallback (``"synthetic"``). No writes to
 ``data/raw/``. Every index is UTC tz-aware.
 """
 
@@ -14,12 +14,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from core.utils.config import SNAPSHOTS_DIR, get_env
+from core.storage.energy_store import EnergyColdStore
+from core.utils.config import REPO_ROOT, SNAPSHOTS_DIR, get_env
 from core.utils.logging import sanitize_for_log
 
 log = logging.getLogger("p05.data")
 
 _COMPUTE_ANCHOR_USD = 2.30  # community H100 market anchor ($/GPU·h)
+_ENERGY_STORE_ROOT = REPO_ROOT / "data" / "cold" / "energy"
+_DAY_AHEAD_SERIES = "day_ahead_price"
 
 
 def hourly_index(start: str, periods: int) -> pd.DatetimeIndex:
@@ -37,6 +40,29 @@ def _synthetic_energy(index: pd.DatetimeIndex, region: str, *, seed: int) -> pd.
     daily = 90.0 + 35.0 * np.sin((hours - 7) / 24.0 * 2 * np.pi)  # daytime peak
     values = np.clip(daily + rng.normal(0.0, 12.0, len(index)), 1.0, None)
     return pd.Series(values, index=index, name=region)
+
+
+def _try_cold_store(
+    index: pd.DatetimeIndex, regions: list[str], store: EnergyColdStore
+) -> pd.DataFrame | None:
+    """Real ENTSO-E day-ahead prices per region from the committed cold store, or ``None``.
+
+    ``None`` (triggering the next fallback) if *any* region has no rows covering ``index``'s
+    range -- a partial real dataset silently mixed with synthetic for the other region would
+    violate the real/simulated boundary (rule ``forward-real-simulated``).
+    """
+    start, end = index[0], index[-1]
+    columns: dict[str, pd.Series] = {}
+    for region in regions:
+        frame = store.read(series=_DAY_AHEAD_SERIES)
+        frame = frame[frame["source"] == f"entsoe_{region.lower()}"]
+        frame = frame[(frame["interval_start"] >= start) & (frame["interval_start"] <= end)]
+        if frame.empty:
+            return None
+        series = frame.set_index("interval_start")["value"].sort_index()
+        columns[region] = series.reindex(index).ffill().astype(float)
+    log.info("Real ENTSO-E cold-store data retrieved for %s.", ", ".join(regions))
+    return pd.DataFrame(columns, index=index)
 
 
 def _try_entsoe(index: pd.DatetimeIndex, regions: list[str], token: str) -> pd.DataFrame | None:
@@ -61,15 +87,28 @@ def _try_entsoe(index: pd.DatetimeIndex, regions: list[str], token: str) -> pd.D
 
 
 def load_regional_energy(
-    index: pd.DatetimeIndex, regions: list[str], *, allow_remote: bool = True
+    index: pd.DatetimeIndex,
+    regions: list[str],
+    *,
+    allow_remote: bool = True,
+    store: EnergyColdStore | None = None,
 ) -> tuple[pd.DataFrame, str]:
-    """Loads €/MWh electricity prices per region. Real ENTSO-E if possible, else synthetic.
+    """Loads €/MWh electricity prices per region.
+
+    Fallback order: committed cold store (real, zero key required) -> live ENTSO-E (real,
+    token-gated) -> deterministic synthetic (labeled, last resort).
 
     Returns
     -------
     tuple[pandas.DataFrame, str]
-        DataFrame (columns = regions, UTC index) and label ``"entsoe"`` or ``"synthetic"``.
+        DataFrame (columns = regions, UTC index) and label ``"entsoe_cold_store"``,
+        ``"entsoe"``, or ``"synthetic"``.
     """
+    cold_store = store or EnergyColdStore(_ENERGY_STORE_ROOT)
+    from_store = _try_cold_store(index, regions, cold_store)
+    if from_store is not None:
+        return from_store, "entsoe_cold_store"
+
     token = get_env("ENTSOE_API_TOKEN") or get_env("ENTSOE_API_KEY")
     if allow_remote and token:
         frame = _try_entsoe(index, regions, token)

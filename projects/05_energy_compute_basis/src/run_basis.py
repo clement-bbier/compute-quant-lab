@@ -45,11 +45,11 @@ RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
 
 def build_source(
-    index, regions: tuple[RegionConfig, ...], *, allow_remote: bool
+    index, regions: tuple[RegionConfig, ...], *, allow_remote: bool, energy_store=None
 ) -> tuple[DataFramePriceSource, str, str]:
     """Loads energy + compute and assembles the P01 price source (+ source labels)."""
     energy_df, energy_source = load_regional_energy(
-        index, [r.code for r in regions], allow_remote=allow_remote
+        index, [r.code for r in regions], allow_remote=allow_remote, store=energy_store
     )
     compute_df, compute_source = load_compute_index(index, GPU)
     source = DataFramePriceSource(energy=energy_df, compute=compute_df)
@@ -165,12 +165,15 @@ def main(
     periods: int = DEFAULT_PERIODS,
     allow_remote: bool = True,
     experiment: str = EXPERIMENT,
+    energy_store=None,
 ) -> tuple[BasisResult, dict[str, DislocationSummary]]:
     """Orchestrates the full pipeline and logs a reproducible MLflow run."""
     regions = DEFAULT_REGIONS
     index = hourly_index(WINDOW_START, periods)
 
-    source, energy_source, compute_source = build_source(index, regions, allow_remote=allow_remote)
+    source, energy_source, compute_source = build_source(
+        index, regions, allow_remote=allow_remote, energy_store=energy_store
+    )
     result, dislocations = analyse(source, regions, REFERENCE, GPU)
 
     params = _params(regions, REFERENCE, GPU, result, energy_source, compute_source)

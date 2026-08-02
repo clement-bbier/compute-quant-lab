@@ -27,10 +27,11 @@ persistence, and honestly exposes its limitations.
   `src/basis.py` stays pure (no hidden I/O).
 
 ## Real / synthetic boundary (non-negotiable)
-ENTSO-E FR/DE energy = **real** if a token is set, otherwise a labeled **deterministic
-synthetic fallback**. Compute index = real (P04 marketplace) or labeled synthetic fallback.
-No simulated series is ever served as real; the `energy_source` / `compute_source` label is
-logged in MLflow.
+ENTSO-E FR/DE energy fallback order (V5.3): committed cold store (`data/cold/energy/`, real,
+zero key required, label `entsoe_cold_store`) -> live ENTSO-E if a token is set (real, label
+`entsoe`) -> labeled **deterministic synthetic fallback** (label `synthetic`). Compute index =
+real (P04 marketplace) or labeled synthetic fallback. No simulated series is ever served as
+real; the `energy_source` / `compute_source` label is logged in MLflow.
 
 ## Assumed risks (PoC)
 Regional PUE = a strong, poorly observable assumption. Compute is often **global** → the

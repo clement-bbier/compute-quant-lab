@@ -5,19 +5,23 @@ from __future__ import annotations
 from pathlib import Path
 
 import mlflow
+from core.storage.energy_store import EnergyColdStore
 
 
 def test_main_logs_mlflow_and_writes_synthesis(tmp_path: Path) -> None:
-    """Offline end-to-end: basis produced, MLflow run logged, SYNTHESIS.md written."""
+    """Offline end-to-end (empty cold store + allow_remote=False): synthetic fallback,
+    MLflow run logged, SYNTHESIS.md written."""
     mlflow.set_tracking_uri((tmp_path / "mlruns").as_uri())
 
     from run_basis import main
 
+    empty_store = EnergyColdStore(tmp_path / "energy_store")
     result, dislocations = main(
         results_dir=tmp_path,
         periods=72,
         allow_remote=False,
         experiment="p05_test",
+        energy_store=empty_store,
     )
 
     assert "FR" in result.basis

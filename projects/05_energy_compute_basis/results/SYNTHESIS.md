@@ -2,14 +2,14 @@
 
 - Regions: FR, DE (reference = DE)
 - Window: 2025-01-01 00:00:00+00:00 → 2025-01-31 23:00:00+00:00 (UTC)
-- Sources: energy = **synthetic**, compute = **synthetic** (GLOBAL compute)
+- Sources: energy = **entsoe_cold_store**, compute = **marketplace** (GLOBAL compute)
 - Regional PUE (assumption): FR=1.2, DE=1.45
 
 ## Basis amplitude & persistence
 
 | basis | mean (€/GPU·h) | std dev | p95 amplitude | % time dislocated | episodes | half-life (h) |
 |---|---|---|---|---|---|---|
-| FR−DE | 0.01683 | 0.01632 | 0.04287 | 16.8% | 108 | 0.23 |
+| FR−DE | 0.02998 | 0.03569 | 0.08682 | 10.2% | 19 | 4.84 |
 
 ## PUE sensitivity
 

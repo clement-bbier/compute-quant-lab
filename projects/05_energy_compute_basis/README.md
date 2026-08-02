@@ -22,7 +22,7 @@ intentional and acknowledged: compute pricing does not (yet) have regional granu
 |---|---|
 | `src/region_config.py` | `RegionConfig` (PUE, TDP, n_gpus, FX) + `build_regional_pricer` → a `SparkSpreadPricer` (P01) **per region** |
 | `src/basis.py` | **pure** `BasisCalculator` (point-in-time inner join) + `detect_dislocations` (threshold + AR(1) half-life) |
-| `src/data.py` | I/O: ENTSO-E FR/DE energy (labeled synthetic fallback) + P04 compute index (labeled fallback) |
+| `src/data.py` | I/O: ENTSO-E FR/DE energy (committed cold store → live token → labeled synthetic fallback) + P04 compute index (labeled fallback) |
 | `src/run_basis.py` | Orchestration → MLflow run → `results/SYNTHESIS.md` |
 
 Reused read-only: `core.pricing` (P01), `core.ingestion` (P04),
@@ -49,9 +49,10 @@ uv run python projects/05_energy_compute_basis/src/run_basis.py
 mlflow ui   # dashboard (experiment p05_energy_compute_basis)
 ```
 
-> Real data: set `ENTSOE_API_TOKEN` (energy); without a token, a **clearly labeled**
-> deterministic synthetic fallback is used. Real compute comes from P04 snapshots if
-> accumulated.
+> Real data (V5.3): energy reads the committed cold store (`data/cold/energy/`) by default —
+> zero key required on a fresh clone. `ENTSOE_API_TOKEN` only refreshes beyond the store's
+> committed range; without store data or a token, a **clearly labeled** deterministic
+> synthetic fallback is used. Real compute comes from P04 snapshots if accumulated.
 
 ## Results
 
