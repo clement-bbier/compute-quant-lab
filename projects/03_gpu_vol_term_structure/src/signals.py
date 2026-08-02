@@ -1,7 +1,6 @@
 """Directional signal derived from the term structure (pure).
 
-**Roll-yield** convention for non-storable commodities (electricity analogy), validated
-with the research director:
+**Roll-yield** convention for non-storable commodities (electricity analogy):
 
 - **backwardation** (downward-sloping curve, forward < spot) → positive carry on the long side → **+1**;
 - **contango** (upward-sloping curve, forward > spot) → negative carry → **-1**;

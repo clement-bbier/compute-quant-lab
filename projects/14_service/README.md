@@ -74,7 +74,7 @@ uv run pytest projects/14_service/tests
 - [x] Alert skeleton (single injection point, declarative rules, stub notifier)
 - [x] Streamlit dashboard (cheapest + dispersion + trend + methodology, graceful degradation)
 - [x] 36 tests passing; no edge in the clear
-- [ ] **Convergence handoff**: add `projects/14_service/tests` to `testpaths` (protected zone)
+- [ ] Add `projects/14_service/tests` to `testpaths` (protected zone)
 - [ ] *Institutional-target*: auth/subscriptions, monetized API, deployment, premium wired to the edge (WP)
 
 ## Dependencies

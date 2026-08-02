@@ -158,7 +158,7 @@ def _write_synthesis(summary: dict[str, Any]) -> None:
         f"- n_train = {ols['n_train']}, n_test = {ols['n_test']}",
         "",
         "## Look-ahead pitfalls covered",
-        "- Explicit publication lag (knowledge_ts = value_ts + lag) — red-first test.",
+        "- Explicit publication lag (knowledge_ts = value_ts + lag), under test.",
         "- Late revisions: only the vintage published in time is seen (vintages).",
         "- UTC tz-aware alignment (naive datetime rejected).",
         "- Anti-overfit lead measurement: cross-correlation + out-of-sample OLS.",

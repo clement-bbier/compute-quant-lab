@@ -1,4 +1,4 @@
-"""ENTSO-E first-contact live smoke test (V5.2 campaign) -- real API, real token.
+"""ENTSO-E live smoke test -- real API, real token.
 
 Minimal: 2-3 days of FR day-ahead prices via ``data_sources.load_energy_entsoe`` (P02's own
 ENTSO-E path), forced past the cold store (empty scratch store injected) to actually exercise

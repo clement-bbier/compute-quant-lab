@@ -1,4 +1,4 @@
-"""TDD tests for the gpu-price MCP server's pure logic."""
+"""Pure logic of the gpu-price MCP server."""
 
 from __future__ import annotations
 

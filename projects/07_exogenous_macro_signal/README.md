@@ -25,8 +25,8 @@ gas price / HDD / CDD ──(publication lag, revisions)──► core.features.
 
 Every observation carries `value_ts` (period described) and `knowledge_ts =
 value_ts + publication lag`; a feature at `t` only ever uses `knowledge_ts <=
-t`. Modeled in `core/features/builders.py` (`as_of_snapshot`), tested
-red-first.
+t`. Modeled in `core/features/builders.py` (`as_of_snapshot`), with a test
+that fails if the guard is removed.
 
 | File (`src/`) | Role |
 |---|---|

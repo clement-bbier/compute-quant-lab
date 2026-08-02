@@ -13,7 +13,8 @@ Each observation carries two timestamps: `value_ts` (period described) and
 `knowledge_ts = value_ts + publication lag` (publication date). A feature at
 `t` only uses `knowledge_ts <= t`. **Revisions** = several vintages per
 `value_ts`; at `t` we only see the latest one published in time. Modeled in
-`core.features.as_of_snapshot`, **tested red-first** (`core/features/tests`).
+`core.features.as_of_snapshot`, with a test that fails if the guard is
+removed (`core/features/tests`).
 
 ## Architecture
 - `core/features/` (owned module, foundation): `protocols.py` (vintage contracts,
@@ -54,7 +55,7 @@ requires `GRIDSTATUS_API_KEY`).
 
 ## Progress status (PoC-now ✅)
 - [x] Point-in-time mechanics (lag + revisions) in `core/features/` + 16 tests.
-- [x] STRICT anti-look-ahead tested red-first (publication lag, guard).
+- [x] STRICT anti-look-ahead under test (publication lag, guard).
 - [x] Point-in-time builders (lags, moving averages, diffs) on known fixtures.
 - [x] Anti-overfit lead measurement: cross-correlation + out-of-sample OLS (temporal split).
 - [x] Reproducible MLflow run + raw exogenous data in local cache (`data/raw/`, gitignored by design).
@@ -66,7 +67,7 @@ publication lag eats 1 day of lead time):
 - `hdd_lag0` confirms (≈ 0.65); `cdd` ≈ 0 (consistent negative control);
 - OLS confirmation: coef < 0, p-value ≈ 4e-45, **R²_oos ≈ 0.35** (predictive, not overfit).
 
-**Pitfalls covered**: publication lag (red-first test), revisions (vintages), UTC
+**Pitfalls covered**: publication lag (under test), revisions (vintages), UTC
 timezone, spurious regression (measured on **changes**, not levels).
 **Out of scope (institutional)**: real weather/gas connector (`data-engineer`),
 nowcasting, causal model, large panel, fine-grained handling of real revisions.
