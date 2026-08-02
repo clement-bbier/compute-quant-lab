@@ -266,16 +266,16 @@ def test_concrete_implementations_satisfy_protocols():
 
 
 def test_default_kernel_falls_back_to_python_oracle_and_logs_warning(monkeypatch, caplog):
-    """V7.2: when Rust is unavailable, the fallback to the Python oracle must be visible.
+    """When Rust is unavailable, the fallback to the Python oracle must be visible.
 
     Environment-independent by construction: whether or not the ``_kernel`` crate is
     actually compiled in the machine running this test (it IS in CI, where the three
     subcrates are built before ``make test``), Rust unavailability is forced here via
     monkeypatch so the fallback branch of ``_default_kernel`` is exercised deterministically
-    everywhere. Asserting on the real environment instead (as the original version of this
-    test did) is a red herring: it is green precisely when Rust is absent and fails the
-    moment CI compiles the crates -- an environment-dependent test can never be correct on
-    both sides, so the environment must be controlled, not assumed.
+    everywhere. Asserting on the real environment instead is a red herring: such an
+    assertion is green precisely when Rust is absent and fails the moment CI compiles the
+    crates -- an environment-dependent test can never be correct on both sides, so the
+    environment must be controlled, not assumed.
     """
 
     def _raise_import_error() -> None:

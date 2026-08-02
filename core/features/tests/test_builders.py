@@ -1,4 +1,4 @@
-"""Pure transforms + builder on known fixtures (section 6d).
+"""Pure transforms + builder on known fixtures.
 
 The transforms (`lag`, `rolling_mean`, `diff`) operate on the *already* point-in-time
 snapshot (so all of them are <= t by construction). They are checked against

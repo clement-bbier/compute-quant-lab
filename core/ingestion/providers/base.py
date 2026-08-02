@@ -53,7 +53,7 @@ class GpuPriceProvider(Protocol):
 
     One provider = one venue. The registry (:mod:`core.ingestion.providers`) calls ``fetch``
     only if **all** of the ``required_env`` are present in the environment; otherwise it logs
-    a warning and skips the provider (historical behaviour).
+    a warning and skips the provider.
     """
 
     #: Short venue identifier; equal to ``Snapshot.source`` (e.g. ``"vastai"``).
@@ -75,10 +75,10 @@ class EnvKeyedProvider:
     ``fetch_<venue>(*keys, now)`` function. A subclass sets ``name``, ``required_env`` and
     ``_fetch_fn`` (the module-level ``fetch_<venue>``); ``fetch`` itself is never overridden.
 
-    Behaviour is unchanged from the pre-consolidation per-class ``fetch`` methods: same
-    env keys read in ``required_env`` order, same positional call into ``fetch_<venue>``,
-    same return value. Only the call-site boilerplate is shared, plus one INFO log line
-    per call (new -- the observability rule requires every network boundary to log).
+    The contract: the env keys are read in ``required_env`` order and passed positionally
+    into ``fetch_<venue>``, whose return value is passed straight back. The call-site
+    boilerplate is shared across venues, and each call emits one INFO log line -- the
+    observability rule requires every network boundary to log.
     """
 
     name: str

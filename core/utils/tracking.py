@@ -4,8 +4,7 @@ Guarantees that every run logs the minimum needed for reproducibility: params,
 metrics and the git SHA. Data files are tracked as plain git objects, so that SHA
 already pins the exact dataset a run saw.
 
-Centralises two lab-wide decisions that used to be local stopgaps in projects
-P01/P08:
+Centralises two lab-wide decisions:
 
 - the MLflow store lives under ``experiments/mlruns`` (CLAUDE.md section 4);
 - MLflow >= 3 puts the file store in "maintenance mode", so it needs an explicit

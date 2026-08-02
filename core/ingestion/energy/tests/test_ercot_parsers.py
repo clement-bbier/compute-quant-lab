@@ -1,7 +1,7 @@
-"""Tests of the ERCOT parsers on frozen fixtures (B2).
+"""Tests of the ERCOT parsers on frozen fixtures.
 
 Test the pure logic of the parsers (I/O isolated) without any network call.
-The CSV fixtures are real samples captured in B0 and frozen here to guarantee test
+The CSV fixtures are real samples captured from the API and frozen here to guarantee test
 reproducibility (determinism required).
 
 Guarantees tested:
@@ -173,10 +173,9 @@ class TestParseLoadForecast:
     def test_capacity_nan_when_no_real_source(self) -> None:
         """Without a REAL capacity source, forecast_capacity_mw is NaN -- never fabricated.
 
-        The 70 GW placeholder was removed (risk-validator review): fabricating the capacity
-        would silently corrupt the L0 reserve margin predictor. A visible NaN beats a fake
-        number. The real capacity (Short-Term System Adequacy) will be wired in by a dedicated
-        task. The load fixture carries no capacity.
+        No placeholder capacity is ever injected: fabricating it would silently corrupt the
+        L0 reserve margin predictor. A visible NaN beats a fake number. The real capacity
+        comes from the Short-Term System Adequacy report; the load fixture carries none.
         """
         result = parse_load_forecast(self._load())
         assert result["forecast_capacity_mw"].isna().all()

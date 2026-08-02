@@ -1,6 +1,6 @@
 """``FuturesBasisSignal``: carry/roll of the future/spot basis (on the P06 cost-of-carry).
 
-Chosen mapping (option A, *carry momentum*): at ``t`` the basis ``F - S`` is priced through P06,
+Mapping (*carry momentum*): at ``t`` the basis ``F - S`` is priced through P06,
 then the returned value is the **z-score of the basis change** over the window ``<= t``, so the
 signal follows the widening of the basis (a momentum flavour, distinct from the P02 mean
 reversion).

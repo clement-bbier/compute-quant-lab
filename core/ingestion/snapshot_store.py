@@ -7,11 +7,11 @@ guarantees **idempotence**: re-appending a reading that is already stored (same
 natural key) is a no-op. That is what makes a scheduled collector safe to replay
 without creating duplicates.
 
-Provenance column (``simulated``, V7.3): mandatory on :class:`Snapshot`, but a
-*monthly* CSV file is append-only and the live hourly collector will hit an existing
-file whose header predates the column within the hour this ships. Unlike the purely
-optional descriptive fields (which a legacy header may simply never gain), ``simulated``
-must never be silently dropped by ``extrasaction="ignore"`` -- so ``append`` rewrites an
+Provenance column (``simulated``): mandatory on :class:`Snapshot`, but a *monthly* CSV
+file is append-only, so the live hourly collector can land on an existing file whose
+header predates the column. Unlike the purely optional descriptive fields (which a legacy
+header may simply never gain), ``simulated`` must never be silently dropped by
+``extrasaction="ignore"`` -- so ``append`` rewrites an
 out-of-date header **once**, in place, the first time it needs to write a column the
 on-disk header lacks (see :meth:`CsvSnapshotStore._ensure_header_has`). Existing data
 rows are untouched (short rows, not corrupted ones); ``load`` backfills their missing
@@ -43,8 +43,8 @@ _CORE_FIELDS: list[str] = [
     "availability",
 ]
 
-#: Optional descriptive columns exposed by richer venue APIs (wave W2). Absent from
-#: legacy 6-column CSV files, which stay readable: missing values decode to ``None``.
+#: Optional descriptive columns exposed by the richer venue APIs. Absent from legacy
+#: 6-column CSV files, which stay readable: missing values decode to ``None``.
 _OPTIONAL_FIELDS: list[str] = [
     "region",
     "gpu_memory_gb",
@@ -54,7 +54,7 @@ _OPTIONAL_FIELDS: list[str] = [
     "provider_detail",
 ]
 
-#: Mandatory provenance column (V7.3): unlike ``_OPTIONAL_FIELDS``, a legacy file missing
+#: Mandatory provenance column: unlike ``_OPTIONAL_FIELDS``, a legacy file missing
 #: it is upgraded in place on next append (see module docstring) rather than silently
 #: dropping the value forever.
 _PROVENANCE_FIELDS: list[str] = ["simulated"]

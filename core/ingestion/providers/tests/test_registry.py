@@ -1,8 +1,8 @@
 """Pluggable registry: aggregation, key-gating and skipping without a key (mocked network).
 
 The registry calls a provider only if **all** of its ``required_env`` are present; otherwise it
-logs a warning and skips it (the historical behaviour of ``fetch_live_gpu_prices``). The tests
-control the environment via ``monkeypatch`` to stay hermetic (the worktree has no ``.env``).
+logs a warning and skips it. The tests control the environment via ``monkeypatch`` to stay
+hermetic (the checkout has no ``.env``).
 """
 
 from __future__ import annotations
@@ -107,8 +107,8 @@ def test_fetch_all_includes_active_w2_venue(
     patch_cudo_network: Callable[[list[dict[str, Any]]], None],
     cudo_machine_types: list[dict[str, Any]],
 ) -> None:
-    # A W2 venue (CUDO) must flow through the registry as soon as its key is present,
-    # with no other layer changing (the venues without a key stay skipped).
+    # A venue (CUDO) flows through the registry as soon as its key is present; the venues
+    # without a key stay skipped.
     monkeypatch.setenv("CUDO_API_KEY", "k")
     patch_cudo_network(cudo_machine_types)
 

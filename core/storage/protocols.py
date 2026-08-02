@@ -12,8 +12,8 @@ Three roles, one per roadmap phase:
 - :class:`TickStream` — real-time tick feed (Phase 2, Redpanda). **Documented stub.**
 - :class:`HotCache` — latest low-latency price/feature (Phase 4, Redis). **Stub.**
 
-Only ``PriceStore`` is implemented in this batch: ``TickStream`` and ``HotCache`` pin down
-the contract of the institutional phases without prejudging the backend
+Only ``PriceStore`` has a concrete implementation: ``TickStream`` and ``HotCache`` pin
+down the contract of the institutional phases without prejudging the backend
 (anti-over-engineering).
 """
 
@@ -47,7 +47,7 @@ class PriceStore(Protocol):
 class TickStream(Protocol):
     """Real-time tick feed — **Phase 2 stub** (Redpanda / Kafka-compatible).
 
-    Not implemented in this batch: streaming only makes sense once the decision to tick
+    Not implemented: streaming only makes sense once the decision to tick
     intraday has been made (see roadmap section 3 Phase 2, section 4
     anti-over-engineering). Present to pin down the contract so that cold/hot sinks can
     plug into it without a rewrite.

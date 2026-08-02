@@ -1,4 +1,4 @@
-"""(a) Parquet round-trip: types, source/month partition, preservation of the distribution."""
+"""Parquet round-trip: types, source/month partition, preservation of the distribution."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def test_roundtrip_preserves_rows_and_types(store: ParquetPriceStore, make_frame
 
 def test_roundtrip_preserves_distribution(store: ParquetPriceStore, make_frame: Frame) -> None:
     # N offers for the same (instant, source, model, lease) at distinct prices: the store
-    # must NOT collapse them into one row (the CsvSnapshotStore flaw being fixed here).
+    # must NOT collapse them into one row (unlike the CsvSnapshotStore).
     frame = make_frame(
         [
             (0, "vastai", "H100", 2.50, 8),

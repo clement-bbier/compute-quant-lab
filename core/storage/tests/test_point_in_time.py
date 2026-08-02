@@ -1,4 +1,4 @@
-"""(c) Point-in-time: ``read(as_of=t)`` returns only ``snapshotted_at <= t`` (anti look-ahead)."""
+"""Point-in-time: ``read(as_of=t)`` returns only ``snapshotted_at <= t`` (anti look-ahead)."""
 
 from __future__ import annotations
 

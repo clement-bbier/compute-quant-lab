@@ -19,7 +19,7 @@ from core.backtest.protocols import FloatArray
 
 
 def inverse_vol_weights(vols: FloatArray, risk_budget: FloatArray | None = None) -> FloatArray:
-    """Normalized inverse-volatility weights (validated design decision).
+    """Normalized inverse-volatility weights.
 
     ``w_i = (b_i / σ_i) / Σ_j (b_j / σ_j)`` — a less volatile signal gets more weight;
     the risk budget ``b_i`` (uniform if ``None``) modulates the allocation. Weights sum to 1.

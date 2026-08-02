@@ -25,7 +25,7 @@ from core.utils.timeindex import to_utc_index
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Default publication lags — set by the research director.
+# Default publication lags.
 #
 # Each exogenous variable is only known with a delay. A lag that is too short =
 # look-ahead; too long = exploitable signal is thrown away. *Conservative* default (we

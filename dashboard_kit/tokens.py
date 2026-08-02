@@ -7,8 +7,8 @@ backtest) and carries no presentation concern. Anything here is about how a numb
 The palette is a dark "desk terminal" register: a near-black canvas, lifted surfaces for
 panels, one cool accent for the canonical series, and red/green reserved **strictly** for
 market semantics (never for decoration). Values are plain hex strings in a plain dict so
-the future showcase site (V6) can import :data:`TOKENS` and re-export it as JSON/CSS
-without pulling Plotly or Streamlit along.
+any consumer can import :data:`TOKENS` and re-export it as JSON/CSS without pulling
+Plotly or Streamlit along.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ SIZES: Final[dict[str, int]] = {
     "gutter": 16,
 }
 
-#: Flat, JSON-serialisable export. This is what V6 consumes.
+#: Flat, JSON-serialisable export — the form a non-Python consumer reads.
 TOKENS: Final[dict[str, object]] = {
     "colors": COLORS,
     "colorway": list(COLORWAY),

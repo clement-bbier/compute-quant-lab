@@ -6,7 +6,7 @@ At each ``t``, the **basis** ``basis_t = F_t - S_t`` is priced with the cost-of-
 
     s_t = clip( (dbasis_t - mu(dbasis window)) / sigma(dbasis window),  -1, 1 )
 
-Economics (option A, *carry momentum*): the signal **follows the widening** of the basis (long
+Economics (*carry momentum*): the signal **follows the widening** of the basis (long
 when the basis widens abnormally fast). A momentum flavour, **distinct** from the P02 mean
 reversion (which z-scores the price *level*), so the two signals are not collinear in the desk
 aggregation.

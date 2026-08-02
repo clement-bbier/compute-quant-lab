@@ -1,11 +1,11 @@
-"""Parity (mandatory): the extracted logic produces EXACTLY the same ``Snapshot`` rows.
+"""Parity: the ``gpu_market`` entry points produce EXACTLY the same ``Snapshot`` rows.
 
 Two complementary guarantees:
 
 1. **Object identity**: the ``core.ingestion.gpu_market`` shim re-exports the *same* functions
    as the ``providers`` package -- no implementation divergence is possible.
-2. **Golden value cases**: the moved parsers reproduce bit for bit the expectations of the
-   historical test ``projects/04_compute_index_curve/tests/test_gpu_market.py``.
+2. **Golden value cases**: the parsers match bit for bit the expectations of
+   ``projects/04_compute_index_curve/tests/test_gpu_market.py``.
 """
 
 from __future__ import annotations

@@ -5,14 +5,14 @@ Each venue (Vast.ai, RunPod, etc.) lives in its own module and exposes a class s
 registry lists them; :func:`fetch_all` only calls those whose ``required_env`` are **all**
 present (key-gated), otherwise it logs a warning and skips.
 
-Adding a venue (for the W2 wave) -- **3 steps, without touching the core**:
+Adding a venue -- **3 steps, without touching the core**:
 
 1. Create ``core/ingestion/providers/<venue>.py``: ``parse_<venue>`` (pure) + ``fetch_<venue>``
    (network I/O, token-gated) + a ``<Venue>Provider`` class with ``name``, ``required_env``
    and ``fetch(now) -> list[Snapshot]`` (reuse ``base.normalize_gpu_model``).
 2. Add ``<Venue>Provider()`` to the :data:`PROVIDERS` tuple below.
-3. Write a parity test under ``tests/`` (parse -> expected ``Snapshot``); at convergence, add
-   the key to the GitHub Secrets for the always-on collector.
+3. Write a parity test under ``tests/`` (parse -> expected ``Snapshot``) and add the key to
+   the GitHub Secrets so the always-on collector can reach the venue.
 
 No other layer changes: ``fetch_live_gpu_prices`` (the ``gpu_market`` shim) and the collector
 automatically aggregate the new venue as soon as a key is configured.
@@ -36,9 +36,9 @@ from core.utils.logging import get_logger, sanitize_for_log
 
 logger = get_logger(__name__)
 
-#: Registered venues (7 active). The order fixes the aggregation order of the observations:
-#: the W1 foundation (Vast.ai, RunPod) then the W2 venues. Each one is key-gated in
-#: :func:`fetch_all`; a venue without its key is simply skipped (a warning is logged).
+#: Registered venues (7 active). The tuple order fixes the aggregation order of the
+#: observations. Each one is key-gated in :func:`fetch_all`; a venue without its key is
+#: simply skipped (a warning is logged).
 PROVIDERS: tuple[GpuPriceProvider, ...] = (
     VastaiProvider(),
     RunpodProvider(),
@@ -54,8 +54,8 @@ def fetch_all(now: dt.datetime) -> list[Snapshot]:
     """Aggregate the observations of the venues **whose key is configured**, at ``now``.
 
     Key-gated: a provider missing any of its ``required_env`` is skipped (a warning is
-    logged), reproducing the historical behaviour. ``now`` is supplied explicitly (the
-    registry does not own the clock -> no point-in-time ambiguity).
+    logged). ``now`` is supplied explicitly (the registry does not own the clock -> no
+    point-in-time ambiguity).
 
     Parameters
     ----------

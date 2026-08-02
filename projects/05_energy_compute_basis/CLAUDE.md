@@ -27,7 +27,7 @@ persistence, and honestly exposes its limitations.
   `src/basis.py` stays pure (no hidden I/O).
 
 ## Real / synthetic boundary (non-negotiable)
-ENTSO-E FR/DE energy fallback order (V5.3): committed cold store (`data/cold/energy/`, real,
+ENTSO-E FR/DE energy fallback order: committed cold store (`data/cold/energy/`, real,
 zero key required, label `entsoe_cold_store`) -> live ENTSO-E if a token is set (real, label
 `entsoe`) -> labeled **deterministic synthetic fallback** (label `synthetic`). Compute index =
 real (P04 marketplace) or labeled synthetic fallback. No simulated series is ever served as

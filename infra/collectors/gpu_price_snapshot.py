@@ -6,12 +6,11 @@ and timestamping it. Schedule this script via cron (e.g. every hour).
 
 **Dual write (Phase 0 transition)**: each reading is persisted to two backends.
 
-- **CSV** via :class:`~core.ingestion.snapshot_store.CsvSnapshotStore` — unchanged, read by
-  the P04 index until convergence repoints it at the Parquet store.
-- **Parquet** via :class:`~core.storage.parquet_store.ParquetPriceStore` — the new cold
-  store versioned as plain git, columnar/typed, which **preserves the distribution** of
-  offers (whereas the CSV dedup on ``(t, source, model, lease)`` collapses it). See the
-  "fix distribution" convergence handoff.
+- **CSV** via :class:`~core.ingestion.snapshot_store.CsvSnapshotStore` — the backend the P04
+  index currently reads. TODO: repoint P04 at the Parquet store.
+- **Parquet** via :class:`~core.storage.parquet_store.ParquetPriceStore` — the cold store
+  versioned as plain git, columnar/typed, which **preserves the distribution** of offers
+  (whereas the CSV dedup on ``(t, source, model, lease)`` collapses it).
 
 Both writes are **idempotent**: re-running the collector does not create duplicates.
 The actual live reading comes from :func:`core.ingestion.gpu_market.fetch_live_gpu_prices`

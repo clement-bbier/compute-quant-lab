@@ -3,7 +3,7 @@
 Documented, non-magic convention (python-quality rule): every figure comes from
 vendor datasheets, in **dense** FP16 Tensor (no sparsity), with the nominal TDP of
 the SXM module. Serves as the common denominator for comparing the spread across
-GPUs (the "per effective TFLOP" unit of account of the pricing/energy sprint).
+GPUs (the "per effective TFLOP" unit of account).
 """
 
 from __future__ import annotations

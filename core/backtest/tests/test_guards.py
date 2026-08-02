@@ -1,7 +1,7 @@
 """Anti look-ahead guard — the heart of the engine's discipline.
 
-The mandated test (§6b): a strategy that *cheats* by reading data > t must make the
-run **fail** (raise `LookAheadError`). This is the "expected red".
+A strategy that *cheats* by reading data > t must make the run **fail** (raise
+`LookAheadError`).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from core.backtest.protocols import PointInTimeView
 
 
 def test_guard_raise_is_logged_at_error(caplog: pytest.LogCaptureFixture):
-    """V7.3: a look-ahead raise is a failed operation (observability rule) -> logged ERROR."""
+    """A look-ahead raise is a failed operation (observability rule) -> logged ERROR."""
     data = np.array([10.0, 11.0, 12.0, 13.0], dtype=np.float64)
     view = GuardedView(data, t=1)
 

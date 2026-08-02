@@ -1,9 +1,9 @@
 """Loading behaviour of the dashboard shell: which instant, and which models, it opens on.
 
-Both helpers exist because the page used to render completely blank against the committed
-lake: it read the market at wall-clock ``now`` (older than the 24 h staleness window, so no
-fix) and it offered raw single-venue SKUs first (nothing to compare). These tests pin the
-fixes so the regression cannot come back silently.
+Two invariants keep the page renderable against the committed lake, and these tests pin
+them: the market is read at the lake's newest instant rather than at wall-clock ``now``
+(which would fall outside the 24 h staleness window and yield no fix), and the model picker
+offers only models quoted by 2+ venues (a single-venue SKU has nothing to compare).
 """
 
 from __future__ import annotations

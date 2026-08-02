@@ -49,8 +49,8 @@ def main() -> None:
 
     result = engine.run(prices, strategy, params=params)
 
-    # Local file-based tracking inside the module (convergence can later relocate
-    # to experiments/ and choose a non-deprecated backend lab-wide).
+    # Local file-based tracking inside the module. TODO: relocate to experiments/ and
+    # adopt a non-deprecated backend lab-wide.
     os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
     mlflow.set_tracking_uri((RESULTS_DIR / "mlruns").as_uri())
     with tracked_run(EXPERIMENT, params):

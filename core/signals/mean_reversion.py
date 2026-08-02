@@ -1,9 +1,8 @@
-"""Spread mean reversion signal: z-score with a hysteresis band (promoted from P02).
+"""Spread mean reversion signal: z-score with a hysteresis band.
 
-*PoC to foundation* promotion of ``projects/02_spread_mean_reversion``: the canonical logic
-(z-score over a point-in-time rolling window + hysteresis entry/exit) moves up here as a
-reusable producer. It assumes a validated cointegrated relationship (skill
-``/cointegration-analysis``).
+Reusable producer holding the canonical logic (z-score over a point-in-time rolling window
++ hysteresis entry/exit); ``projects/02_spread_mean_reversion`` consumes it. It assumes a
+validated cointegrated relationship (skill ``/cointegration-analysis``).
 
 Anti look-ahead: only data ``<= t`` (through the P08 ``GuardedView``) feeds the signal at
 ``t``. Determinism: the hysteresis state is reset at ``view.t == 0`` (two passes over the same

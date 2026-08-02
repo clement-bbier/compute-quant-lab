@@ -1,8 +1,8 @@
-"""Compatibility: the legacy imports remain valid after the refactor (anti-breakage).
+"""Compatibility: the legacy import paths stay valid (anti-breakage).
 
-The ``core.ingestion.gpu_market`` shim and the ``core.ingestion`` facade (NOT modified, outside
-the owned module) must keep exposing the same public symbols -- otherwise existing importers
-(the collector, the facade, the P04 tests) would break.
+The ``core.ingestion.gpu_market`` shim and the ``core.ingestion`` facade must keep exposing
+the same public symbols -- otherwise existing importers (the collector, the facade, the P04
+tests) would break.
 """
 
 from __future__ import annotations

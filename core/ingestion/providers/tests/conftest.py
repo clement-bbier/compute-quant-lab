@@ -94,7 +94,7 @@ def patch_runpod_network(
     return _patch
 
 
-# -- W2 wave: 5 additional venues (payloads reproducing the real shape of the APIs) --
+# -- Aggregator and single-cloud venues (payloads reproducing the real shape of the APIs) --
 
 
 @pytest.fixture

@@ -24,8 +24,8 @@ from core.utils.logging import get_logger, sanitize_for_log
 
 logger = get_logger(__name__)
 
-#: Single source of truth for HTTP call timeouts (seconds), including GridStatus.
-#: Previously 30.0 was hardcoded per-provider and absent entirely from GridStatus calls.
+#: Single source of truth for HTTP call timeouts (seconds). Applies to every provider
+#: and to GridStatus calls.
 DEFAULT_TIMEOUT_S: float = 30.0
 
 #: Maximum number of *retry* attempts after the first try (2 retries = 3 attempts total).

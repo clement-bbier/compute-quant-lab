@@ -1,6 +1,6 @@
 """Cold-store consumer run: DuckDB EDA plus MLflow logging (reproducibility).
 
-Demonstrates the core of the batch (roadmap section 0, instance section 7): a consumer
+Demonstrates the cold-store contract (roadmap section 0): a consumer
 reads the versioned Parquet lake through DuckDB and logs the run via
 ``core.utils.tracking``, whose git SHA pins the exact dataset. The same query is
 therefore replayable months later against the same data version.

@@ -1,8 +1,8 @@
-"""Collector rewire: dual CSV + Parquet writing, idempotent, network-free.
+"""Collector persistence: dual CSV + Parquet writing, idempotent, network-free.
 
 The network ``fetch`` is injected by an in-memory factory: *persistence* is tested, not
-marketplace I/O (covered elsewhere). Highlights the distribution fix: the Parquet lake
-keeps the distinct offers that the CSV (P04 dedup) overwrites.
+marketplace I/O (covered elsewhere). The Parquet lake keeps the distinct offers that the
+CSV (P04 dedup) overwrites.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def test_snapshot_dual_writes_csv_and_parquet(tmp_path: Path) -> None:
 
     assert written == 3  # Parquet keeps the distribution
     assert len(parquet_store.read()) == 3
-    assert len(csv_store.load()) >= 1  # the CSV also receives the readings (P04 unchanged)
+    assert len(csv_store.load()) >= 1  # the CSV also receives the readings (P04 format)
 
 
 def test_snapshot_parquet_is_idempotent(tmp_path: Path) -> None:
@@ -54,7 +54,7 @@ def test_snapshot_parquet_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_snapshot_zero_rows_logs_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    """V7.2: a dead collector (every venue returned nothing) must WARN, not INFO."""
+    """A dead collector (every venue returned nothing) must WARN, not INFO."""
     csv_store = CsvSnapshotStore(tmp_path / "snap")
     parquet_store = ParquetPriceStore(tmp_path / "snap")
 

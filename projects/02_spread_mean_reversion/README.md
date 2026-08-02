@@ -42,7 +42,7 @@ uv run pytest projects/02_spread_mean_reversion -q
 uv run python projects/02_spread_mean_reversion/src/run_backtest.py
 ```
 
-### Real data (V5.3: on by default, zero key required)
+### Real data (on by default, zero key required)
 - **Energy**: `load_energy_entsoe` reads the committed cold store (`data/cold/energy/`,
   FR/DE ENTSO-E day-ahead prices, 2024-01-01 → today) first — no token needed on a fresh
   clone. A live ENTSO-E token (`ENTSOE_API_TOKEN=…` in `.env`, free at
@@ -56,7 +56,7 @@ uv run python projects/02_spread_mean_reversion/src/run_backtest.py
 much shallower than the energy cold store) — see [results/SYNTHESIS.md](results/SYNTHESIS.md) §1.
 
 ## Results & pitfalls
-V5.3 reference run on **real** data (`entsoe_cold_store+marketplace`, `simulated=False`):
+Reference run on **real** data (`entsoe_cold_store+marketplace`, `simulated=False`):
 Sharpe ≈ 2.98 over ~1 month of real compute history — a preliminary read, not yet a validated
 edge (short window, no walk-forward). Prior **simulated** reference (Sharpe ≈ 7.70) is kept for
 comparison and was never credible (the strategy tracked the OU generating process exactly).

@@ -1,4 +1,4 @@
-"""(e) CSV to Parquet migration: every row of the CSV is preserved in the lake."""
+"""CSV to Parquet migration: every row of the CSV is preserved in the lake."""
 
 from __future__ import annotations
 

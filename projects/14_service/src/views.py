@@ -13,8 +13,7 @@ Edge boundary: this **only measures** ("who is cheapest, at what level"). The
 The canonical index and anti look-ahead are **delegated** to
 :func:`core.ingestion.compute_index.build_spot_index` (already tested); only the
 per-venue reduction (for the "cheapest" *ranking*) is reimplemented here, since ``core`` does not
-expose per-venue rates. → convergence handoff: promote a ``venue_rates`` helper into
-``core.ingestion``.
+expose per-venue rates. TODO: promote a ``venue_rates`` helper into ``core.ingestion``.
 """
 
 from __future__ import annotations

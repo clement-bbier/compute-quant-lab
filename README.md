@@ -52,7 +52,7 @@ Every project defaults to **synthetic data**, and says so explicitly in its resu
 Two branches run on real data today, both via a **committed cold store** — no key required on a fresh clone:
 
 - **ERCOT** (Texas grid, ~670 LOC across [`core/ingestion/energy/ercot.py`](core/ingestion/energy/ercot.py) and [`ercot_transport.py`](core/ingestion/energy/ercot_transport.py)), calibrated against the real-time market for grid-stress prediction ([P07](projects/07_exogenous_macro_signal/)).
-- **ENTSO-E FR/DE day-ahead prices** (V5.3, [`infra/collectors/entsoe_backfill.py`](infra/collectors/entsoe_backfill.py) → [`data/cold/energy/`](data/cold/energy/), 2024-01-01 to today, 89,246 rows, ~1.4 MB), consumed by [P02](projects/02_spread_mean_reversion/) and [P05](projects/05_energy_compute_basis/). `publish_time` is an **approximated convention** (`entsoe-py` returns no publication timestamp): day-ahead auctions clear D-1 ~12:45 Europe/Paris, so `publish_time` is derived from `interval_start` rather than read from the API — documented in [`core/storage/energy_store.py`](core/storage/energy_store.py) and the backfill script's docstring. `ENTSOE_API_TOKEN` becomes optional, used only to refresh beyond the committed range.
+- **ENTSO-E FR/DE day-ahead prices** ([`infra/collectors/entsoe_backfill.py`](infra/collectors/entsoe_backfill.py) → [`data/cold/energy/`](data/cold/energy/), 2024-01-01 to today, 89,246 rows, ~1.4 MB), consumed by [P02](projects/02_spread_mean_reversion/) and [P05](projects/05_energy_compute_basis/). `publish_time` is an **approximated convention** (`entsoe-py` returns no publication timestamp): day-ahead auctions clear D-1 ~12:45 Europe/Paris, so `publish_time` is derived from `interval_start` rather than read from the API — documented in [`core/storage/energy_store.py`](core/storage/energy_store.py) and the backfill script's docstring. `ENTSOE_API_TOKEN` becomes optional, used only to refresh beyond the committed range.
 
 The GPU marketplaces (compute leg) are coded and live-validated per venue but not yet cold-stored — real history only accumulates from when the collector first ran (`data/snapshots/`, day by day; no retroactive data exists). See [Live data](#live-data-optional) below for the remaining token-gated sources. The roadmap to fully real, continuously accumulated history is in [`docs/storage-roadmap.md`](docs/storage-roadmap.md).
 
@@ -132,8 +132,9 @@ Not yet captured — placeholders below mark where they belong. To fill one in: 
 ## Roadmap
 
 - Storage: cold-store phases 0-1 are done ([P11](core/storage/)); real-time serving (hot store, streaming) is phases 2-4, documented but not built — see [`docs/storage-roadmap.md`](docs/storage-roadmap.md).
-- Energy leg: **done (V5.3)** — FR/DE ENTSO-E day-ahead prices are committed to a cold store ([`data/cold/energy/`](data/cold/energy/)) and read by P02/P05 with zero key required; `ENTSOE_API_TOKEN` now only refreshes beyond the committed range.
-- Compute leg: still the shallow side — real marketplace history only accumulates from when `infra/collectors/gpu_price_snapshot.py` first ran (~1 month as of V5.3), with no cold store or retroactive backfill yet (unlike energy, GPU marketplace spot prices have no historical API to backfill from).
+- Energy leg: **done** — FR/DE ENTSO-E day-ahead prices are committed to a cold store ([`data/cold/energy/`](data/cold/energy/)) and read by P02/P05 with zero key required; `ENTSOE_API_TOKEN` only refreshes beyond the committed range.
+- Compute leg: still the shallow side — real marketplace history only accumulates from when `infra/collectors/gpu_price_snapshot.py` first ran (~1 month so far), with no cold store or retroactive backfill yet (unlike energy, GPU marketplace spot prices have no historical API to backfill from).
+- Parked items and known gaps: [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 ## License
 

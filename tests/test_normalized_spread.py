@@ -1,4 +1,4 @@
-"""Tests for the TFLOP-normalized spread + PUE sensitivity bands (Task A4)."""
+"""Tests for the TFLOP-normalized spread + PUE sensitivity bands."""
 
 from __future__ import annotations
 

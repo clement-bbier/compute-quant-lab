@@ -1,4 +1,4 @@
-"""Tests for the region-keyed PUE prior (Task A2/A3, pricing/energy sprint plan)."""
+"""Tests for the region-keyed PUE prior."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def test_texas_prior_matches_l0() -> None:
     assert ERCOT_TEXAS_PRIOR.sensitivity_bounds() == (1.2, 1.8)
 
 
-# --- Task A3: ServerPowerModel accepts a PuePrior (backward-compatible float) ---
+# --- ServerPowerModel accepts a PuePrior (backward-compatible float) -------------------
 
 
 def test_power_model_accepts_prior() -> None:

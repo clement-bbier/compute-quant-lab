@@ -68,7 +68,7 @@ Every crossing of these boundaries logs at least one line (INFO or higher):
 
 ## Why `configure_logging` instead of `basicConfig`
 
-`logging.basicConfig()` at module import time (the pre-V7.1 pattern in several runners)
+`logging.basicConfig()` at module import time
 configures logging as a side effect of `import`, which silently wins or loses depending on
 import order the moment two such modules are imported together in the same process
 (pytest collecting multiple runners, a notebook importing two of them). `configure_logging`

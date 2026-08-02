@@ -1,11 +1,11 @@
-"""TDD tests: optional descriptive fields on ``Snapshot`` and enriched parsers.
+"""Optional descriptive fields on ``Snapshot`` and the enriched parsers.
 
 Covers:
-- (a) ``Snapshot`` accepts the new fields and ``dedup_key`` is unchanged.
-- (b) The parsers of the 5 venues do populate the fields when the payload exposes them; they
-  leave ``None`` when absent.
-- (c) Backward compatibility: a ``Snapshot`` built without the new fields (pre-enrichment
-  syntax) keeps working.
+- ``Snapshot`` accepts the descriptive fields and ``dedup_key`` ignores them.
+- The venue parsers populate those fields when the payload exposes them; they leave
+  ``None`` when absent.
+- A ``Snapshot`` built with only the core fields keeps working, the optionals defaulting
+  to ``None``.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from core.ingestion.providers import cudo, datacrunch, primeintellect, runpod, v
 _TS = dt.datetime(2026, 6, 21, tzinfo=dt.timezone.utc)
 
 
-# -- (a) Snapshot: new fields + unchanged dedup_key ---------------------------
+# -- Snapshot: descriptive fields + dedup_key stability -----------------------
 
 
 def test_snapshot_accepts_optional_descriptive_fields() -> None:
@@ -94,7 +94,7 @@ def test_snapshot_dedup_key_excludes_descriptive_fields() -> None:
 
 
 def test_snapshot_backward_compat_positional_construction() -> None:
-    """Pre-enrichment code (without the new kwargs) compiles and returns None on the optionals."""
+    """A construction limited to the core fields leaves every optional at None."""
     s = Snapshot(
         snapshotted_at=_TS,
         source="cudo",
@@ -108,7 +108,7 @@ def test_snapshot_backward_compat_positional_construction() -> None:
     assert s.gpu_memory_gb is None
 
 
-# -- (b) Parsers: descriptive fields populated from the payload ----------------
+# -- Parsers: descriptive fields populated from the payload --------------------
 
 
 def test_vastai_populates_region_and_memory_from_payload() -> None:
@@ -139,7 +139,7 @@ def test_vastai_populates_region_and_memory_from_payload() -> None:
 def test_vastai_none_when_payload_lacks_descriptive_fields(
     vastai_offers: list[dict[str, Any]],
 ) -> None:
-    """Minimal payload (W1 fixture) -> descriptive fields None."""
+    """Minimal payload -> descriptive fields None."""
     snaps = vastai.parse_vastai_offers(vastai_offers, _TS)
     for s in snaps:
         assert s.region is None
@@ -161,7 +161,7 @@ def test_runpod_populates_gpu_memory_gb() -> None:
 
 
 def test_runpod_none_for_missing_memory(runpod_gpu_types: list[dict[str, Any]]) -> None:
-    """W1 fixture (without memoryInGb) -> gpu_memory_gb == None."""
+    """Fixture without memoryInGb -> gpu_memory_gb == None."""
     snaps = runpod.parse_runpod_gpu_types(runpod_gpu_types, _TS)
     assert all(s.gpu_memory_gb is None for s in snaps)
 

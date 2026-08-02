@@ -1,4 +1,4 @@
-"""STRICT anti look-ahead (section 6a) — the "expected red" of P07.
+"""STRICT anti look-ahead.
 
 A feature at ``t`` must NEVER consume a value whose knowledge-timestamp exceeds ``t``.
 Both sides are tested: (1) the point-in-time snapshot excludes the not-yet-published;
@@ -46,7 +46,7 @@ def test_guard_raises_when_used_knowledge_exceeds_asof(day_ts):
 
 
 def test_guard_logs_error_when_raising(day_ts, caplog):
-    """V7.2: a look-ahead violation must be visible in the logs, not just via the raise."""
+    """A look-ahead violation must be visible in the logs, not just via the raise."""
     used_knowledge = pd.Series([day_ts(2), day_ts(3)])
     with caplog.at_level("ERROR"), pytest.raises(LookAheadError):
         assert_point_in_time(day_ts(1), used_knowledge)

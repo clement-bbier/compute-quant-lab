@@ -1,4 +1,4 @@
-"""Late revision (section 6c) — the trap of "real-time" macro data (vintages).
+"""Late revision — the trap of "real-time" macro data (vintages).
 
 The same ``value_ts`` can be republished later with a revised value. At instant ``t``,
 only the already-published revision (``knowledge_ts <= t``) is visible: a future revision

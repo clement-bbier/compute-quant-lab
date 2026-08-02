@@ -4,14 +4,13 @@ The pure logic (``parse_tensordock``) is isolated from the network call (``fetch
 token-gated). Authentication uses a Bearer token on ``TENSORDOCK_API_KEY``.
 
 Chosen endpoint: ``GET https://dashboard.tensordock.com/api/v2/hostnodes``
-- returns 403 without auth, **200 with a Bearer** (verified live 2026-06-23, reconfirmed
-  in the V5.2 campaign): ``TENSORDOCK_API_KEY`` alone is sufficient, no other credential
-  is sent or required.
+- returns 403 without auth, **200 with a Bearer** (verified against the live API):
+  ``TENSORDOCK_API_KEY`` alone is sufficient, no other credential is sent or required.
 - real envelope: ``{"data": {"hostnodes": [...]}}`` -- everything sits under ``data``; the
   ``_hostnodes_records`` helper reads ``data.hostnodes`` and tolerates the older flat form
   ``{"hostnodes": ...}`` as well as a mapping indexed by id.
-- Warning: the live inventory has been **empty** on every check so far (2026-06-23 and
-  the V5.2 campaign): ``{"data": {"hostnodes": []}}``. The per-node detail below (in
+- Warning: the live inventory has been **empty** on every check so far:
+  ``{"data": {"hostnodes": []}}``. The per-node detail below (in
   particular the per-GPU vs per-node price hypothesis) is therefore still **unconfirmed**
   against a populated response -- there has never been a non-empty inventory to check it
   against.
@@ -32,7 +31,7 @@ Expected per-node schema (to be confirmed live):
         }
     }
 
-Confirmed live (V5.2 campaign):
+Confirmed against the live API:
 
 - Root envelope is ``{"data": {"hostnodes": [...]}}`` (a list, not a mapping indexed by id).
 - The v2 endpoint ``/api/v2/hostnodes`` exists and returns 200 with a Bearer token.

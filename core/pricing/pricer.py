@@ -37,8 +37,8 @@ logger = get_logger(__name__)
 class SpreadResult:
     """Pricing result: revenue/cost decomposition plus metadata.
 
-    The explicit decomposition (`revenue`, `cost`, `spread`) answers the requirement
-    of prompt P01 section 3a; the metadata records the assumptions of the computation.
+    The decomposition is explicit (`revenue`, `cost`, `spread`) so a spread can be
+    attributed to its two legs; the metadata records the assumptions of the computation.
     """
 
     spread: pd.Series

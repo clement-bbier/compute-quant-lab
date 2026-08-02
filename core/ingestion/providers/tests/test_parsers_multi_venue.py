@@ -1,11 +1,10 @@
-"""Golden cases of the 5 W2 parsers on payloads reproducing the real API shapes.
+"""Golden cases of the venue parsers on payloads reproducing the real API shapes.
 
 Each parser is **pure**: we call it directly on a sample (zero network) and check the
 ``Snapshot`` rows produced -- $/GPU·h unit, lease type (on-demand **and** spot when the API
 exposes it), ``source``, model normalisation and exclusion of the offers without a valid price
-or without a GPU. The exact shape of some responses (CUDO, Hyperstack, TensorDock v2) still
-needs live confirmation at convergence; these tests freeze the parsing contract on the
-documented sample.
+or without a GPU. The exact shape of some responses (CUDO, Hyperstack, TensorDock v2) is not
+yet confirmed live; these tests freeze the parsing contract on the documented sample.
 """
 
 from __future__ import annotations

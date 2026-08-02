@@ -6,9 +6,9 @@ Every price produced here is therefore **theoretical/simulated** -- :class:`Futu
 carries a mandatory ``simulated`` field (no default value), enforced by the type and
 covered by tests.
 
-Standalone subpackage of :mod:`core.pricing`: it does not alter the P01 API (spark
-spread). Re-exporting these symbols from ``core/pricing/__init__.py`` remains an
-open gap: importing via ``core.pricing.derivatives`` directly works today.
+Standalone subpackage of :mod:`core.pricing`, leaving the spark spread API (P01)
+untouched. These symbols are not re-exported from ``core/pricing/__init__.py``:
+import them from ``core.pricing.derivatives`` directly.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""V7.2 observability: provider fetches retry on 5xx, never on 4xx (budget-zero).
+"""Provider fetches retry on 5xx, never on 4xx (budget-zero).
 
 Uses ``vastai`` as the representative venue (single GET call, simplest shape); the retry
 policy itself lives in ``core.utils.net`` and is unit-tested there directly. This file

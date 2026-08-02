@@ -1,9 +1,9 @@
-"""V7.2 observability: compute_index rejections are counted and logged as an audit summary.
+"""compute_index rejections are counted and logged as an audit summary.
 
-``build_spot_index`` silently dropped observations at four stages (hyperscaler exclusion,
-staleness, direct-over-aggregator dedup, MAD outlier rejection) with no visibility into how
-many were rejected at each stage -- yet this is exactly the audit trail behind a published
-price. One INFO summary line per successful fix, one WARNING when no fresh venue survives.
+``build_spot_index`` drops observations at four stages (hyperscaler exclusion, staleness,
+direct-over-aggregator dedup, MAD outlier rejection), and each stage's rejection count is
+reported -- this is exactly the audit trail behind a published price. One INFO summary line
+per successful fix, one WARNING when no fresh venue survives.
 """
 
 from __future__ import annotations

@@ -1,9 +1,8 @@
 """Energy model of a GPU server.
 
-Cleanly separates the *IT* power (GPU TDP) from datacenter efficiency (PUE), where
-the historical scalar building block (`spark_spread.py`) handled only a
-"PUE-included" power figure. This separation makes the PUE lever explicit, as
-required by the sensitivity study of prompt P01.
+Cleanly separates the *IT* power (GPU TDP) from datacenter efficiency (PUE) rather
+than carrying a single "PUE-included" power figure. That separation makes the PUE
+lever explicit, so it can be varied on its own in a sensitivity study.
 """
 
 from __future__ import annotations

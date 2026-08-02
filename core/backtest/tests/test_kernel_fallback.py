@@ -1,8 +1,7 @@
 """Phase-2 kernel selection: Rust is the fast path, the Python oracle the fallback.
 
-Pins the contract that ``import core.backtest`` never requires a Rust build. The
-engine used to import ``backtest_loop`` unconditionally, so the whole package was
-unimportable on any machine that had not run ``maturin develop``.
+Pins the contract that ``import core.backtest`` never requires a Rust build: the package
+stays importable on a machine that has not run ``maturin develop``.
 """
 
 from __future__ import annotations

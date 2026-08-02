@@ -19,10 +19,10 @@ plain-git-versioned lake, never live data). Parallel to the GPU price lake
 (``ParquetPriceStore``), with a distinct schema because energy carries two timestamps
 (publication + target).
 
-Point-in-time reads (V7.3): ``read(as_of=...)`` filters on ``publish_time`` -- a row
-published after ``as_of`` is excluded, so a backtest replaying instant ``t`` never sees a
-forecast vintage that was not yet known at ``t``. ``as_of=None`` (default) returns
-everything, unchanged from pre-V7.3 behaviour (full backward compatibility).
+Point-in-time reads: ``read(as_of=...)`` filters on ``publish_time`` -- a row published
+after ``as_of`` is excluded, so a backtest replaying instant ``t`` never sees a forecast
+vintage that was not yet known at ``t``. ``as_of=None`` (default) returns everything
+(full backward compatibility).
 
 Provenance (``simulated``, ``ingested_at``): same tolerated-absent contract as the GPU
 lake (``core.storage.schema``) -- every backfill collector wired today (ENTSO-E, ERCOT)
@@ -179,9 +179,9 @@ class EnergyColdStore:
         as_of
             Point-in-time cutoff (UTC tz-aware): a row **published after** ``as_of``
             (``publish_time > as_of``) is excluded -- it was not yet known at that
-            instant. ``None`` (default) returns every row regardless of publication time,
-            unchanged from pre-V7.3 behaviour (full backward compatibility). The
-            boundary is inclusive: a row with ``publish_time == as_of`` is kept.
+            instant. ``None`` (default) returns every row regardless of publication time
+            (full backward compatibility). The boundary is inclusive: a row with
+            ``publish_time == as_of`` is kept.
         """
         if not any(self.root.rglob("*.parquet")):
             logger.warning("EnergyColdStore %s: lake is empty, returning 0 rows", self.root)

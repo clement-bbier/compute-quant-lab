@@ -1,7 +1,8 @@
 """Region-keyed PUE prior (truncated normal), following note L0 section 8.
 
-**Strict** prior: never updated from observed prices (fit-to-price is forbidden, see
-the risk-validator review). Provides a *point estimate* (mu, the central pricing path)
+**Strict** prior: never updated from observed prices (fit-to-price is forbidden -- it
+would make the model reproduce the market instead of pricing against it). Provides a
+*point estimate* (mu, the central pricing path)
 and *sensitivity bounds* (the support), propagated as bands by the pricer.
 """
 

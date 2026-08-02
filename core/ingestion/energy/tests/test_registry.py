@@ -1,4 +1,4 @@
-"""Tests of the key-gated EnergyMarket registry (B1).
+"""Tests of the key-gated EnergyMarket registry.
 
 Checks the injection protocol: registration, lookup, key-gating, and the explicit error for an
 unknown market.

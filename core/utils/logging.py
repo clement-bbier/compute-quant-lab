@@ -57,11 +57,9 @@ _git_sha_cache: str | None = None
 def _resolve_git_sha() -> str:
     """Resolve the short git SHA once per process; ``"unknown"`` is never returned silently.
 
-    A prior version of this helper (in ``core.utils.tracking``) swallowed the failure into
-    a bare ``"unknown"`` string with no signal that resolution had failed. Here the same
-    degraded value is used (log lines still need a fixed-width field), but the failure
-    itself is surfaced via ``logger.warning`` so it is visible instead of silently baked
-    into every subsequent line.
+    On failure the degraded value ``"unknown"`` is still used (log lines need a
+    fixed-width field), but the failure itself is surfaced via ``logger.warning`` so it
+    is visible instead of silently baked into every subsequent line.
     """
     global _git_sha_cache
     if _git_sha_cache is not None:
@@ -158,12 +156,12 @@ def get_logger(
     """Return the named logger, propagating to the root handler installed by an entry point.
 
     No handler is attached here and no level is set: attaching either at import time is
-    exactly the library-configures-logging-at-import anti-pattern that left the previous
-    version of this function silent under `import` (no handler until ``configure_logging``
-    or ``basicConfig`` ran) and duplicating lines whenever it was itself called more than
-    once at different levels. Level and destination are decided once, by whichever entry
-    point called :func:`configure_logging`; every ``get_logger`` caller just inherits it via
-    normal propagation.
+    exactly the library-configures-logging-at-import anti-pattern, which leaves a module
+    silent under `import` (no handler until ``configure_logging`` or ``basicConfig`` ran)
+    and duplicating lines whenever it is called more than once at different levels. Level
+    and destination are decided once, by whichever entry point called
+    :func:`configure_logging`; every ``get_logger`` caller just inherits it via normal
+    propagation.
 
     Parameters
     ----------

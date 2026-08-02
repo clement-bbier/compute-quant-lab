@@ -1,4 +1,4 @@
-"""ERCOT live smoke test -- real, marked ``@pytest.mark.live`` (B3).
+"""ERCOT live smoke test -- real, marked ``@pytest.mark.live``.
 
 Excluded from CI by default (ERCOT network required). Run it explicitly with:
     uv run pytest -m live core/ingestion/energy -v
@@ -13,8 +13,8 @@ What the smoke test validates:
 - The RTM series is UTC tz-aware and monotonically increasing.
 - get_load_forecast() returns a well-formed raw feed (schema, UTC, margin coherence,
   plausible range). NOT a point-in-time claim: the raw feed includes late-published
-  revisions for elapsed intervals (confirmed live, V5.2) -- point-in-time is guaranteed
-  one layer up, by reserve_forecast_as_of (see test_hosted_transport.py).
+  revisions for elapsed intervals (confirmed against the live API) -- point-in-time is
+  guaranteed one layer up, by reserve_forecast_as_of (see test_hosted_transport.py).
 - Both calls cover at least 1 day of data.
 """
 

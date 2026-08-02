@@ -1,8 +1,7 @@
 """Tests of the injectable ERCOT transport (P17 -- hosted GridStatus.io egress).
 
 Offline: MOCKED hosted client + fixtures of the hosted schema, confirmed against the real
-API by the live tests below (``@pytest.mark.live``, V5.2 campaign) and by
-``test_fetch_live.py``.
+API by the live tests below (``@pytest.mark.live``) and by ``test_fetch_live.py``.
 """
 
 from __future__ import annotations
@@ -34,8 +33,8 @@ class _FakeClient:
 
 
 def _hosted_rtm_frame() -> pd.DataFrame:
-    # Hosted schema (snake_case + *_utc) -- CONFIRMED live (V5.2 campaign,
-    # test_hosted_live_rtm_real_schema): the real GridStatus.io response maps cleanly
+    # Hosted schema (snake_case + *_utc) -- CONFIRMED live by
+    # test_hosted_live_rtm_real_schema: the real GridStatus.io response maps cleanly
     # through _hosted_rtm_to_canonical with this column shape.
     return pd.DataFrame(
         {
@@ -83,7 +82,7 @@ def test_hosted_transport_maps_forecast_to_canonical() -> None:
     # point-in-time: the forecast is published before the target interval
     assert (df["publish_time"] < df["interval_start"]).all()
     assert list(df["forecast_load_mw"]) == [45000.0, 46000.0]
-    # capacity not fabricated -> reserve margin NaN (point 2: no more 70 GW placeholder)
+    # capacity not fabricated -> reserve margin NaN (never a placeholder value)
     assert df["reserve_margin_mw"].isna().all()
 
 
@@ -142,7 +141,7 @@ def test_transport_selection_injected_logs_choice(caplog: pytest.LogCaptureFixtu
 
 
 def test_gridstatus_io_default_limit_is_capped_not_unlimited() -> None:
-    """Task V7.2 point 2: the free-tier quota must never be uncapped by omission."""
+    """The free-tier quota must never be left uncapped by omission."""
     transport = GridstatusIoTransport(client=object())
     assert transport._limit == DEFAULT_GRIDSTATUS_LIMIT
     assert transport._limit is not None

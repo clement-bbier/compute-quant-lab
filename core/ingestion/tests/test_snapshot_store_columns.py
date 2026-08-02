@@ -1,11 +1,10 @@
 """Round-trip tests for the 13-column CSV snapshot store.
 
-The store used to persist only the 6 core columns, silently dropping the enriched
-descriptive fields (``region``, ``gpu_memory_gb``, ``vcpu``, ``ram_gb``, ``disk_gb``,
-``provider_detail``) that the W2 venue wave was built to capture. These tests pin the
-full round-trip and the backward compatibility of legacy 6-column files, plus (V7.3)
-the in-place header upgrade that protects the mandatory ``simulated`` provenance column
-from the same silent-drop fate.
+The store persists the enriched descriptive fields (``region``, ``gpu_memory_gb``,
+``vcpu``, ``ram_gb``, ``disk_gb``, ``provider_detail``) alongside the 6 core ones. These
+tests pin the full round-trip and the backward compatibility of legacy 6-column files,
+plus the in-place header upgrade that keeps the mandatory ``simulated`` provenance column
+from being silently dropped.
 """
 
 from __future__ import annotations
@@ -60,7 +59,7 @@ def test_round_trip_preserves_all_twelve_columns(tmp_path: Path) -> None:
 
 
 def test_written_header_lists_thirteen_columns(tmp_path: Path) -> None:
-    """A file created by this version carries the full schema (12 + provenance) on disk."""
+    """A newly created file carries the full schema (12 columns + provenance) on disk."""
     store = CsvSnapshotStore(tmp_path)
     store.append([_enriched()])
 
@@ -128,8 +127,8 @@ def test_reads_legacy_six_column_file(tmp_path: Path) -> None:
     assert loaded.availability == 3
     assert loaded.region is None
     assert loaded.provider_detail is None
-    # V7.3: a row predating `simulated` is documented provenance (real collector
-    # output), backfilled to False -- not rejected, not a guessed default.
+    # A row predating `simulated` is documented provenance (real collector output),
+    # backfilled to False -- not rejected, not a guessed default.
     assert loaded.simulated is False
 
 
@@ -138,10 +137,10 @@ def test_append_to_legacy_file_keeps_its_header_layout(tmp_path: Path) -> None:
 
     The pre-existing 6-column header is respected for the purely optional descriptive
     fields (dropped for the newly-appended row too, rather than shifting every value one
-    cell to the left). The mandatory ``simulated`` provenance column is different (V7.3
-    reinforcement of this test, not a relaxation): the header is upgraded in place to add
-    it, so the row appended to a legacy file still carries its real provenance instead of
-    silently losing it to ``extrasaction="ignore"``.
+    cell to the left). The mandatory ``simulated`` provenance column is different: the
+    header is upgraded in place to add it, so the row appended to a legacy file still
+    carries its real provenance instead of silently losing it to
+    ``extrasaction="ignore"``.
     """
     path = tmp_path / "gpu_prices_202606.csv"
     with path.open("w", newline="") as f:

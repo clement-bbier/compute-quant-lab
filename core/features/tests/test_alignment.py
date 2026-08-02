@@ -1,4 +1,4 @@
-"""Temporal / timezone alignment (section 6b).
+"""Temporal / timezone alignment.
 
 Macro data arrives in various timezones; every "known at t" comparison must happen in
 tz-aware UTC. The naive (ambiguous) datetime is rejected, timezones are normalized, and

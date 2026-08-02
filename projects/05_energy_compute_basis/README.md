@@ -49,7 +49,7 @@ uv run python projects/05_energy_compute_basis/src/run_basis.py
 mlflow ui   # dashboard (experiment p05_energy_compute_basis)
 ```
 
-> Real data (V5.3): energy reads the committed cold store (`data/cold/energy/`) by default —
+> Real data: energy reads the committed cold store (`data/cold/energy/`) by default —
 > zero key required on a fresh clone. `ENTSOE_API_TOKEN` only refreshes beyond the store's
 > committed range; without store data or a token, a **clearly labeled** deterministic
 > synthetic fallback is used. Real compute comes from P04 snapshots if accumulated.

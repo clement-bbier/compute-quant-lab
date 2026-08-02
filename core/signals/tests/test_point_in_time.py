@@ -1,7 +1,7 @@
 """Anti look-ahead, per producer: the signal at ``t`` depends only on data ``<= t``.
 
-Strong test (invariance to tampering with the future, section 6a): each producer is evaluated in
-a sequential pass up to ``T``, then the **prices after ``T`` are wrecked** and the pass is redone
+Strong test (invariance to tampering with the future): each producer is evaluated in a
+sequential pass up to ``T``, then the **prices after ``T`` are wrecked** and the pass is redone
 up to ``T`` — the signal at ``T`` must be **identical**. That proves no future information enters.
 The tests also check that a *cheating* producer (one that reads the future) raises through the
 P08 ``GuardedView``.

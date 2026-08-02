@@ -90,11 +90,11 @@ def test_new_publish_time_appends(tmp_path: Path) -> None:
     assert len(store.read(series="load_forecast")) == 2
 
 
-# -- Point-in-time reads (`as_of`, V7.3) ----------------------------------------
+# -- Point-in-time reads (`as_of`) ----------------------------------------------
 
 
 def test_read_as_of_none_returns_everything(tmp_path: Path) -> None:
-    """Default (no as_of) is unchanged from pre-V7.3 behaviour: full backward compat."""
+    """Default (no as_of) returns every row: full backward compatibility."""
     store = EnergyColdStore(tmp_path)
     store.write(_frame())
     assert len(store.read(as_of=None)) == 2
@@ -153,7 +153,7 @@ def test_read_as_of_rejects_naive_cutoff(tmp_path: Path) -> None:
         store.read(as_of=pd.Timestamp("2024-01-14T18:00:00"))
 
 
-# -- Provenance (`simulated`, `ingested_at`, V7.3) -------------------------------
+# -- Provenance (`simulated`, `ingested_at`) -------------------------------------
 
 
 def test_write_stamps_ingested_at_forward_only(tmp_path: Path) -> None:

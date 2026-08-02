@@ -286,5 +286,5 @@ class SiliconDataSource:
         raise NotImplementedError(
             "Canonical Silicon Data source (SDH100RT) is not wired in. "
             "Requires SILICONDATA_API_TOKEN + an API endpoint; must return Snapshot rows "
-            "with source='silicon_data'. See the convergence handoff (source registry)."
+            "with source='silicon_data'. Register it in the source registry once wired."
         )

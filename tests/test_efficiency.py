@@ -1,4 +1,4 @@
-"""Tests for the GPU efficiency reference table (Task A1, pricing/energy sprint plan)."""
+"""Tests for the GPU efficiency reference table."""
 
 from __future__ import annotations
 

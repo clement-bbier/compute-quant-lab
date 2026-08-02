@@ -73,7 +73,7 @@ def test_default_config_is_market_standard() -> None:
 
 def test_intra_venue_distribution_aggregated_not_arbitrary(as_of) -> None:
     # A venue with N offers at the SAME timestamp -> robust median of the cohort,
-    # never an arbitrarily picked offer (the fixed bug). 100.0 is an intra-venue outlier.
+    # never an arbitrarily picked offer. 100.0 is an intra-venue outlier.
     ts = as_of - dt.timedelta(hours=1)
     offers = [
         Snapshot(ts, "vastai", "H100", 2.0, "on_demand", 1, simulated=False),

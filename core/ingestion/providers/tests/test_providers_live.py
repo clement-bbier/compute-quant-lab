@@ -1,4 +1,4 @@
-"""Live validation of the 7 GPU marketplace connectors -- real APIs, real keys (V5.2).
+"""Live validation of the 7 GPU marketplace connectors -- real APIs, real keys.
 
 One ``@pytest.mark.live`` test per venue, skipped when its key is absent. Each test makes
 **exactly one** network round trip (two for Hyperstack and DataCrunch, whose connectors are

@@ -1,7 +1,7 @@
-"""TDD tests: enriched schema and backward compatibility of normalize_frame.
+"""Enriched schema and backward compatibility of normalize_frame.
 
 Covers:
-- (b) ``normalize_frame`` backfills a legacy frame/Parquet without the new descriptive
+- ``normalize_frame`` backfills a legacy frame/Parquet without the descriptive
   columns (proof of backward compatibility).
 - Propagation of the optional fields through the ``Snapshot`` / frame round-trip.
 - The optional columns are indeed present in the output of normalize_frame, even when
@@ -42,11 +42,11 @@ _TS = pd.Timestamp("2026-01-01", tz="UTC")
 _TS_PY = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
 
 
-# -- (b) normalize_frame backward compatibility --------------------------------
+# -- normalize_frame backward compatibility ------------------------------------
 
 
 def _legacy_frame() -> pd.DataFrame:
-    """Frame with ONLY the mandatory columns (pre-enrichment format)."""
+    """Frame with ONLY the mandatory columns."""
     return pd.DataFrame(
         [
             {
@@ -70,7 +70,7 @@ def test_normalize_frame_backfills_missing_optional_columns() -> None:
 
     result = normalize_frame(legacy)
 
-    # Every optional column is now present.
+    # Every optional column is present.
     for col in OPTIONAL_COLUMNS:
         assert col in result.columns, f"Column '{col}' missing after normalize_frame"
     # They are None.
@@ -201,7 +201,7 @@ def test_snapshots_to_frame_all_none_preserved() -> None:
 
 
 def test_snapshot_construction_fails_without_simulated() -> None:
-    """Red-first (ADR 006 pattern): `simulated` has no default, so omitting it is a TypeError."""
+    """ADR 006 pattern: `simulated` has no default, so omitting it is a TypeError."""
     with pytest.raises(TypeError, match="simulated"):
         Snapshot(  # type: ignore[call-arg]
             snapshotted_at=_TS_PY,

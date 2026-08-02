@@ -10,14 +10,14 @@ ambiguous point-in-time), never silently localized.
 
 Backward compatibility: the optional descriptive columns (``region``,
 ``gpu_memory_gb``, ``vcpu``, ``ram_gb``, ``disk_gb``, ``provider_detail``) are
-tolerated-absent. A Parquet file written before they were added can be reloaded
-without error: ``normalize_frame`` backfills them with ``None``/``NaN``.
+tolerated-absent. A Parquet file lacking them can be reloaded without error:
+``normalize_frame`` backfills them with ``None``/``NaN``.
 
 Provenance (``simulated``, rule ``forward-real-simulated``): mandatory on
-:class:`~core.ingestion.protocols.Snapshot` since V7.3, but tolerated-absent here for
-the **same** backward-compatibility reason as the optional descriptive columns -- every
-row written by a collector before this column existed is a real observation (the
-collector's only mode; there is no synthetic compute-price fallback), so a legacy row
+:class:`~core.ingestion.protocols.Snapshot`, but tolerated-absent here for the **same**
+backward-compatibility reason as the optional descriptive columns -- every legacy row
+written without this column is a real observation (the collector's only mode; there is
+no synthetic compute-price fallback), so a legacy row
 missing ``simulated`` is backfilled to ``False``, not rejected. This is a documented
 provenance fact about the CI collector's history, not a guess.
 
@@ -45,7 +45,7 @@ PRICE = "price_usd_per_hour"
 #: Number of GPUs offered (proxy for the depth of the reading).
 AVAILABILITY = "availability"
 
-# -- Optional descriptive columns (added post-foundation) ----------------------
+# -- Optional descriptive columns ----------------------------------------------
 #: Hosting region / datacenter (e.g. ``"EU-FIN-01"``, ``"us-east"``).
 REGION = "region"
 #: GPU memory in GB (e.g. ``80.0`` for an H100 SXM).
@@ -84,8 +84,8 @@ def normalize_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
     The mandatory columns (:data:`COLUMNS`) must be present; the optional columns
     (:data:`OPTIONAL_COLUMNS`) are backfilled with ``None``/``NaN`` when absent —
-    which makes the function **backward compatible** with Parquet files written
-    before the schema was enriched. The provenance columns (:data:`PROVENANCE_COLUMNS`)
+    which makes the function **backward compatible** with Parquet files that carry
+    only the mandatory columns. The provenance columns (:data:`PROVENANCE_COLUMNS`)
     follow the same tolerated-absent contract, with a documented backfill value each
     (see module docstring): ``simulated`` -> ``False``, ``ingested_at`` -> ``NaT``.
 

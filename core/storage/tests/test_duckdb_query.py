@@ -1,4 +1,4 @@
-"""(d) DuckDB: embedded SQL (zero server) over the Parquet lake -> expected results."""
+"""DuckDB: embedded SQL (zero server) over the Parquet lake -> expected results."""
 
 from __future__ import annotations
 
@@ -64,9 +64,9 @@ def test_query_on_empty_store_logs_warning(
 def test_query_mixes_legacy_and_enriched_parquet(
     store: ParquetPriceStore, make_frame: Frame
 ) -> None:
-    """A Parquet file from BEFORE the enrichment (without descriptive columns) coexists with
-    an enriched one: selecting a new column must not raise "schema mismatch"
-    (union_by_name), the missing value of the old readings being NULL."""
+    """A Parquet file without the descriptive columns coexists with an enriched one:
+    selecting a descriptive column must not raise "schema mismatch" (union_by_name), the
+    missing value of the legacy readings being NULL."""
     # Legacy Parquet: only the historical business columns, written by hand into the Hive
     # partition (source/month derived from the path, like the files already in the cloud).
     legacy_part = store.root / "source=vastai" / "month=202501"

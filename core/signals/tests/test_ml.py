@@ -1,8 +1,8 @@
 """``MLEnsembleSignal``: out-of-sample ML directional signal (wraps the P09 adapter).
 
 The producer re-implements nothing: it **delegates** to ``PrecomputedSignalStrategy`` from
-``core.models`` (P09). The tests therefore require **exact parity** with P09 (section 6b), the
-switch to flat on ``NaN`` (warm-up / unobservable tail), and the labelled provenance.
+``core.models`` (P09). The tests therefore require **exact parity** with P09, the switch to
+flat on ``NaN`` (warm-up / unobservable tail), and the labelled provenance.
 """
 
 from __future__ import annotations

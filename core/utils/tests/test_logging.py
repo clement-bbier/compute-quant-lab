@@ -1,11 +1,11 @@
-"""Tests for the lab's central logger (V7.1 observability wiring).
+"""Tests for the lab's central logger.
 
 Two groups:
 
-- ``sanitize_for_log`` (V5.2): a configured secret value never survives into a sanitized
+- ``sanitize_for_log``: a configured secret value never survives into a sanitized
   message. ``str(exc)`` on an HTTP client error routinely echoes the failing request
   (headers, URL, sometimes the body), which can carry an API key.
-- ``configure_logging`` / ``get_logger`` (V7.1): level is driven by ``LOG_LEVEL``, every
+- ``configure_logging`` / ``get_logger``: level is driven by ``LOG_LEVEL``, every
   emitted record carries the git SHA, provenance is stamped when the call site supplies it,
   and importing the module attaches no handler (library-safe).
 """
@@ -95,8 +95,8 @@ def test_short_secret_value_does_not_over_match(monkeypatch) -> None:
 def test_get_logger_attaches_no_handler_at_import_or_call() -> None:
     """Library-safe: obtaining a logger must never itself install a handler.
 
-    A handler attached by ``get_logger`` (the pre-V7.1 behaviour) means the module is
-    configuring logging as a side effect of being imported -- exactly what leaves a
+    A handler attached by ``get_logger`` would mean the module is configuring
+    logging as a side effect of being imported -- exactly what leaves a
     library mute or duplicating lines depending on import order. Only
     :func:`configure_logging` may add a handler, and only to the root logger.
     """

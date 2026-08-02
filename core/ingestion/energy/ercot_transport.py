@@ -13,10 +13,10 @@ Each transport brings its frames back to the **canonical gridstatus schema** (co
 ``"Interval Start"`` / ``"Location"`` / ``"SPP"`` / ``"Publish Time"`` / ``"System
 Total"``) that the ``ercot.py`` parsers already consume -- zero parsing duplication.
 
-Hosted schema (snake_case + ``_utc`` suffixes) -- **CONFIRMED live** (V5.2 campaign, all 4
-``test_hosted_live_*`` tests in ``tests/test_hosted_transport.py``): every dataset below and
-both hosted-only columns map cleanly through the mappers here against the real GridStatus.io
-API. Free plan quota: 500k rows/month -> always pass ``limit`` on large pulls.
+Hosted schema (snake_case + ``_utc`` suffixes) -- **confirmed against the live API** by the
+four ``test_hosted_live_*`` tests in ``tests/test_hosted_transport.py``: every dataset below
+and both hosted-only columns map cleanly through the mappers here. Free plan quota: 500k
+rows/month -> always pass ``limit`` on large pulls.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from core.utils.net import call_with_retry
 
 logger = get_logger(__name__)
 
-#: Dataset IDs of the hosted GridStatus.io API -- confirmed live (V5.2 campaign).
+#: Dataset IDs of the hosted GridStatus.io API -- confirmed against the live API.
 RTM_DATASET = "ercot_spp_real_time_15_min"
 FORECAST_DATASET = "ercot_load_forecast"
 ADEQUACY_DATASET = "ercot_short_term_system_adequacy"
@@ -39,14 +39,14 @@ NET_LOAD_DATASET = "ercot_net_load_forecast"
 
 #: Row cap applied when the caller does not pass an explicit ``limit`` (free plan quota:
 #: 500k rows/month -- an uncapped pull on a wide date range could exhaust it in one call).
-#: Chosen well under the monthly quota so a handful of uncapped calls in a session still
-#: leaves headroom; callers needing more (backfills) pass ``limit`` explicitly.
+#: Chosen well under the monthly quota so a handful of such calls still leaves headroom;
+#: callers needing more (backfills) pass ``limit`` explicitly.
 DEFAULT_GRIDSTATUS_LIMIT: int = 10_000
 
-#: Hosted capacity column kept for the L0 reserve margin -- confirmed live (V5.2 campaign).
+#: Hosted capacity column kept for the L0 reserve margin -- confirmed against the live API.
 _HOSTED_CAPACITY_COL = "available_capacity_generation"
-#: Hosted net-load column (absent from the OSS lib -> hosted only) -- confirmed live
-#: (V5.2 campaign).
+#: Hosted net-load column (absent from the OSS lib -> hosted only) -- confirmed against
+#: the live API.
 _HOSTED_NETLOAD_COL = "net_load_forecast"
 
 
@@ -131,9 +131,8 @@ class GridstatusIoTransport:
         Already-built client (test injection). If provided, ``api_key`` is ignored.
     limit
         Row cap per request (free quota = 500k/month). ``None`` (default) resolves to
-        :data:`DEFAULT_GRIDSTATUS_LIMIT` -- an explicit uncapped pull is no longer
-        possible by omission; pass a larger ``limit`` explicitly for a backfill that
-        needs more rows.
+        :data:`DEFAULT_GRIDSTATUS_LIMIT` -- omitting ``limit`` never issues an uncapped
+        pull; pass a larger ``limit`` explicitly for a backfill that needs more rows.
     """
 
     def __init__(
@@ -259,7 +258,7 @@ def _hosted_adequacy_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
 
     STSA is a **capacity** report (NOT a demand one). We keep
     ``available_capacity_generation`` (forecast available generation capacity) as the
-    capacity of the L0 reserve margin. Hosted name confirmed live (V5.2 campaign).
+    capacity of the L0 reserve margin. Hosted name confirmed against the live API.
     """
     return pd.DataFrame(
         {
@@ -275,7 +274,7 @@ def _hosted_net_load_to_canonical(df: pd.DataFrame) -> pd.DataFrame:
     """Rename the hosted ``ercot_net_load_forecast`` schema to the canonical one.
 
     Net-load = load - renewables (the sunset ramp is the scarcity driver). Hosted column
-    ``net_load_forecast`` confirmed live (V5.2 campaign).
+    ``net_load_forecast`` confirmed against the live API.
     """
     return pd.DataFrame(
         {

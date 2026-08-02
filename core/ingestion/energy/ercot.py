@@ -1,7 +1,7 @@
 """ERCOT (Texas) connector via ``gridstatus`` -- public market, no token.
 
-Confirmed API surface (B0 -- 2026-06-23)
------------------------------------------
+Confirmed API surface
+---------------------
 - ``gridstatus.Ercot()`` -- main class, ``default_timezone = "US/Central"``.
 - ``iso.get_spp(date, end, market=Markets.REAL_TIME_15_MIN, locations=[...])``
     Output columns: ``["Time", "Interval Start", "Interval End",
@@ -147,10 +147,9 @@ def parse_load_forecast(df: pd.DataFrame) -> pd.DataFrame:
     - ``forecast_load_mw``    : forecast load (System Total, MW).
     - ``forecast_capacity_mw``: forecast available capacity (MW), **only from a real
       source**. Absent from the load report -> ``NaN`` (never fabricated: a placeholder
-      would silently corrupt the L0 reserve margin predictor). Wiring a real capacity
-      (Short-Term System Adequacy) is a dedicated task.
-    - ``reserve_margin_mw``   : margin = capacity - load (MW), ``NaN`` for as long as the
-      real capacity is not wired in.
+      would silently corrupt the L0 reserve margin predictor).
+    - ``reserve_margin_mw``   : margin = capacity - load (MW), ``NaN`` whenever no real
+      capacity is available for the interval.
 
     L0 section 2 point-in-time: ``publish_time`` is preserved from the gridstatus
     ``Publish Time`` column and converted to UTC. The ``publish_time < interval_start``

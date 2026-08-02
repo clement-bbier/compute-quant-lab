@@ -1,4 +1,4 @@
-"""(b) Idempotence: re-appending the same reading never creates a duplicate.
+"""Idempotence: re-appending the same reading never creates a duplicate.
 
 Guarantees that a replayable scheduled collector (same instant recorded twice) does not
 introduce duplicates, while keeping the genuinely distinct offers (distribution).

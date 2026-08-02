@@ -1,17 +1,16 @@
 """GPU marketplace connector -- **compatibility shim** (the logic lives in ``providers/``).
 
-Vast.ai and RunPod were historically implemented here. To add venues in parallel without
-collisions (*1 file = 1 venue*), the logic moved into the pluggable package
-:mod:`core.ingestion.providers` (one module per venue + a protocol + a key-gated registry).
-This module remains the **stable public API**:
+Every venue lives in the pluggable package :mod:`core.ingestion.providers` (one module per
+venue + a protocol + a key-gated registry), so that a venue can be added without touching
+any other (*1 file = 1 venue*). This module is the **stable public API** over it:
 
-- it **re-exports** the historical symbols (``normalize_gpu_model``, ``parse_*``,
-  ``fetch_*``) so that no existing importer breaks (the ``core.ingestion`` facade, the P04
-  tests);
+- it **re-exports** the long-standing symbols (``normalize_gpu_model``, ``parse_*``,
+  ``fetch_*``) so that existing importers keep working (the ``core.ingestion`` facade, the
+  P04 tests);
 - ``fetch_live_gpu_prices`` **delegates to the registry**
-  :func:`core.ingestion.providers.fetch_all`, keeping its exact signature and behaviour (the
-  scheduled collector ``infra/collectors/gpu_price_snapshot.py`` and the GitHub Actions live
-  collection depend on it).
+  :func:`core.ingestion.providers.fetch_all`; its signature and behaviour are part of the
+  contract the scheduled collector ``infra/collectors/gpu_price_snapshot.py`` and the
+  GitHub Actions live collection rely on.
 
 Output unit: USD per GPU-hour. Lease type: on-demand.
 """
@@ -49,7 +48,7 @@ def fetch_live_gpu_prices(now: dt.datetime | None = None) -> list[Snapshot]:
     return snapshots
 
 
-#: Historical symbols re-exported (backward compatibility: do not remove without convergence).
+#: Re-exported public surface (backward compatibility: external importers depend on it).
 __all__ = [
     "normalize_gpu_model",
     "parse_vastai_offers",

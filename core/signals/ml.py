@@ -6,8 +6,8 @@ is computed **upstream** and aligned 1:1 with the backtested series; at runtime 
 the probability at ``view.t`` and maps it to a position (neutral band around 0.5). The model
 never sees prices at runtime — any potential leakage was neutralised at training time.
 
-So **no** signal logic is added here: exact parity with P09 is guaranteed by delegation (section
-6b). This module only provides the ``SignalProducer`` wrapping (name + real/simulated provenance).
+The module holds no signal logic of its own: exact parity with P09 is guaranteed by delegation.
+It only provides the ``SignalProducer`` wrapping (name + real/simulated provenance).
 """
 
 from __future__ import annotations

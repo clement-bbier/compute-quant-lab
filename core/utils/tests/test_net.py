@@ -1,4 +1,4 @@
-"""Tests for the shared HTTP retry/timeout policy (V7.2 observability -- budget-zero).
+"""Tests for the shared HTTP retry/timeout policy (budget-zero).
 
 Two behaviours pinned:
 

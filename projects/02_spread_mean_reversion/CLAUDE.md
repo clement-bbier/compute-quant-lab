@@ -32,13 +32,13 @@ We bet on this mean reversion (z-score with a hysteresis band), backtested by th
 - [x] Integration with P01 (spread pricing) + P08 (backtest) + `core.ingestion` (compute leg)
 - [x] Reproducible MLflow run (params + metrics + git SHA + PnL figure + simulated flag + n_trials)
 - [x] 26 tests green; `ruff`/`mypy core` green
-- [x] **Real energy data** (V5.3): ENTSO-E FR day-ahead via the committed cold store, zero key required
+- [x] **Real energy data**: ENTSO-E FR day-ahead via the committed cold store, zero key required
 - [ ] **Real compute data**: only ~1 month accumulated so far (`data/snapshots/`) — deepen before
   trusting the cointegration finding
 - [ ] Institutional tier (3b): deflated Sharpe, walk-forward, dynamic sizing, execution
 
 ## Key results
-V5.3: pipeline now runs end-to-end on **REAL** data (provenance
+The pipeline runs end-to-end on **REAL** data (provenance
 `entsoe_cold_store+marketplace`, `simulated=False`) — Sharpe ≈ 2.98, a preliminary read given
 the ~1-month compute history, not yet a validated edge. The prior **SIMULATED** reference
 (Sharpe ≈ 7.70, provenance `simulated=True`) is kept for comparison and was never credible
