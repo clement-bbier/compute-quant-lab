@@ -49,9 +49,12 @@ Every Python code path also has a pure-Python fallback (`PythonOracle`), bit-for
 
 Every project defaults to **synthetic data**, and says so explicitly in its results. This is a methodological choice, not a placeholder: it lets the pipeline (point-in-time correctness, look-ahead guards, cost modeling, MLflow reproducibility) be validated and adversarially reviewed *before* any claim of edge is made on real markets. The line between "infrastructure validated" and "alpha claimed" is preregistered — see the signed [L0 ERCOT preregistration](docs/superpowers/specs/2026-06-23-L0-ercot-grid-stress-preregistration.md), frozen before the corresponding analysis ran, as the anti-p-hacking contract.
 
-One branch runs on real data today: **ERCOT** (Texas grid, ~670 LOC across [`core/ingestion/energy/ercot.py`](core/ingestion/energy/ercot.py) and [`ercot_transport.py`](core/ingestion/energy/ercot_transport.py)), calibrated against the real-time market for grid-stress prediction ([P07](projects/07_exogenous_macro_signal/)).
+Two branches run on real data today, both via a **committed cold store** — no key required on a fresh clone:
 
-The other data sources (ENTSO-E for FR/DE electricity, the GPU marketplaces) are coded and tested but run on synthetic fallbacks in this environment for lack of a live token — see [Live data](#live-data-optional) below to switch them on. The roadmap to fully real, continuously accumulated history is in [`docs/storage-roadmap.md`](docs/storage-roadmap.md).
+- **ERCOT** (Texas grid, ~670 LOC across [`core/ingestion/energy/ercot.py`](core/ingestion/energy/ercot.py) and [`ercot_transport.py`](core/ingestion/energy/ercot_transport.py)), calibrated against the real-time market for grid-stress prediction ([P07](projects/07_exogenous_macro_signal/)).
+- **ENTSO-E FR/DE day-ahead prices** (V5.3, [`infra/collectors/entsoe_backfill.py`](infra/collectors/entsoe_backfill.py) → [`data/cold/energy/`](data/cold/energy/), 2024-01-01 to today, 89,246 rows, ~1.4 MB), consumed by [P02](projects/02_spread_mean_reversion/) and [P05](projects/05_energy_compute_basis/). `publish_time` is an **approximated convention** (`entsoe-py` returns no publication timestamp): day-ahead auctions clear D-1 ~12:45 Europe/Paris, so `publish_time` is derived from `interval_start` rather than read from the API — documented in [`core/storage/energy_store.py`](core/storage/energy_store.py) and the backfill script's docstring. `ENTSOE_API_TOKEN` becomes optional, used only to refresh beyond the committed range.
+
+The GPU marketplaces (compute leg) are coded and live-validated per venue but not yet cold-stored — real history only accumulates from when the collector first ran (`data/snapshots/`, day by day; no retroactive data exists). See [Live data](#live-data-optional) below for the remaining token-gated sources. The roadmap to fully real, continuously accumulated history is in [`docs/storage-roadmap.md`](docs/storage-roadmap.md).
 
 ## Live data (optional)
 
@@ -63,7 +66,7 @@ cp .env.example .env   # never commit .env
 
 | Variable | Unlocks | Where to get it |
 |---|---|---|
-| `ENTSOE_API_TOKEN` | Real FR/DE electricity spot price (energy leg) | ENTSO-E Transparency Platform |
+| `ENTSOE_API_TOKEN` | Live-refresh of FR/DE electricity spot price beyond the committed cold store (optional — see [Data honesty](#data-honesty)) | ENTSO-E Transparency Platform |
 | `GRIDSTATUS_API_KEY` | ERCOT real-time market via a hosted API (bypasses the geoblock on ercot.com outside the US) | GridStatus.io |
 | `VASTAI_API_KEY` | Vast.ai GPU marketplace connector | Vast.ai console |
 | `RUNPOD_API_KEY` | RunPod GPU marketplace connector | RunPod console |
@@ -71,7 +74,7 @@ cp .env.example .env   # never commit .env
 | `DATACRUNCH_CLIENT_ID` / `DATACRUNCH_CLIENT_SECRET` | DataCrunch GPU marketplace connector | DataCrunch console |
 | `CUDO_API_KEY` | Cudo Compute GPU marketplace connector | Cudo Compute console |
 | `HYPERSTACK_API_KEY` | Hyperstack GPU marketplace connector | Hyperstack console |
-| `TENSORDOCK_API_KEY` / `TENSORDOCK_API_AUTHORIZATION` | TensorDock GPU marketplace connector | TensorDock console |
+| `TENSORDOCK_API_KEY` | TensorDock GPU marketplace connector (dormant venue: live hostnode inventory has been empty on every check to date) | TensorDock console |
 | `LAMBDA_API_KEY` | Lambda Cloud GPU marketplace (connector not yet built) | Lambda Cloud console |
 | `CRUSOE_ACCESS_KEY_ID` / `CRUSOE_SECRET_KEY` | Crusoe Cloud GPU marketplace (connector not yet built) | Crusoe Cloud console |
 | `GENESISCLOUD_API_KEY` | Genesis Cloud GPU marketplace (connector not yet built) | Genesis Cloud console |
@@ -84,10 +87,10 @@ Live-dependent tests are marked `-m live` and are opt-in only (`uv run pytest -m
 | Project | Question | Data |
 |---|---|---|
 | [P01 — Digital Spark Spread](projects/01_digital_spark_spread/) | What's the point-in-time margin between compute revenue and energy cost? | Synthetic |
-| [P02 — Spread Mean Reversion](projects/02_spread_mean_reversion/) | Does the energy↔compute spread mean-revert tradably? | Synthetic |
+| [P02 — Spread Mean Reversion](projects/02_spread_mean_reversion/) | Does the energy↔compute spread mean-revert tradably? | Real (ENTSO-E cold store + marketplace snapshots) |
 | [P03 — GPU Vol & Term Structure](projects/03_gpu_vol_term_structure/) | Does the compute forward curve's shape (contango/backwardation) carry a signal? | Synthetic |
 | [P04 — Compute Index & Curve](projects/04_compute_index_curve/) | What's a defensible spot index and simulated forward curve for compute? | Synthetic (real spot feeding in) |
-| [P05 — Energy↔Compute Basis](projects/05_energy_compute_basis/) | How does the spread differ across regions (FR vs. DE), and why? | Synthetic |
+| [P05 — Energy↔Compute Basis](projects/05_energy_compute_basis/) | How does the spread differ across regions (FR vs. DE), and why? | Real energy (ENTSO-E cold store); compute real if snapshots accumulated |
 | [P06 — Compute Futures Pricing](projects/06_compute_futures_pricing/) | What would compute futures (unlisted) be worth theoretically? | Synthetic |
 | [P07 — Exogenous Macro Signal](projects/07_exogenous_macro_signal/) | Do gas price / weather lead the energy leg? | ERCOT branch real; rest synthetic |
 | [P08 — Backtest & Risk Engine](projects/08_backtest_risk_engine/) | Can every strategy plug into one point-in-time, cost-aware backtest engine? | Synthetic |
@@ -107,14 +110,15 @@ All figures below are reproducible by rerunning the cited command; where the art
 | Test suites | 22+ (fails below 20) | `make test` output / [Makefile](Makefile) |
 | Combined coverage | 95% (8,331 statements) | `make coverage` (also uploaded as the `coverage-xml` artifact on [CI](https://github.com/clement-bbier/compute-quant-lab/actions/workflows/ci.yml)) |
 | P01 mean spread | 2.024 EUR/GPU·h | [`projects/01_digital_spark_spread/results/run_summary.json`](projects/01_digital_spark_spread/results/run_summary.json) |
-| P02 backtest Sharpe (simulated, flagged non-credible) | 7.70 | [`projects/02_spread_mean_reversion/results/SYNTHESIS.md`](projects/02_spread_mean_reversion/results/SYNTHESIS.md) |
+| P02 backtest Sharpe (real data, preliminary — ~1mo compute history) | 2.98 | [`projects/02_spread_mean_reversion/results/SYNTHESIS.md`](projects/02_spread_mean_reversion/results/SYNTHESIS.md) |
+| P02 backtest Sharpe (prior simulated reference, flagged non-credible) | 7.70 | [`projects/02_spread_mean_reversion/results/SYNTHESIS.md`](projects/02_spread_mean_reversion/results/SYNTHESIS.md) |
 | P08 engine demo Sharpe | 0.615 | [`projects/08_backtest_risk_engine/results/SYNTHESIS.md`](projects/08_backtest_risk_engine/results/SYNTHESIS.md) |
 | P09 ensemble Sharpe / PSR | 0.17 / 0.66 | [`projects/09_ml_signal_ensemble/results/SYNTHESIS.md`](projects/09_ml_signal_ensemble/results/SYNTHESIS.md) |
 | P10 desk net Sharpe (real signals, after costs) | −7.12 | [`projects/10_portfolio_execution/results/SYNTHESIS.md`](projects/10_portfolio_execution/results/SYNTHESIS.md) |
 | P11 storage layer tests | 40 passed | [`core/storage/results/SYNTHESIS.md`](core/storage/results/SYNTHESIS.md) |
 | P13 published models | 24 (A100, A40, A6000, B200, B300, CPUNODE, H100, H200, L4, L40, L40S, RTX3080, RTX3090, RTX4000ADA, RTX4090, RTX5080, RTX5090, RTX6000ADA, RTX6000ADA48GB, RTXPRO4000, RTXPRO4500, RTXPRO5000, RTXPRO6000B96GB, V100) across 15 venues | [`projects/13_compute_benchmark/results/benchmark_summary.md`](projects/13_compute_benchmark/results/benchmark_summary.md) |
 
-The negative and near-zero Sharpes above are reported deliberately: [`/backtest-pitfalls`](.claude/skills/backtest-pitfalls/) auditing exists precisely to stop a flattering-but-fragile number from being presented as edge (see P02's own adversarial verdict on its 7.70).
+The negative and near-zero Sharpes above are reported deliberately: [`/backtest-pitfalls`](.claude/skills/backtest-pitfalls/) auditing exists precisely to stop a flattering-but-fragile number from being presented as edge (see P02's own adversarial verdict on both its real 2.98 and its prior simulated 7.70).
 
 ## Screenshots
 
@@ -128,7 +132,8 @@ Not yet captured — placeholders below mark where they belong. To fill one in: 
 ## Roadmap
 
 - Storage: cold-store phases 0-1 are done ([P11](core/storage/)); real-time serving (hot store, streaming) is phases 2-4, documented but not built — see [`docs/storage-roadmap.md`](docs/storage-roadmap.md).
-- Energy leg: switch FR/DE from synthetic to real ENTSO-E once `ENTSOE_API_TOKEN` is configured — the connector is coded, live-smoke-tested (FR day-ahead, see `projects/02_spread_mean_reversion/tests/test_entsoe_live.py`), the switch is a config change, not a rewrite.
+- Energy leg: **done (V5.3)** — FR/DE ENTSO-E day-ahead prices are committed to a cold store ([`data/cold/energy/`](data/cold/energy/)) and read by P02/P05 with zero key required; `ENTSOE_API_TOKEN` now only refreshes beyond the committed range.
+- Compute leg: still the shallow side — real marketplace history only accumulates from when `infra/collectors/gpu_price_snapshot.py` first ran (~1 month as of V5.3), with no cold store or retroactive backfill yet (unlike energy, GPU marketplace spot prices have no historical API to backfill from).
 
 ## License
 

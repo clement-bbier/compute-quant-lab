@@ -26,7 +26,7 @@ already in place.
 
 | Source | Flow | Access | Status |
 |---|---|---|---|
-| ENTSO-E Transparency | FR/DE electricity spot price (€/MWh) | API token (`entsoe-py`) | to configure |
+| ENTSO-E Transparency | FR/DE electricity spot price (€/MWh) | `entsoe-py`; cold store committed (`data/cold/energy/`, zero key), API token for live refresh only | implemented, cold store committed (V5.3) |
 | EPEX Spot | Day-ahead price | Paid API / proxy | to investigate |
 | GPU marketplaces (Vast.ai, RunPod, PrimeIntellect, DataCrunch, Cudo, Hyperstack, TensorDock) | GPU rental price (€/h) | Public APIs, self-historized via `core/ingestion/providers/` | implemented, live validation per-venue (see [docs/decisions/004](docs/decisions/004-provider-registry-architecture.md)) |
 | ERCOT (GridStatus.io) | Real-time market price, grid stress | API token | implemented (P07 branch), real data |
