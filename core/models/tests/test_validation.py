@@ -8,12 +8,16 @@ the Deflated Sharpe does penalize multiple-testing.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from core.models.validation import (
     PurgedKFold,
     deflated_sharpe_ratio,
     expected_max_sharpe,
     oos_predict,
+    sharpe_confidence_interval,
+    sharpe_standard_error,
+    sharpe_t_stat,
 )
 from core.models.xgboost_model import XGBoostDirectionModel
 
@@ -58,6 +62,23 @@ def test_embargo_gap_after_test() -> None:
     for train, test in _folds():
         t1 = int(test[-1])
         forbidden = set(range(t1 + 1, t1 + 1 + EMBARGO))
+        assert forbidden.isdisjoint(train.tolist())
+
+
+def test_default_embargo_purges_the_right_edge_too() -> None:
+    """Regression: every other test in this module passes ``embargo=`` explicitly (the
+    ``_folds()`` fixture always does), so none of them exercise the constructor's actual
+    default. Before the fix, the default was 0: purge only guards the *left* edge of the
+    test block (label-horizon overlap), leaving the training samples immediately after the
+    test block (serial-correlation leakage) completely unprotected unless a caller
+    remembered to pass embargo explicitly. This must fail red against ``embargo=0``.
+    """
+    horizon = HORIZON
+    splitter = PurgedKFold(n_splits=5, horizon=horizon)  # embargo omitted -> must default to horizon
+    assert splitter.embargo == horizon
+    for train, test in splitter.split(N_SAMPLES):
+        t1 = int(test[-1])
+        forbidden = set(range(t1 + 1, t1 + 1 + horizon))
         assert forbidden.isdisjoint(train.tolist())
 
 
@@ -122,3 +143,43 @@ def test_deflated_sharpe_is_a_probability() -> None:
 def test_negative_sharpe_is_strongly_deflated() -> None:
     dsr = deflated_sharpe_ratio(-0.5, n_obs=500, n_trials=50, sr_variance=0.3)
     assert dsr < 0.5
+
+
+# --- Sharpe standard error / t-stat / CI: printed uncertainty --------------------
+
+
+def test_sharpe_standard_error_shrinks_with_more_observations() -> None:
+    se_small = sharpe_standard_error(2.0, n_obs=100, periods_per_year=252.0)
+    se_large = sharpe_standard_error(2.0, n_obs=10_000, periods_per_year=252.0)
+    assert se_large < se_small
+
+
+def test_sharpe_standard_error_rejects_too_few_observations() -> None:
+
+    with pytest.raises(ValueError):
+        sharpe_standard_error(1.0, n_obs=1, periods_per_year=252.0)
+
+
+def test_sharpe_t_stat_is_sharpe_over_standard_error() -> None:
+    sharpe, n_obs, ppy = 1.5, 300, 252.0
+    t = sharpe_t_stat(sharpe, n_obs, ppy)
+    se = sharpe_standard_error(sharpe, n_obs, ppy)
+    assert t == pytest.approx(sharpe / se, rel=1e-9)
+
+
+def test_small_sample_sharpe_is_not_distinguishable_from_zero() -> None:
+    """A thin-sample, elevated Sharpe (P02-like: ~441 effective compute observations)
+    should have a t-stat well under the ~1.96 threshold for 95% significance."""
+    t = sharpe_t_stat(2.98, n_obs=441, periods_per_year=35040.0)
+    assert abs(t) < 1.96
+
+
+def test_confidence_interval_is_centered_on_sharpe() -> None:
+    lo, hi = sharpe_confidence_interval(1.0, n_obs=500, periods_per_year=252.0)
+    assert lo < 1.0 < hi
+
+
+def test_confidence_interval_narrows_with_more_observations() -> None:
+    lo_small, hi_small = sharpe_confidence_interval(1.0, n_obs=100, periods_per_year=252.0)
+    lo_large, hi_large = sharpe_confidence_interval(1.0, n_obs=10_000, periods_per_year=252.0)
+    assert (hi_large - lo_large) < (hi_small - lo_small)

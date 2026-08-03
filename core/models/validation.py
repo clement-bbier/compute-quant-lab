@@ -40,7 +40,12 @@ class PurgedKFold:
         at ``i`` depends on the window ``[i, i+horizon]``; any training sample whose window
         touches the test block is removed.
     embargo
-        Number of steps neutralized immediately after each test block.
+        Number of steps neutralized immediately after each test block, guarding against
+        serial correlation leaking from the test block into the training samples that
+        immediately follow it. Defaults to ``horizon`` (**not** 0): purge only guards the
+        left edge of the test block, so an embargo of 0 leaves the right edge completely
+        unprotected -- a caller that wants that (e.g. deliberately testing purge in
+        isolation) must pass ``embargo=0`` explicitly, never get it by omission.
 
     Raises
     ------
@@ -48,11 +53,13 @@ class PurgedKFold:
         If ``n_splits < 2``, ``horizon < 0`` or ``embargo < 0``.
     """
 
-    def __init__(self, *, n_splits: int, horizon: int = 1, embargo: int = 0) -> None:
+    def __init__(self, *, n_splits: int, horizon: int = 1, embargo: int | None = None) -> None:
         if n_splits < 2:
             raise ValueError(f"n_splits ({n_splits}) must be >= 2.")
         if horizon < 0:
             raise ValueError(f"horizon ({horizon}) must be >= 0.")
+        if embargo is None:
+            embargo = horizon
         if embargo < 0:
             raise ValueError(f"embargo ({embargo}) must be >= 0.")
         self.n_splits = n_splits
@@ -98,6 +105,43 @@ def oos_predict(
         model.fit(x[train], y[train])
         proba[test] = model.predict_proba(x[test])
     return proba
+
+
+def sharpe_standard_error(sharpe: float, n_obs: int, periods_per_year: float) -> float:
+    """Asymptotic standard error of an annualized Sharpe ratio (Lo, 2002; i.i.d. returns).
+
+    The per-period SE is ``sqrt((1 + sr_period**2 / 2) / n_obs)`` (delta method on the
+    mean/stdev ratio); annualizing multiplies both the Sharpe and its SE by
+    ``sqrt(periods_per_year)``, so the SE of the annualized Sharpe is this per-period SE
+    scaled the same way. Ignores skew/kurtosis corrections (Opdyke, 2007) — a first-order
+    estimate, not a small-sample-exact one.
+
+    Raises
+    ------
+    ValueError
+        If ``n_obs < 2``.
+    """
+    if n_obs < 2:
+        raise ValueError(f"n_obs ({n_obs}) must be >= 2.")
+    sr_period = sharpe / np.sqrt(periods_per_year)
+    se_period = np.sqrt((1.0 + sr_period**2 / 2.0) / n_obs)
+    return float(se_period * np.sqrt(periods_per_year))
+
+
+def sharpe_t_stat(sharpe: float, n_obs: int, periods_per_year: float) -> float:
+    """t-statistic for the null hypothesis that the true (annualized) Sharpe is 0."""
+    se = sharpe_standard_error(sharpe, n_obs, periods_per_year)
+    if se == 0.0:
+        return 0.0
+    return float(sharpe / se)
+
+
+def sharpe_confidence_interval(
+    sharpe: float, n_obs: int, periods_per_year: float, *, z: float = 1.959963984540054
+) -> tuple[float, float]:
+    """Two-sided confidence interval for the annualized Sharpe (default ``z`` -> 95%)."""
+    se = sharpe_standard_error(sharpe, n_obs, periods_per_year)
+    return (float(sharpe - z * se), float(sharpe + z * se))
 
 
 def expected_max_sharpe(n_trials: int, sr_variance: float) -> float:
@@ -158,6 +202,9 @@ def deflated_sharpe_ratio(
 __all__ = [
     "PurgedKFold",
     "oos_predict",
+    "sharpe_standard_error",
+    "sharpe_t_stat",
+    "sharpe_confidence_interval",
     "expected_max_sharpe",
     "deflated_sharpe_ratio",
 ]
