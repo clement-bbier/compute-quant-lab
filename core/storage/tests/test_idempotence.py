@@ -11,9 +11,20 @@ from typing import Callable, Sequence
 import pandas as pd
 
 from core.storage import ParquetPriceStore
-from core.storage.schema import PRICE
+from core.storage.schema import (
+    AVAILABILITY,
+    COLUMNS,
+    GPU_MODEL,
+    LEASE_TYPE,
+    PRICE,
+    REGION,
+    SNAPSHOTTED_AT,
+    SOURCE,
+)
 
 Frame = Callable[[Sequence[tuple]], pd.DataFrame]
+
+_ORIGIN = pd.Timestamp("2025-01-01", tz="UTC")
 
 
 def test_rewriting_same_batch_is_noop(store: ParquetPriceStore, make_frame: Frame) -> None:
@@ -50,3 +61,31 @@ def test_distinct_offers_same_key_are_not_deduplicated(
     store.write(frame)  # replayed: still no duplicate, but 2 offers kept
 
     assert len(store.read()) == 2
+
+
+def test_distinct_regions_same_price_are_not_deduplicated(store: ParquetPriceStore) -> None:
+    """Regression: two offers differing ONLY in region (same instant/source/model/lease/
+    price/availability) must both be kept -- the dedup key must include the optional
+    descriptive columns, not just the mandatory business ones (module docstring: "faithful
+    journal"). Before the fix, `region`/`provider_detail` were absent from the dedup key,
+    so the second row silently vanished even though it is a genuinely distinct offer.
+    """
+    rows = [
+        {
+            SNAPSHOTTED_AT: _ORIGIN,
+            SOURCE: "vastai",
+            GPU_MODEL: "H100",
+            LEASE_TYPE: "on_demand",
+            PRICE: 2.50,
+            AVAILABILITY: 8,
+            REGION: region,
+        }
+        for region in ("us-east", "eu-west")
+    ]
+    frame = pd.DataFrame(rows, columns=[*COLUMNS, REGION])
+
+    store.write(frame)
+
+    out = store.read()
+    assert len(out) == 2
+    assert sorted(out[REGION].tolist()) == ["eu-west", "us-east"]

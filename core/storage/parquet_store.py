@@ -20,7 +20,14 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as pads
 
-from core.storage.schema import COLUMNS, INGESTED_AT, SNAPSHOTTED_AT, SOURCE, normalize_frame
+from core.storage.schema import (
+    COLUMNS,
+    INGESTED_AT,
+    OPTIONAL_COLUMNS,
+    SNAPSHOTTED_AT,
+    SOURCE,
+    normalize_frame,
+)
 from core.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,6 +37,15 @@ _MONTH = "month"
 _PARTITIONING = pads.partitioning(
     pa.schema([(SOURCE, pa.string()), (_MONTH, pa.string())]), flavor="hive"
 )
+
+#: Dedup key: mandatory business columns (:data:`COLUMNS`) + the optional descriptive
+#: columns (:data:`OPTIONAL_COLUMNS` -- region, provider_detail, ...). Two rows that agree
+#: on every business/descriptive field are the same observation; two rows that differ in
+#: region or provider_detail (even at the same instant/source/model/price) are genuinely
+#: DISTINCT offers and must both be kept (module docstring: "faithful journal").
+#: Deliberately excludes ``simulated``/``ingested_at`` (provenance, not payload) and
+#: excludes nothing else -- a key narrower than this would silently drop real observations.
+_DEDUP_KEY: list[str] = COLUMNS + OPTIONAL_COLUMNS
 
 
 class ParquetPriceStore:
@@ -52,19 +68,28 @@ class ParquetPriceStore:
         ``ingested_at`` is stamped here, forward-only, at the instant of this write --
         never accepted from the caller's frame -- so it always reflects when the row
         actually entered the lake (as opposed to ``snapshotted_at``, when the price was
-        observed). Deduplication (``COLUMNS`` only) ignores it: replaying the same
+        observed). Deduplication (:data:`_DEDUP_KEY`) ignores it: replaying the same
         observation is still a no-op even though a hypothetical second write would stamp
-        a different ``ingested_at``.
+        a different ``ingested_at``. The key includes the optional descriptive columns
+        (region, provider_detail, ...): two rows at the same instant/source/model/price but
+        a different region are DISTINCT offers, never collapsed into one (module docstring).
         """
         frame = normalize_frame(frame)
         if frame.empty:
             return 0
-        incoming = frame.drop_duplicates(subset=COLUMNS)  # intra-batch dedup
+        # fillna: merge/drop_duplicates on a NaN-bearing key treats NaN != NaN (pandas
+        # default), which would make every legacy row missing an optional column compare
+        # as "distinct" from every other -- a dedup key must use a sentinel so two rows
+        # that are both genuinely missing region (say) still collide as duplicates.
+        key_frame = frame[_DEDUP_KEY].fillna("__NULL__")
+        incoming = frame[~key_frame.duplicated()]  # intra-batch dedup
         n_intra_batch_dupes = len(frame) - len(incoming)
         existing = self.read()
         if not existing.empty:
-            anti = incoming.merge(
-                existing[COLUMNS].drop_duplicates(), on=COLUMNS, how="left", indicator=True
+            incoming_key = incoming[_DEDUP_KEY].fillna("__NULL__")
+            existing_key = existing[_DEDUP_KEY].fillna("__NULL__").drop_duplicates()
+            anti = incoming_key.reset_index(drop=True).merge(
+                existing_key, on=_DEDUP_KEY, how="left", indicator=True
             )
             incoming = incoming[anti["_merge"].to_numpy() == "left_only"]
         n_dupes = len(frame) - n_intra_batch_dupes - len(incoming)
