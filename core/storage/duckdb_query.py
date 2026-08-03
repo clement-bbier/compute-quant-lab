@@ -50,6 +50,13 @@ def query(sql: str, store: ParquetPriceStore, *, view: str = "prices") -> pd.Dat
     """
     con = duckdb.connect()
     try:
+        # Every DuckDB session otherwise inherits the host machine's local timezone
+        # (`current_setting('TimeZone')` defaults to it, not UTC), which makes any
+        # TIMESTAMPTZ -> DATE cast (or date_trunc) silently machine-dependent -- the same
+        # instant near a day boundary casts to different dates on different machines/CI
+        # runners. The lake's `snapshotted_at` is UTC (rule `data-integrity`): the session
+        # must be pinned to match, not left to whatever locale runs the query.
+        con.execute("SET TimeZone='UTC'")
         files = sorted(store.root.rglob("*.parquet"))
         if files:
             # CREATE VIEW does not accept a prepared parameter: the glob (controlled

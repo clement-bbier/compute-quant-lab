@@ -61,6 +61,30 @@ def test_query_on_empty_store_logs_warning(
     assert "empty" in caplog.text.lower()
 
 
+def test_session_timezone_is_pinned_to_utc(store: ParquetPriceStore) -> None:
+    out = query("SELECT current_setting('TimeZone') AS tz FROM prices LIMIT 1", store)
+    # Empty lake still gets a session -> current_setting works via a scalar select instead.
+    if out.empty:
+        out = query("SELECT current_setting('TimeZone') AS tz", store)
+    assert out["tz"].iloc[0] == "UTC"
+
+
+def test_date_cast_is_timezone_independent(store: ParquetPriceStore, make_frame: Frame) -> None:
+    """Regression: without ``SET TimeZone='UTC'``, a DuckDB session inherits the host
+    machine's local timezone, so ``CAST(ts AS DATE)`` near a day boundary silently depends
+    on where the query runs. 23:00 UTC on 2025-01-01 must cast to 2025-01-01 regardless of
+    the machine locale -- it would cast to 2025-01-02 under e.g. a UTC+2 or later machine
+    timezone if the session weren't pinned.
+    """
+    store.write(make_frame([(23, "vastai", "H100", 2.50, 8)]))  # 2025-01-01 23:00:00+00
+    out = query(
+        "SELECT CAST(snapshotted_at AS DATE) AS d FROM prices "
+        "WHERE snapshotted_at = TIMESTAMPTZ '2025-01-01 23:00:00+00'",
+        store,
+    )
+    assert pd.Timestamp(out["d"].iloc[0]).date() == pd.Timestamp("2025-01-01").date()
+
+
 def test_query_mixes_legacy_and_enriched_parquet(
     store: ParquetPriceStore, make_frame: Frame
 ) -> None:
