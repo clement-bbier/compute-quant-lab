@@ -61,7 +61,10 @@ def test_parity_with_p08_reference_loop_when_no_impact() -> None:
 
     model = ExecutionModel(fees_bps=FEES_BPS, slippage_bps=SLIPPAGE_BPS, impact_kappa=0.0)
     net_mine, _ = model.apply(gross, positions)
-    assert np.allclose(net_mine, net_oracle)
+    # Bit-for-bit, not merely close: matches the docstring's claim (execution.py, README)
+    # of exact parity with reference_loop.accumulate -- allclose would silently accept a
+    # regression that breaks the identity without breaking the test.
+    np.testing.assert_array_equal(net_mine, net_oracle)
 
 
 def test_apply_returns_net_equals_gross_minus_costs() -> None:
