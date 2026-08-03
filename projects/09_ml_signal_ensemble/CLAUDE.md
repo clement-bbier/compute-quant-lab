@@ -48,6 +48,7 @@ data (not blocked on ENTSO-E).
 - [x] `risk-validator` agent (now registered: `.claude/agents/risk-validator.md`).
 
 ## Key results
-Pipeline validated end-to-end on **SIMULATED** data. Sharpe ~0.17, deflated/PSR ~0.66, deep
-drawdown, high turnover: the weak synthetic edge **does not survive costs**. **No alpha
-claimed** — see the verdict in [results/SYNTHESIS.md](results/SYNTHESIS.md).
+Pipeline validated end-to-end on **SIMULATED** data. Sharpe ~0.17 (t-stat 0.42 on n_obs=2,190
+predicted, 95% CI [-0.63, 0.97] — spans zero), deflated/PSR ~0.66, deep drawdown, high
+turnover: the weak synthetic edge **does not survive costs**. **No alpha claimed** — see the
+verdict in [results/SYNTHESIS.md](results/SYNTHESIS.md).

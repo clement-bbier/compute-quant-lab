@@ -18,10 +18,16 @@ The **desk pipeline** now runs on the **3 real signals** without any change to i
 |---|---:|---:|
 | Total PnL (capital=1) | +0.5057 | **−4.4654** |
 | Sharpe (annualized) | +1.240 | **−7.118** |
+| Sharpe t-stat (n_obs=1,500) | — | **−16.55** |
+| Sharpe 95% CI | — | **[−7.96, −6.28]** |
 | Max drawdown | −0.0409 | −4.4654 |
 | Turnover | 455.0 | 455.0 |
 | Hit ratio | 0.529 | 0.271 |
 | Trades | — | 1479 |
+
+Unlike P02/P09, the net Sharpe here is **statistically distinguishable from zero** — decisively
+negative (CI entirely below zero), not just noisy. The desk policy of judging on net, not
+gross, is validated by this: the number that matters is confidently bad, not merely uncertain.
 
 **Reading**: the gross is **positive** (+0.51, Sharpe 1.24) — but on a **mean-reverting
 synthetic** series, that's an artifact (the signals track the generating process), **not

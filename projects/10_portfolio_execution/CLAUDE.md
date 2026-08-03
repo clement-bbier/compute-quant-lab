@@ -52,7 +52,9 @@ ever sold as alpha (see [results/RISK_REVIEW.md](results/RISK_REVIEW.md)).
 Pipeline validated end-to-end on the **3 real signals** P02/P06/P09 + **simulated** desk series.
 **Net** PnL **−4.4654** vs **gross** **+0.5057**: with a turnover of 455, costs (fees+slippage+
 impact κ=0.02) don't just eat into the loss, they **blow it up** — a direct illustration of
-"execution costs are the PnL killer" (§10). The positive gross on a mean-reverting synthetic
-series is an artifact (the signals track the generating process), not alpha.
-No alpha is claimed: see [results/SYNTHESIS.md](results/SYNTHESIS.md) and the
+"execution costs are the PnL killer" (§10). Net Sharpe −7.12, t-stat **−16.55** on n_obs=1,500,
+95% CI [−7.96, −6.28]: unlike P02/P09's near-zero Sharpes, this one is **statistically
+distinguishable from zero — decisively negative**, not just noisy. The positive gross on a
+mean-reverting synthetic series is an artifact (the signals track the generating process), not
+alpha. No alpha is claimed: see [results/SYNTHESIS.md](results/SYNTHESIS.md) and the
 adversarial verdict in [results/RISK_REVIEW.md](results/RISK_REVIEW.md).

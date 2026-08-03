@@ -43,6 +43,7 @@ from core.models import (
     deflated_sharpe_ratio,
     oos_predict,
 )
+from core.models.validation import sharpe_confidence_interval, sharpe_t_stat
 from core.utils.logging import configure_logging, get_logger
 
 _HERE = Path(__file__).parent
@@ -166,10 +167,16 @@ def main() -> None:
     result = engine.run(spread, strategy, params=params)
 
     psr = probabilistic_sharpe(result.ledger.returns, n_trials=N_TRIALS)
+    sharpe = result.metrics["sharpe"]
+    sharpe_t = sharpe_t_stat(sharpe, n_predicted, PERIODS_PER_YEAR)
+    sharpe_ci_lo, sharpe_ci_hi = sharpe_confidence_interval(sharpe, n_predicted, PERIODS_PER_YEAR)
     metrics = {
         **result.metrics,
         "deflated_sharpe_psr": psr,
         "n_trades": float(result.ledger.n_trades),
+        "sharpe_t_stat": sharpe_t,
+        "sharpe_ci95_lo": sharpe_ci_lo,
+        "sharpe_ci95_hi": sharpe_ci_hi,
     }
 
     os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")

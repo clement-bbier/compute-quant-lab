@@ -33,7 +33,12 @@ from core.backtest.protocols import FloatArray, Ledger
 from core.backtest.tracking import log_pnl_figure, tracked_run
 from core.models.pipeline import FeaturePipeline, SpreadFeatureSpec, build_labels
 from core.models.protocols import Model
-from core.models.validation import PurgedKFold, oos_predict
+from core.models.validation import (
+    PurgedKFold,
+    oos_predict,
+    sharpe_confidence_interval,
+    sharpe_t_stat,
+)
 from core.models.xgboost_model import SeedBaggingEnsemble, XGBoostDirectionModel
 from core.signals import (
     FuturesBasisSignal,
@@ -315,6 +320,15 @@ def main() -> None:
     )
     params = _build_params(prices, producers)
 
+    # Printed uncertainty on the net Sharpe (the desk's own "judge on net" policy) --
+    # n_obs is the full backtest length, all periods contributing a net-return observation.
+    net_sharpe = result.net_metrics["sharpe"]
+    n_obs = int(prices.shape[0])
+    result.net_metrics["sharpe_t_stat"] = sharpe_t_stat(net_sharpe, n_obs, PERIODS_PER_YEAR)
+    ci_lo, ci_hi = sharpe_confidence_interval(net_sharpe, n_obs, PERIODS_PER_YEAR)
+    result.net_metrics["sharpe_ci95_lo"] = ci_lo
+    result.net_metrics["sharpe_ci95_hi"] = ci_hi
+
     os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
     mlflow.set_tracking_uri((RESULTS_DIR / "mlruns").as_uri())
     logged = {
@@ -347,9 +361,12 @@ def main() -> None:
     log.info("run_id=%s  simulated=%s  signals=%s", run_id, provenance.simulated, params["signals"])
     log.info("  %-16s %12s %12s", "metric", "gross", "net")
     for name in result.net_metrics:
-        log.info(
-            "  %-16s %12.6f %12.6f", name, result.gross_metrics[name], result.net_metrics[name]
-        )
+        if name in result.gross_metrics:
+            log.info(
+                "  %-16s %12.6f %12.6f", name, result.gross_metrics[name], result.net_metrics[name]
+            )
+        else:
+            log.info("  %-16s %12s %12.6f", name, "-", result.net_metrics[name])
     log.info("  contribution by signal (gross PnL):")
     for name, value in result.attribution.items():
         log.info("    %-22s = %+.6f", name, value)

@@ -16,6 +16,8 @@
 | Metric | Value | Reading |
 |---|---:|---|
 | Sharpe (annualized) | **0.17** | Near zero. |
+| Sharpe t-stat (n_obs=2,190 predicted) | **0.42** | Nowhere near the ~1.96 threshold: not distinguishable from zero. |
+| Sharpe 95% CI | **[-0.63, 0.97]** | Spans zero. |
 | Deflated / Probabilistic Sharpe (PSR) | **0.66** | Modest probability that the true SR > 0. |
 | Max drawdown | **-0.88** | Deep pullback → fragile strategy. |
 | Turnover | **1050** (903 trades) | Very high: costs eat the signal. |
