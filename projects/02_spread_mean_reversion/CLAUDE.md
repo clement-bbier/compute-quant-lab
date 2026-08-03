@@ -39,8 +39,11 @@ We bet on this mean reversion (z-score with a hysteresis band), backtested by th
 
 ## Key results
 The pipeline runs end-to-end on **REAL** data (provenance
-`entsoe_cold_store+marketplace`, `simulated=False`) — Sharpe ≈ 2.98, a preliminary read given
-the ~1-month compute history, not yet a validated edge. The prior **SIMULATED** reference
-(Sharpe ≈ 7.70, provenance `simulated=True`) is kept for comparison and was never credible
-(the strategy tracked the OU generating process exactly). Full adversarial verdict on both:
-[results/SYNTHESIS.md](results/SYNTHESIS.md).
+`entsoe_cold_store+marketplace`, `simulated=False`) — Sharpe 5.96 (annualized √35040: the
+ENTSO-E grid is quarter-hourly, not hourly), t-stat 1.69 on n_obs=2,807 (grid) / 0.67 on
+n_obs=441 (distinct compute collector runs), 95% CI spans zero at both readings. **Not
+statistically distinguishable from zero at this sample size** — a preliminary read, not a
+validated edge. The prior **SIMULATED** reference (Sharpe ≈ 7.70, provenance
+`simulated=True`) is kept for comparison and was never credible (the strategy tracked the OU
+generating process exactly) — neither number should be read as informative, for different
+reasons. Full adversarial verdict on both: [results/SYNTHESIS.md](results/SYNTHESIS.md).

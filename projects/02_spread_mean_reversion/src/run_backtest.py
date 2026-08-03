@@ -24,6 +24,7 @@ import pandas as pd
 from core.backtest import BacktestEngine, LinearCostModel, cumulative_pnl
 from core.backtest.tracking import log_metrics, log_pnl_figure, tracked_run
 from core.ingestion import CsvSnapshotStore
+from core.models.validation import sharpe_confidence_interval, sharpe_t_stat
 from core.utils.logging import configure_logging, get_logger
 
 _HERE = Path(__file__).parent
@@ -40,7 +41,7 @@ RESULTS_DIR = _HERE.parent / "results"
 EXPERIMENT = "p02_spread_mean_reversion"
 SEED = 42
 GPU, REGION = "H100", "FR"
-PERIODS_PER_YEAR = 8760.0  # ENTSO-E hourly grid
+PERIODS_PER_YEAR = 35040.0  # ENTSO-E quarter-hourly grid (4 * 8760)
 
 # Thresholds fixed *a priori* (not optimized) -> n_trials = 1 (anti multiple-testing, backtest-pitfalls).
 Z_ENTRY, Z_EXIT, LOOKBACK = 2.0, 0.5, 48
@@ -80,7 +81,7 @@ def _simulated_legs(n: int = 2000) -> tuple[pd.DataFrame, pd.DataFrame]:
     )
 
 
-def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
+def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance, int]:
     """Loads both real legs if available, otherwise falls back to the labeled simulated dataset.
 
     Energy tries the committed cold store first (zero key required), then a live ENTSO-E
@@ -90,6 +91,13 @@ def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
     exists for the last accumulated month would ffill a "flat" compute price across 2+ empty
     years (degenerate, near-collinear series -- cointegration tests fail to converge on it),
     not a meaningful real-data run.
+
+    Returns the two legs, provenance, and ``n_snapshot_runs`` — the number of *distinct*
+    collector timestamps behind the compute leg. ``compute_index_series`` resolves every grid
+    point via an as-of join (latest snapshot <= t), so the grid itself (~2,800 points, one per
+    15-min energy tick) hugely overstates how many genuinely fresh compute observations back
+    it; ``n_snapshot_runs`` is the honest count (returns 0 for the simulated fallback, which
+    has no snapshot collector behind it).
     """
     from data_sources import load_energy_entsoe
 
@@ -105,8 +113,10 @@ def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
             energy_df,
             compute_df,
             DataProvenance(source="synthetic_cointegrated_ou", simulated=True),
+            0,
         )
 
+    n_snapshot_runs = len({s.snapshotted_at for s in snapshots})
     window_start = pd.Timestamp(min(s.snapshotted_at for s in snapshots)).tz_convert("UTC")
     window_end = pd.Timestamp(max(s.snapshotted_at for s in snapshots)).tz_convert("UTC")
     try:
@@ -120,6 +130,7 @@ def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
             energy_df,
             compute_df,
             DataProvenance(source="synthetic_cointegrated_ou", simulated=True),
+            0,
         )
 
     compute = compute_index_series(snapshots, energy.index, GPU)
@@ -129,6 +140,7 @@ def _load_legs() -> tuple[pd.DataFrame, pd.DataFrame, DataProvenance]:
         energy_df,
         compute_df,
         DataProvenance(source=f"{energy_source}+marketplace", simulated=False),
+        n_snapshot_runs,
     )
 
 
@@ -148,7 +160,7 @@ def _cointegration_diagnostics(
 
 
 def main() -> None:
-    energy_df, compute_df, provenance = _load_legs()
+    energy_df, compute_df, provenance, n_snapshot_runs = _load_legs()
     dataset = build_spread(energy_df, compute_df, gpu=GPU, region=REGION, provenance=provenance)
     # Diagnostics run on the same aligned grid as the spread itself (dataset.spread's index):
     # energy_df/compute_df can differ in length (compute is only observed at fresh-snapshot
@@ -165,6 +177,13 @@ def main() -> None:
         periods_per_year=PERIODS_PER_YEAR,
     )
     spread = dataset.spread.to_numpy()
+    # n_obs_grid is the backtest's own return-series length (one point per 15-min energy
+    # tick). n_obs_compute_effective is the honest count behind the compute leg:
+    # compute_index_series resolves every grid point via an as-of join (latest snapshot
+    # <= t), so the grid vastly overstates how many genuinely fresh collector runs back it
+    # -- n_snapshot_runs (distinct collector timestamps, from _load_legs) is that real count.
+    n_obs_grid = int(spread.shape[0])
+    n_obs_compute_effective = n_snapshot_runs
 
     params = {
         "strategy": "mean_reversion_hysteresis",
@@ -175,7 +194,8 @@ def main() -> None:
         "slippage_bps": SLIPPAGE_BPS,
         "periods_per_year": PERIODS_PER_YEAR,
         "seed": SEED,
-        "n_obs": int(spread.shape[0]),
+        "n_obs": n_obs_grid,
+        "n_obs_compute_effective": n_obs_compute_effective,
         "n_trials": 1,  # thresholds fixed a priori: no search -> no multiple-testing
         "gpu": GPU,
         "region": REGION,
@@ -184,6 +204,25 @@ def main() -> None:
         **diagnostics,
     }
     result = engine.run(spread, strategy, params=params)
+
+    # Printed uncertainty (never a bare Sharpe): reported on BOTH sample-size readings, side
+    # by side -- the grid n_obs (2,807, one point per 15-min energy tick) overstates
+    # independence since most points as-of-carry the same underlying compute reading;
+    # n_obs_compute_effective (441, distinct collector runs) is the honest, conservative one.
+    # Both give a t-stat well under the ~1.96 significance threshold either way.
+    sharpe = result.metrics["sharpe"]
+    sharpe_t_grid = sharpe_t_stat(sharpe, n_obs_grid, PERIODS_PER_YEAR)
+    sharpe_ci_grid = sharpe_confidence_interval(sharpe, n_obs_grid, PERIODS_PER_YEAR)
+    sharpe_t_effective = sharpe_t_stat(sharpe, n_obs_compute_effective, PERIODS_PER_YEAR)
+    sharpe_ci_effective = sharpe_confidence_interval(
+        sharpe, n_obs_compute_effective, PERIODS_PER_YEAR
+    )
+    result.metrics["sharpe_t_stat_grid"] = sharpe_t_grid
+    result.metrics["sharpe_ci95_lo_grid"] = sharpe_ci_grid[0]
+    result.metrics["sharpe_ci95_hi_grid"] = sharpe_ci_grid[1]
+    result.metrics["sharpe_t_stat_effective"] = sharpe_t_effective
+    result.metrics["sharpe_ci95_lo_effective"] = sharpe_ci_effective[0]
+    result.metrics["sharpe_ci95_hi_effective"] = sharpe_ci_effective[1]
 
     os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
     mlflow.set_tracking_uri((RESULTS_DIR / "mlruns").as_uri())
@@ -211,6 +250,7 @@ def main() -> None:
         diagnostics["half_life_hours"],
         diagnostics["johansen_n_relations"],
     )
+    log.info("n_obs_grid=%d  n_obs_compute_effective=%d", n_obs_grid, n_obs_compute_effective)
     for name, value in result.metrics.items():
         log.info("  %-14s = %.6f", name, value)
 
