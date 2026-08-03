@@ -3,8 +3,11 @@
 The pure logic (``parse_datacrunch``) is isolated from the network call
 (``fetch_datacrunch``, token-gated). DataCrunch quotes at the **instance** (machine) level:
 we divide ``price_per_hour`` by ``gpu.number_of_gpus`` to obtain the $/GPU·h price. The venue
-exposes a **spot** price (``spot_price_per_hour``) in addition to on-demand -> we emit **two**
-``Snapshot`` rows (``on_demand`` and ``spot`` leases) when spot is available (> 0).
+exposes a **spot** price in addition to on-demand -> we emit **two** ``Snapshot`` rows
+(``on_demand`` and ``spot`` leases) when spot is available (> 0). Per the official
+``GET /v1/instance-types`` schema, the JSON key is ``spot_price`` (its human-readable
+description is "Spot price per hour", but the field name itself has no ``_per_hour`` suffix
+-- verified 2026-08-03 against the API docs, not to be "corrected" back without re-checking).
 """
 
 from __future__ import annotations
