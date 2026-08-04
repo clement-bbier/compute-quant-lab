@@ -39,7 +39,7 @@ data (not blocked on ENTSO-E).
 
 ## Progress status (PoC-now)
 - [x] `core/models/`: protocols, purged-CV + embargo + OOS, deflated Sharpe, PIT pipeline, deterministic
-  XGBoost + seed ensemble, `Strategy` adapter — 30 passing tests.
+  XGBoost + seed ensemble, `Strategy` adapter — 37 passing tests.
 - [x] Anti-look-ahead (3 defenses), leak-free temporal split, determinism, pure-noise sanity check.
 - [x] Simulated headline run → P08 backtest → MLflow (params + n_trials + SHA + data version + PnL figure).
 - [x] Adversarial verdict `/backtest-pitfalls` ([results/SYNTHESIS.md](results/SYNTHESIS.md)).
