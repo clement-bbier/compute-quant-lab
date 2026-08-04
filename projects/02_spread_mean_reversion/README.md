@@ -57,10 +57,12 @@ much shallower than the energy cold store) — see [results/SYNTHESIS.md](result
 
 ## Results & pitfalls
 Reference run on **real** data (`entsoe_cold_store+marketplace`, `simulated=False`):
-Sharpe ≈ 2.98 over ~1 month of real compute history — a preliminary read, not yet a validated
-edge (short window, no walk-forward). Prior **simulated** reference (Sharpe ≈ 7.70) is kept for
-comparison and was never credible (the strategy tracked the OU generating process exactly).
-Full adversarial verdict (`/backtest-pitfalls`) and roadmap before any alpha claim:
+Sharpe 5.96 (annualized √35040, corrected quarter-hourly grid) over ~1 month of real compute
+history, t-stat 1.69 (n=2,807 grid) / 0.67 (n=441 compute-effective), 95% CI spans zero at
+both — **not statistically distinguishable from zero**, a preliminary read, not yet a
+validated edge (short window, no walk-forward). Prior **simulated** reference (Sharpe ≈ 7.70)
+is kept for comparison and was never credible (the strategy tracked the OU generating process
+exactly). Full adversarial verdict (`/backtest-pitfalls`) and roadmap before any alpha claim:
 [results/SYNTHESIS.md](results/SYNTHESIS.md).
 
 ## Tests (26, green)
