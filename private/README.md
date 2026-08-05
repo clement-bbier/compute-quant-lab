@@ -1,28 +1,24 @@
-# `private/` — edge zone, NEVER versioned online
+# `private/` — local-only zone, never versioned online
 
-> The repo is **public**. Anything that constitutes a **monetizable edge**
-> (signals that make money, winning calibrated parameters, real execution
-> strategies) lives **here** and is **never** pushed. Only this `README.md`
-> and `.gitkeep` are tracked.
+> The repo is **public** by design: it shows the infrastructure, the
+> benchmark, and the research — including negative results. Anything
+> that would only make sense to keep proprietary (calibrated live
+> parameters, deployment thresholds, execution details) would live
+> **here** and is **never** pushed. Only this `README.md` and
+> `.gitkeep` are tracked.
 
-## Rule (non-negotiable)
-- The **public** side shows the **infrastructure** and the **benchmark**
-  (impressive, sellable as portfolio / data) — **not the edge**.
-- The **private** side keeps what wins: a signal committed to a public repo
-  is **dead edge** (everyone can see it). This is the infra (public) /
-  alpha (private) separation.
+## Rule
+- The **public** side is the research lab: methods, data, backtests,
+  and honest results.
+- The **private** side is reserved for live-deployment artifacts, if
+  and when an experiment ever graduates to one. As of today, the
+  published results speak for themselves — nothing here claims
+  otherwise.
 
 ## Gitignored conventions (see `.gitignore`)
 - All of `private/**` (except this README + `.gitkeep`).
-- Any `*.private.py`, `*.private.json`, `*.private.parquet` file, **wherever it is**.
+- Any `*.private.py`, `*.private.json`, `*.private.parquet` file,
+  wherever it is.
 
-## What goes where
-| Type | Location |
-|---|---|
-| Winning procurement signal, calibrated params | `private/procurement/` |
-| Real tradable strategy, optimized thresholds | `private/strategies/` |
-| Edge data/derivatives | `private/data/` or `*.private.parquet` |
-| Generic reusable building block (no edge) | stays in `core/` (public) |
-
-> When in doubt: "does seeing this file give someone an advantage I lose?"
-> -> if yes, **private**.
+> Rule of thumb: configuration you would not want a counterparty to
+> read belongs here.
